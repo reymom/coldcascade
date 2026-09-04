@@ -9,6 +9,7 @@ import { DeskHooks } from "../../src/DeskHooks.sol";
 import { MapOracle } from "../../src/MapOracle.sol";
 import { DemoToken } from "../../src/DemoToken.sol";
 import { DeskParams } from "../../src/libs/DeskParams.sol";
+import { HyperCore } from "../../src/libs/HyperCore.sol";
 import { MockCoreReader } from "../mocks/MockCoreReader.sol";
 import { HyperCoreMock } from "../mocks/HyperCoreMock.sol";
 
@@ -55,7 +56,13 @@ abstract contract DeskTest is AquaSwapVMTest {
     }
 
     /// @notice Plants HyperCoreMock at 0x0806, 0x0807, 0x0809 and 0x080e.
+    /// @dev One bytecode at four addresses. Storage is per-address and vm.etch copies neither, so
+    ///      every instance starts blank and each is set through its own setter.
     function etchHyperCore() internal {
-        revert("todo");
+        bytes memory code = address(new HyperCoreMock()).code;
+        vm.etch(HyperCore.MARK_PX, code);
+        vm.etch(HyperCore.ORACLE_PX, code);
+        vm.etch(HyperCore.L1_BLOCK_NUMBER, code);
+        vm.etch(HyperCore.BBO, code);
     }
 }

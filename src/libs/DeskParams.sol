@@ -21,6 +21,8 @@ struct DeskParams {
 library DeskParamsLib {
     uint256 internal constant BPS = 10_000;
 
+    error PriceScaleOutOfRange(int256 exponent);
+
     function encode(DeskParams memory p) internal pure returns (bytes memory) {
         return abi.encode(p);
     }
@@ -30,11 +32,18 @@ library DeskParamsLib {
     }
 
     /// @notice pxNum / pxDen such that amountQuote = amountBase * rawPx * pxNum / pxDen.
+    /// @dev A raw L1 price is USD * 10^(6 - szDecimals), so the whole scale is a power of ten:
+    ///      10^(quoteDecimals + szDecimals - 6 - baseDecimals). BTC (szDecimals 5) on UBTC(8)
+    ///      against USDT0(6) gives 10^-3, which is the 1 / 1000 the desk ships with.
     function priceScale(uint8 szDecimals, uint8 baseDecimals, uint8 quoteDecimals)
         internal
         pure
         returns (uint64 pxNum, uint64 pxDen)
     {
-        revert("todo");
+        int256 e = int256(uint256(quoteDecimals)) + int256(uint256(szDecimals))
+            - 6 - int256(uint256(baseDecimals));
+        if (e > 18 || e < -18) revert PriceScaleOutOfRange(e);
+        if (e >= 0) return (uint64(10 ** uint256(e)), 1);
+        return (1, uint64(10 ** uint256(-e)));
     }
 }
