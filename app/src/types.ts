@@ -48,12 +48,51 @@ export interface DeskQuote {
   lean: Side;
 }
 
+/// One row of results/oct10_replay.csv. Field order is the CSV column order and is frozen;
+/// results/oct10_replay.schema.md carries the units. Prices are raw HyperCore integers, notionals
+/// are whole USD, base is UBTC(8) units, quote is USDT0(6) units, bps are signed integers.
 export interface ReplayRow {
   t: number;
-  pnlControlBps: number;
-  pnlDeskBps: number;
-  baseControl: bigint;
-  baseDesk: bigint;
+  spot: bigint;
+  bid: bigint;
+  ask: bigint;
+  mark: bigint;
+  oracle: bigint;
+  deskBid: bigint;
+  deskAsk: bigint;
   lean: Side;
-  absorbedNtl: bigint;
+  dislocationBps: number;
+  mapBelowNtl: bigint;
+  mapAboveNtl: bigint;
+  forcedSellNtl: bigint;
+  forcedBuyNtl: bigint;
+  baseDesk: bigint;
+  quoteDesk: bigint;
+  baseControl: bigint;
+  quoteControl: bigint;
+  pnlDeskBps: number;
+  pnlControlBps: number;
+  absorbedDeskNtl: bigint;
+  absorbedControlNtl: bigint;
+  arbDeskNtl: bigint;
+  arbControlNtl: bigint;
+  markoutDesk5mBps: number;
+  markoutDesk15mBps: number;
+  markoutDesk60mBps: number;
+  markoutControl5mBps: number;
+  markoutControl15mBps: number;
+  markoutControl60mBps: number;
 }
+
+/// The CSV header, verbatim. `test_replay_writesResults` pins the same string on the Solidity
+/// side, so a column added on one side and not the other fails the suite rather than the page.
+export const REPLAY_COLUMNS = [
+  "t", "spot", "bid", "ask", "mark", "oracle", "deskBid", "deskAsk", "lean", "dislocationBps",
+  "mapBelowNtl", "mapAboveNtl", "forcedSellNtl", "forcedBuyNtl", "baseDesk", "quoteDesk",
+  "baseControl", "quoteControl", "pnlDeskBps", "pnlControlBps", "absorbedDeskNtl",
+  "absorbedControlNtl", "arbDeskNtl", "arbControlNtl", "markoutDesk5mBps", "markoutDesk15mBps",
+  "markoutDesk60mBps", "markoutControl5mBps", "markoutControl15mBps", "markoutControl60mBps",
+] as const;
+
+/// 0 none, 1 bid, 2 ask — how `lean` is written in the CSV.
+export const LEAN_FROM_CSV: readonly Side[] = ["none", "bid", "ask"];

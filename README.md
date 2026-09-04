@@ -35,6 +35,11 @@ forge test
   at `0x0806` / `0x0807` / `0x0809` / `0x080e` instead. What only a node can answer is measured on
   998 by `./script/probe998.sh`, which needs an RPC URL and no funded key:
   `results/998_precompiles.md` has the numbers and the reasoning they support.
+- The replay that draws the two lines is `forge test --match-contract Oct10Replay -vv`; it writes
+  `results/oct10_replay.csv`, whose columns are documented in `results/oct10_replay.schema.md`.
+  The committed CSV is a **stub run** off a nine-minute synthetic tape: its book and quote columns
+  are the real contract answering, its inventory and PnL columns are placeholders. The file next
+  to it, `oct10_replay.source`, says which tape produced it.
 
 ## Prior art
 

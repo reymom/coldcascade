@@ -9,7 +9,7 @@ via_ir = true
 libs = ["node_modules"]
 fs_permissions = [
   { access = "read", path = "./tape" },
-  { access = "write", path = "./results" },
+  { access = "read-write", path = "./results" },
 ]
 
 [rpc_endpoints]

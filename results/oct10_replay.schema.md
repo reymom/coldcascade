@@ -1,0 +1,63 @@
+# `oct10_replay.csv` — the columns
+
+One row per minute of the tape, in tape order, written by `test/Oct10Replay.t.sol`:
+
+```
+forge test --match-contract Oct10Replay -vv
+```
+
+The header in the file is the schema. It is frozen: `test_replay_writesResults` fails if the file
+does not carry it verbatim, `app/src/types.ts` mirrors it field for field, and
+`keeper/coldcascade/plot.py` reads it by name.
+
+## Units, once
+
+| kind | unit |
+|---|---|
+| prices (`spot`, `bid`, `ask`, `mark`, `oracle`, `deskBid`, `deskAsk`) | raw HyperCore. `price = raw / 10^(6 − szDecimals)`; BTC has szDecimals 5, so raw ÷ 10 is USD |
+| notionals (`*Ntl`) | whole USD |
+| `baseDesk`, `baseControl` | UBTC units, 8 decimals |
+| `quoteDesk`, `quoteControl` | USDT0 units, 6 decimals |
+| `*Bps` | signed integer basis points |
+| `t` | unix seconds, minute open |
+
+## The columns
+
+| # | column | meaning |
+|---|---|---|
+| 1 | `t` | minute open |
+| 2 | `spot` | Coinbase BTC-USD close. What both inventories are marked at |
+| 3–6 | `bid` `ask` `mark` `oracle` | the L1 book that minute, as the desk read it |
+| 7–8 | `deskBid` `deskAsk` | the desk's own two prices, from `CoreQuote.bounds()` under that book |
+| 9 | `lean` | 0 none, 1 bid, 2 ask — which side is absorbing |
+| 10 | `dislocationBps` | `(oracle − mark) · 1e4 / oracle`; positive is the book below oracle |
+| 11–12 | `mapBelowNtl` `mapAboveNtl` | what the liquidation map said, per side |
+| 13–14 | `forcedSellNtl` `forcedBuyNtl` | forced flow that actually hit the book this minute |
+| 15–16 | `baseDesk` `quoteDesk` | desk inventory after the minute |
+| 17–18 | `baseControl` `quoteControl` | plain-`XYCSwap` control inventory after the minute |
+| 19–20 | `pnlDeskBps` `pnlControlBps` | inventory marked at `spot`, against the starting value, in bps. **The two lines on the screen** |
+| 21–22 | `absorbedDeskNtl` `absorbedControlNtl` | forced flow each maker took this minute |
+| 23–24 | `arbDeskNtl` `arbControlNtl` | notional the arbitrage taker extracted from each maker |
+| 25–27 | `markoutDesk5mBps` `markoutDesk15mBps` `markoutDesk60mBps` | this minute's desk fills against spot 5, 15 and 60 minutes later; positive is the maker being right |
+| 28–30 | `markoutControl5mBps` `markoutControl15mBps` `markoutControl60mBps` | the same for the control |
+
+Two columns are structurally zero rather than missing: a minute with no fill has no markout, and
+neither does a minute the tape does not reach 5, 15 or 60 rows past. A nine-row tape therefore has
+no 15 or 60 minute markouts at all.
+
+`mapBelowNtl` and `forcedSellNtl` are different quantities that a stub run happens to set equal.
+The map is *resting* forced notional within 1% of mark, rebuilt by the keeper; the forced columns
+are flow that already traded. They separate as soon as the real map builder runs.
+
+## Provenance
+
+`oct10_replay.source`, written by the same test, names the tape the CSV came from, its
+`keccak256`, its length, and whether the takers were the real ones.
+
+**The committed CSV is a stub run.** It comes from `tape/oct10_btc_1m.stub.json`, nine synthetic
+minutes shaped to cross all three regimes. What is real in it: the book columns are the tape, and
+`deskBid`, `deskAsk`, `lean` and `dislocationBps` are the shipped `CoreQuote` answering under that
+book — the contract, not a model of it. What is not real: both takers are placeholders, so every
+inventory, PnL, absorbed, arbitrage and markout figure is synthetic and none of them may be
+quoted. `PLACEHOLDER_TAKERS` in the test fails the suite the moment the real tape lands with the
+placeholder still in place.

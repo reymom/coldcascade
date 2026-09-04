@@ -1,0 +1,101 @@
+[
+  {
+    "ask": 1210150,
+    "bid": 1209950,
+    "forcedBuyNtl": 0,
+    "forcedSellNtl": 0,
+    "mark": 1210050,
+    "oracle": 1210000,
+    "spot": 1210000,
+    "t": 1760130000,
+    "takerNtl": 4000000
+  },
+  {
+    "ask": 1208200,
+    "bid": 1207000,
+    "forcedBuyNtl": 0,
+    "forcedSellNtl": 0,
+    "mark": 1207600,
+    "oracle": 1208000,
+    "spot": 1208000,
+    "t": 1760130060,
+    "takerNtl": 6000000
+  },
+  {
+    "ask": 1192000,
+    "bid": 1186000,
+    "forcedBuyNtl": 0,
+    "forcedSellNtl": 42000000,
+    "mark": 1189000,
+    "oracle": 1194000,
+    "spot": 1194000,
+    "t": 1760130120,
+    "takerNtl": 38000000
+  },
+  {
+    "ask": 1155000,
+    "bid": 1143000,
+    "forcedBuyNtl": 0,
+    "forcedSellNtl": 190000000,
+    "mark": 1149000,
+    "oracle": 1162000,
+    "spot": 1162000,
+    "t": 1760130180,
+    "takerNtl": 210000000
+  },
+  {
+    "ask": 1092000,
+    "bid": 1072000,
+    "forcedBuyNtl": 3000000,
+    "forcedSellNtl": 480000000,
+    "mark": 1082000,
+    "oracle": 1105000,
+    "spot": 1105000,
+    "t": 1760130240,
+    "takerNtl": 560000000
+  },
+  {
+    "ask": 1071000,
+    "bid": 1051000,
+    "forcedBuyNtl": 9000000,
+    "forcedSellNtl": 310000000,
+    "mark": 1061000,
+    "oracle": 1078000,
+    "spot": 1078000,
+    "t": 1760130300,
+    "takerNtl": 400000000
+  },
+  {
+    "ask": 1099000,
+    "bid": 1089000,
+    "forcedBuyNtl": 55000000,
+    "forcedSellNtl": 40000000,
+    "mark": 1094000,
+    "oracle": 1099000,
+    "spot": 1099000,
+    "t": 1760130360,
+    "takerNtl": 180000000
+  },
+  {
+    "ask": 1129000,
+    "bid": 1125000,
+    "forcedBuyNtl": 88000000,
+    "forcedSellNtl": 0,
+    "mark": 1127000,
+    "oracle": 1123000,
+    "spot": 1123000,
+    "t": 1760130420,
+    "takerNtl": 120000000
+  },
+  {
+    "ask": 1131600,
+    "bid": 1130800,
+    "forcedBuyNtl": 0,
+    "forcedSellNtl": 0,
+    "mark": 1131200,
+    "oracle": 1131000,
+    "spot": 1131000,
+    "t": 1760130480,
+    "takerNtl": 30000000
+  }
+]
