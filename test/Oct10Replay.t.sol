@@ -86,6 +86,13 @@ contract Oct10ReplayTest is DeskTest {
     /// @dev Flip to false in the same commit that makes the takers real.
     bool internal constant PLACEHOLDER_TAKERS = true;
 
+    /// @dev The markout horizons, in minutes. keeper/coldcascade/tape.py mirrors them in
+    ///      MARKOUT_HORIZONS_MINUTES and cuts the tape's tail from the longest.
+    uint256 internal constant MARKOUT_5M = 5;
+    uint256 internal constant MARKOUT_15M = 15;
+    uint256 internal constant MARKOUT_60M = 60;
+    uint256 internal constant LONGEST_MARKOUT = MARKOUT_60M;
+
     uint16 internal constant ARB_EDGE_BPS = 10;       // todo: set from the dry run
     uint16 internal constant ARB_SHARE_BPS = 500;     // share of the minute's aggressive flow the arb is
     uint16 internal constant FLOW_CAPTURE_BPS = 10;   // share of the minute's forced notional routed here
@@ -139,8 +146,41 @@ contract Oct10ReplayTest is DeskTest {
         }
     }
 
-    /// @dev A markout needs a later spot, so the last horizon-worth of minutes cannot have one and
-    ///      is written as zero. On a 9-minute stub that is every 15 and 60 minute column.
+    /// @dev The tape has to outlive its own last fill by the longest markout horizon, or
+    ///      `markoutDesk60mBps` is structurally zero for every fill the desk made and the screen
+    ///      shows only the half of the trade that loses — the minutes where the desk is holding
+    ///      what it just caught and is still underwater on it. `select_window` in
+    ///      keeper/coldcascade/tape.py cuts the window to guarantee this; here is the assertion.
+    ///
+    ///      The fix when this fails is a longer tape, never a shorter horizon.
+    function test_tape_coversTheLongestMarkout() public {
+        (Tick[] memory tape,) = loadTape();
+        Row[] memory rows = run(tape);
+
+        bool anyFill;
+        uint256 lastFill;
+        for (uint256 i = 0; i < rows.length; ++i) {
+            if (deskFillPx[i] != 0 || controlFillPx[i] != 0) {
+                lastFill = i;
+                anyFill = true;
+            }
+        }
+        assertTrue(anyFill, "the tape produced no fills at all");
+        assertLt(
+            lastFill + LONGEST_MARKOUT,
+            tape.length,
+            "the tape stops inside the last fill's longest markout: extend the tape, not the horizon"
+        );
+
+        bool anyMarkout60;
+        for (uint256 i = 0; i < rows.length; ++i) {
+            if (rows[i].markoutDesk60mBps != 0) anyMarkout60 = true;
+        }
+        assertTrue(anyMarkout60, "no fill in the file carries a 60 minute markout: the column is dead");
+    }
+
+    /// @dev A markout needs a later spot, so a minute the tape does not reach past is written as
+    ///      zero. After test_tape_coversTheLongestMarkout that can only be the tail itself.
     function test_replay_fillsCarryMarkouts() public {
         (Tick[] memory tape,) = loadTape();
         Row[] memory rows = run(tape);
@@ -149,7 +189,7 @@ contract Oct10ReplayTest is DeskTest {
         for (uint256 i = 0; i < rows.length; ++i) {
             if (deskFillPx[i] == 0) continue;
             anyFill = true;
-            bool hasLaterSpot = i + 5 < tape.length;
+            bool hasLaterSpot = i + MARKOUT_5M < tape.length;
             assertEq(
                 rows[i].markoutDesk5mBps != 0 || !hasLaterSpot,
                 true,
@@ -269,12 +309,12 @@ contract Oct10ReplayTest is DeskTest {
     ///      does not reach past, are zero.
     function markouts(Row[] memory rows, Tick[] memory tape) internal view {
         for (uint256 i = 0; i < rows.length; ++i) {
-            rows[i].markoutDesk5mBps = markoutAt(deskFillPx[i], tape, i, 5, true);
-            rows[i].markoutDesk15mBps = markoutAt(deskFillPx[i], tape, i, 15, true);
-            rows[i].markoutDesk60mBps = markoutAt(deskFillPx[i], tape, i, 60, true);
-            rows[i].markoutControl5mBps = markoutAt(controlFillPx[i], tape, i, 5, true);
-            rows[i].markoutControl15mBps = markoutAt(controlFillPx[i], tape, i, 15, true);
-            rows[i].markoutControl60mBps = markoutAt(controlFillPx[i], tape, i, 60, true);
+            rows[i].markoutDesk5mBps = markoutAt(deskFillPx[i], tape, i, MARKOUT_5M, true);
+            rows[i].markoutDesk15mBps = markoutAt(deskFillPx[i], tape, i, MARKOUT_15M, true);
+            rows[i].markoutDesk60mBps = markoutAt(deskFillPx[i], tape, i, MARKOUT_60M, true);
+            rows[i].markoutControl5mBps = markoutAt(controlFillPx[i], tape, i, MARKOUT_5M, true);
+            rows[i].markoutControl15mBps = markoutAt(controlFillPx[i], tape, i, MARKOUT_15M, true);
+            rows[i].markoutControl60mBps = markoutAt(controlFillPx[i], tape, i, MARKOUT_60M, true);
         }
     }
 

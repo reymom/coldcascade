@@ -1,4 +1,4 @@
 tape: tape/oct10_btc_1m.stub.json
-keccak256: 0x07de953b84688ee0034c7166a5c2cdbb5e49efab38c73c99da3b34591602b81e
-ticks: 9
+keccak256: 0x30d1a9298c22c8de068742f1c9fa47aafb27555bcb8fda7a63a0ff7f35cc501e
+ticks: 123
 takers: placeholder

@@ -41,9 +41,12 @@ does not carry it verbatim, `app/src/types.ts` mirrors it field for field, and
 | 25–27 | `markoutDesk5mBps` `markoutDesk15mBps` `markoutDesk60mBps` | this minute's desk fills against spot 5, 15 and 60 minutes later; positive is the maker being right |
 | 28–30 | `markoutControl5mBps` `markoutControl15mBps` `markoutControl60mBps` | the same for the control |
 
-Two columns are structurally zero rather than missing: a minute with no fill has no markout, and
-neither does a minute the tape does not reach 5, 15 or 60 rows past. A nine-row tape therefore has
-no 15 or 60 minute markouts at all.
+A markout is zero rather than missing when the minute had no fill, or when the tape does not reach
+5, 15 or 60 rows past it. The second case is only allowed to happen inside the tail: the tape runs
+at least 60 minutes past its own last fill, `select_window` in `keeper/coldcascade/tape.py` cuts it
+that way, and `test_tape_coversTheLongestMarkout` fails if it does not. The fix when that test
+fails is a longer tape, never a shorter horizon — the minutes after a cascade are exactly where
+the desk is holding what it caught, and cutting them shows only the half of the trade that loses.
 
 `mapBelowNtl` and `forcedSellNtl` are different quantities that a stub run happens to set equal.
 The map is *resting* forced notional within 1% of mark, rebuilt by the keeper; the forced columns
@@ -54,10 +57,19 @@ are flow that already traded. They separate as soon as the real map builder runs
 `oct10_replay.source`, written by the same test, names the tape the CSV came from, its
 `keccak256`, its length, and whether the takers were the real ones.
 
-**The committed CSV is a stub run.** It comes from `tape/oct10_btc_1m.stub.json`, nine synthetic
-minutes shaped to cross all three regimes. What is real in it: the book columns are the tape, and
-`deskBid`, `deskAsk`, `lean` and `dislocationBps` are the shipped `CoreQuote` answering under that
-book — the contract, not a model of it. What is not real: both takers are placeholders, so every
-inventory, PnL, absorbed, arbitrage and markout figure is synthetic and none of them may be
-quoted. `PLACEHOLDER_TAKERS` in the test fails the suite the moment the real tape lands with the
-placeholder still in place.
+**The committed CSV is a stub run**, off `tape/oct10_btc_1m.stub.json`. Three layers, and they
+are not equally real:
+
+| layer | source |
+|---|---|
+| `spot`, `oracle`, `takerNtl` | **real.** Coinbase BTC-USD 1m closes and volume, 2025-10-10 21:03 → 23:05 UTC, pulled 2026-09-05. The trough on the tape is $107 600 at 21:21; Coinbase's low for the day was $107 000 at 21:26 |
+| `mark`, `bid`, `ask`, `forcedSellNtl`, `forcedBuyNtl` | **synthetic.** `forced_overlay` walks mark off oracle in proportion to each minute's return and calls a minute forced when it moves more than eight times the session's own median. The fill log that would replace this is on S3 and requester-pays |
+| `deskBid`, `deskAsk`, `lean`, `dislocationBps` | **the contract.** `CoreQuote.bounds()` and `.regime()` answering under the row's book — not a model of the quote, the quote |
+| everything else | **placeholder.** Both takers are stubs, so every inventory, PnL, absorbed, arbitrage and markout figure is synthetic and none may be quoted |
+
+`PLACEHOLDER_TAKERS` in the test fails the suite the moment the real tape lands with the
+placeholder still in place. Regenerate the tape with:
+
+```
+python -m coldcascade tape --stub
+```

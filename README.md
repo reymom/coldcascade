@@ -37,9 +37,11 @@ forge test
   `results/998_precompiles.md` has the numbers and the reasoning they support.
 - The replay that draws the two lines is `forge test --match-contract Oct10Replay -vv`; it writes
   `results/oct10_replay.csv`, whose columns are documented in `results/oct10_replay.schema.md`.
-  The committed CSV is a **stub run** off a nine-minute synthetic tape: its book and quote columns
-  are the real contract answering, its inventory and PnL columns are placeholders. The file next
-  to it, `oct10_replay.source`, says which tape produced it.
+  The committed CSV is a **stub run** off `tape/oct10_btc_1m.stub.json`: 123 minutes whose spot is
+  real Coinbase 1m data from the 2025-10-10 cascade, whose book and forced flow are a synthetic
+  overlay, and whose quote columns are the contract itself answering. Its inventory and PnL
+  columns are placeholders. The file next to it, `oct10_replay.source`, says which tape produced
+  it. The tape runs 60 minutes past its own last fill so every markout horizon exists.
 
 ## Prior art
 
