@@ -5,10 +5,11 @@ import { AquaSwapVMTest } from "@1inch/swap-vm/test/base/AquaSwapVMTest.sol";
 import { ISwapVM } from "@1inch/swap-vm/src/interfaces/ISwapVM.sol";
 
 import { CoreQuote } from "../../src/CoreQuote.sol";
+import { CorePrecompiles } from "../../src/CorePrecompiles.sol";
 import { DeskHooks } from "../../src/DeskHooks.sol";
 import { MapOracle } from "../../src/MapOracle.sol";
 import { DemoToken } from "../../src/DemoToken.sol";
-import { DeskParams } from "../../src/libs/DeskParams.sol";
+import { DeskParams, DeskParamsLib } from "../../src/libs/DeskParams.sol";
 import { HyperCore } from "../../src/libs/HyperCore.sol";
 import { MockCoreReader } from "../mocks/MockCoreReader.sol";
 import { HyperCoreMock } from "../mocks/HyperCoreMock.sol";
@@ -16,6 +17,10 @@ import { HyperCoreMock } from "../mocks/HyperCoreMock.sol";
 /// @notice Every desk test extends 1inch's own Aqua harness: their Aqua, their router, their
 ///         MockTaker. What is added is the pair with real decimals, the reader, the hook and the
 ///         canonical orders.
+/// @dev The reader under test is `CorePrecompiles`, reading `HyperCoreMock` etched at 0x0806,
+///      0x0807, 0x0809 and 0x080e — the same path the 998 probe measured, mock only at the node
+///      boundary. `MockCoreReader` stays available for tests that do not care where a book came
+///      from; `setBook` writes both so they never disagree.
 abstract contract DeskTest is AquaSwapVMTest {
     uint32 internal constant BTC = 0;
 
@@ -25,21 +30,64 @@ abstract contract DeskTest is AquaSwapVMTest {
     uint64 internal constant QUIET_MARK = 795_450;
     uint64 internal constant QUIET_ORACLE = 795_790;
 
+    /// @dev szDecimals of BTC on 999, from perpAssetInfo(0). UBTC has 8 decimals, USDT0 has 6.
+    uint8 internal constant BTC_SZ_DECIMALS = 5;
+    uint8 internal constant UBTC_DECIMALS = 8;
+    uint8 internal constant USDT0_DECIMALS = 6;
+
+    /// @dev Provisional band. ARCHITECTURE §2.3 sets the real one off the Oct-10 run; until that
+    ///      run exists these are round numbers chosen to sit either side of the 4 bps the quiet
+    ///      999 book showed, and nothing outside the test suite quotes them.
+    uint16 internal constant QUIET_BPS = 20;
+    uint16 internal constant LEAN_BPS = 15;
+    uint16 internal constant STRESS_BPS = 25;
+    uint32 internal constant MAP_MAX_AGE = 300;
+    uint128 internal constant MAP_MIN_NOTIONAL = 5_000_000;
+
     DemoToken internal ubtc;
     DemoToken internal usdt0;
     MockCoreReader internal reader;
+    CorePrecompiles internal precompiles;
     CoreQuote internal coreQuote;
     DeskHooks internal hooks;
     MapOracle internal mapOracle;
 
     function setUp() public virtual override {
         super.setUp();
-        // todo: ubtc/usdt0, reader, coreQuote(reader), hooks(router, reader), mapOracle(this)
+
+        etchHyperCore();
+
+        ubtc = new DemoToken("Unit Bitcoin", "UBTC", UBTC_DECIMALS);
+        usdt0 = new DemoToken("Tether USD0", "USDT0", USDT0_DECIMALS);
+
+        precompiles = new CorePrecompiles();
+        reader = new MockCoreReader();
+        coreQuote = new CoreQuote(precompiles);
+        hooks = new DeskHooks(address(swapVM), precompiles);
+        mapOracle = new MapOracle(address(this));
+
+        setBook(QUIET_BID, QUIET_ASK, QUIET_MARK, QUIET_ORACLE);
     }
 
     /// @notice Default parameters for BTC on UBTC(8)/USDT0(6), book-only. Tests override fields.
     function btcParams() internal view returns (DeskParams memory) {
-        revert("todo");
+        (uint64 pxNum, uint64 pxDen) =
+            DeskParamsLib.priceScale(BTC_SZ_DECIMALS, UBTC_DECIMALS, USDT0_DECIMALS);
+        return DeskParams({
+            base: address(ubtc),
+            quote: address(usdt0),
+            perpIndex: BTC,
+            pxNum: pxNum,
+            pxDen: pxDen,
+            quietBps: QUIET_BPS,
+            leanBps: LEAN_BPS,
+            stressBps: STRESS_BPS,
+            mapOracle: address(0),
+            mapMaxAge: MAP_MAX_AGE,
+            mapMinNotional: MAP_MIN_NOTIONAL,
+            minBase: 0,
+            maxBase: type(uint128).max
+        });
     }
 
     function deskOrder(DeskParams memory p, bytes32 salt) internal view returns (ISwapVM.Order memory) {
@@ -52,7 +100,16 @@ abstract contract DeskTest is AquaSwapVMTest {
 
     /// @notice Sets the book on the mock reader and, if etched, on the precompile mocks.
     function setBook(uint64 bid, uint64 ask, uint64 mark, uint64 oracle) internal {
-        revert("todo");
+        setBookAt(BTC, bid, ask, mark, oracle);
+    }
+
+    function setBookAt(uint32 perpIndex, uint64 bid, uint64 ask, uint64 mark, uint64 oracle) internal {
+        reader.set(perpIndex, bid, ask, mark, oracle);
+        if (HyperCore.BBO.code.length != 0) {
+            HyperCoreMock(payable(HyperCore.BBO)).setBbo(perpIndex, bid, ask);
+            HyperCoreMock(payable(HyperCore.MARK_PX)).setPx(perpIndex, mark);
+            HyperCoreMock(payable(HyperCore.ORACLE_PX)).setPx(perpIndex, oracle);
+        }
     }
 
     /// @notice Plants HyperCoreMock at 0x0806, 0x0807, 0x0809 and 0x080e.

@@ -16,11 +16,19 @@ contract MapOracle is IMapOracle {
         UPDATER = updater;
     }
 
+    /// @notice Post the forced notional sitting within 1% of mark on each side.
+    /// @dev The timestamp is set here, not passed in: the quote's staleness check is only worth
+    ///      anything if the clock is the chain's and not the keeper's.
     function update(uint32 perpIndex, uint128 belowNotional, uint128 aboveNotional) external {
-        revert("todo");
+        if (msg.sender != UPDATER) revert NotUpdater(msg.sender);
+        uint64 updatedAt = uint64(block.timestamp);
+        _maps[perpIndex] =
+            LiquidationMap({ belowNotional: belowNotional, aboveNotional: aboveNotional, updatedAt: updatedAt });
+        emit MapUpdated(perpIndex, belowNotional, aboveNotional, updatedAt);
     }
 
+    /// @notice A perp never updated reads as (0, 0, 0), which every consumer treats as no map.
     function map(uint32 perpIndex) external view returns (LiquidationMap memory) {
-        revert("todo");
+        return _maps[perpIndex];
     }
 }
