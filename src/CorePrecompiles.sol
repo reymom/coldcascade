@@ -4,10 +4,11 @@ pragma solidity 0.8.30;
 import { ICoreReader, Book } from "./interfaces/ICoreReader.sol";
 import { HyperCore } from "./libs/HyperCore.sol";
 
-/// @notice The trustless reader: four capped staticcalls to the node. Chosen as CoreQuote's READER
-///         if the Friday probe on 998 shows a view target can reach 0x080e from a STATICCALL frame.
+/// @notice The trustless reader: three capped staticcalls to the node, no state, no owner.
+/// @dev Chosen as CoreQuote's READER because the 998 probe showed a view target reached through
+///      STATICCALL gets its two words back from 0x080e at the same cost as at depth one.
 contract CorePrecompiles is ICoreReader {
     function read(uint32 perpIndex) external view returns (Book memory) {
-        revert("todo");
+        return HyperCore.book(perpIndex);
     }
 }
