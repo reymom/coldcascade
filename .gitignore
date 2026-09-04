@@ -9,3 +9,9 @@ subgraph/build/
 subgraph/generated/
 app/node_modules/
 app/dist/
+
+# working docs — never shipped; the submission repo holds only what a judge reads
+CLAUDE.md
+AGENTS.md
+.claude/
+*.local.md

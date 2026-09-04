@@ -1,0 +1,29 @@
+name: hygiene
+on: [push, pull_request]
+
+# The submission repo holds only what a judge reads: no internal working documents,
+# and no references to private projects or to the pre-event learning repo. It is a
+# cleanliness rule, not a concealment one — commit trailers are deliberately NOT
+# checked, because attribution is Ramon's call per commit, not the CI's.
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: no working docs are tracked
+        run: |
+          if git ls-files | grep -nE '(^|/)(CLAUDE|AGENTS)\.md$|(^|/)\.claude/'; then
+            echo "::error::A working doc is tracked. Add it to .gitignore and git rm --cached it."
+            exit 1
+          fi
+          echo "ok"
+
+      - name: no tooling or internal references in tracked files
+        run: |
+          if git grep -nIiE 'co-authored-by|generated with|claude|anthropic|defistar|learning spike' \
+               -- ':!yarn.lock' ':!.gitignore' ':!.github/workflows/hygiene.yml'; then
+            echo "::error::Tracked file contains an internal reference. Remove it before pushing."
+            exit 1
+          fi
+          echo "ok"

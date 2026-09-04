@@ -1,6 +1,6 @@
 # coldcascade subgraph
 
-An agent's guide to the desk's data on The Graph. Filled in when the endpoint is live.
+A guide to the desk's data on The Graph. Filled in when the endpoint is live.
 
 ## Endpoint
 
