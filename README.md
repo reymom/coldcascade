@@ -15,7 +15,8 @@ it from their own wallet; Aqua custodies nothing.
 
 ## Status
 
-Scaffolding. Interfaces, program shape, test names. Numbers arrive when the replay runs.
+Scaffolding, plus a reader that has been run against a live node. The quote itself is next, and
+its numbers arrive when the replay runs.
 
 ## Build
 
@@ -29,9 +30,11 @@ forge test
   `@1inch/solidity-utils` is held at 6.9.10 through `resolutions`, because Aqua's 6.9.7 is
   missing `TransientLockUnsafe.sol`.
 - HyperEVM mainnet is chain 999 (gas 0.1 gwei), testnet 998. `eth_getLogs` caps at 1000 blocks.
-- **The HyperCore precompiles carry no bytecode**, so a forge fork cannot call them. Tests etch
-  `test/mocks/HyperCoreMock.sol` at `0x0806` / `0x0807` / `0x080e`; live behaviour is probed on
-  998 with `script/Probe.s.sol`. This is why the suite is green with skips before the probe runs.
+- **The HyperCore precompiles carry no bytecode**, so a forge fork cannot call them and much of
+  the suite is skipped until the piece it covers exists. Tests etch `test/mocks/HyperCoreMock.sol`
+  at `0x0806` / `0x0807` / `0x0809` / `0x080e` instead. What only a node can answer is measured on
+  998 by `./script/probe998.sh`, which needs an RPC URL and no funded key:
+  `results/998_precompiles.md` has the numbers and the reasoning they support.
 
 ## Prior art
 
