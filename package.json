@@ -1,0 +1,23 @@
+{
+  "name": "coldcascade",
+  "version": "0.0.1",
+  "private": true,
+  "description": "A 1inch Aqua maker program on HyperEVM whose quote reads Hyperliquid's own book and leans into liquidation cascades.",
+  "license": "MIT",
+  "scripts": {
+    "build": "forge build",
+    "test": "forge test",
+    "replay": "forge test --match-contract Oct10Replay -vv",
+    "fork": "forge test --match-path 'test/fork/*' -vvv"
+  },
+  "dependencies": {
+    "@1inch/aqua": "github:1inch/aqua#9c5c42e5840e8741fba3597c48456c9510212b66",
+    "@1inch/swap-vm": "github:1inch/swap-vm#9502fd44254fef12fa448c3059868505b4c9dfff",
+    "@1inch/solidity-utils": "6.9.10",
+    "@openzeppelin/contracts": "5.4.0",
+    "forge-std": "github:foundry-rs/forge-std#v1.11.0"
+  },
+  "resolutions": {
+    "@1inch/solidity-utils": "6.9.10"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "One minute of the Oct-10 BTC tape",
+  "description": "Array of ticks. Prices in raw HyperCore units (BTC: USD * 10). Notionals in USD. Keys are alphabetical on purpose: forge decodes JSON into structs in that order.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["ask", "bid", "forcedBuyNtl", "forcedSellNtl", "mark", "oracle", "spot", "t", "takerNtl"],
+    "properties": {
+      "ask": { "type": "integer", "description": "raw L1 ask, reconstructed as mark + half the quiet spread" },
+      "bid": { "type": "integer", "description": "raw L1 bid, reconstructed as mark - half the quiet spread" },
+      "forcedBuyNtl": { "type": "integer", "description": "USD notional of forced buys (short liquidations) hitting the book this minute" },
+      "forcedSellNtl": { "type": "integer", "description": "USD notional of forced sells (long liquidations) hitting the book this minute" },
+      "mark": { "type": "integer", "description": "raw, VWAP of Hyperliquid BTC-PERP fills this minute" },
+      "oracle": { "type": "integer", "description": "raw, Coinbase BTC-USD close (Hyperliquid's oracle is a CEX median)" },
+      "spot": { "type": "integer", "description": "raw, Coinbase BTC-USD close; what inventory is marked at" },
+      "t": { "type": "integer", "description": "unix seconds, minute open" },
+      "takerNtl": { "type": "integer", "description": "USD notional of all aggressive flow this minute" }
+    }
+  }
+}

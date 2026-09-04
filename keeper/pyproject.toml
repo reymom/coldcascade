@@ -1,0 +1,18 @@
+[project]
+name = "coldcascade-keeper"
+version = "0.0.1"
+description = "Off-chain side of the desk: the tape, the liquidation map, the book poker, the markouts, the replay driver."
+requires-python = ">=3.11"
+dependencies = [
+  "web3>=7",
+  "requests>=2.32",
+  "pandas>=2.2",
+  "matplotlib>=3.9",
+]
+
+[project.scripts]
+coldcascade = "coldcascade.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"

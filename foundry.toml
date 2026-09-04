@@ -1,0 +1,22 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+solc = "0.8.30"
+optimizer = true
+optimizer_runs = 1_000_000
+via_ir = true
+libs = ["node_modules"]
+fs_permissions = [
+  { access = "read", path = "./tape" },
+  { access = "write", path = "./results" },
+]
+
+[rpc_endpoints]
+hyperevm = "${HYPEREVM_RPC_URL}"
+hypertestnet = "${HYPERTESTNET_RPC_URL}"
+
+[fmt]
+bracket_spacing = true
+int_types = "long"
+number_underscore = "thousands"
