@@ -3,19 +3,24 @@
 # replay CSV it reads, and the README. Everything else — the contracts, the tests,
 # the scripts, the keeper — is the edge, and it goes public on our schedule, not
 # because a static host happened to serve it.
-src/
-test/
-script/
-keeper/
-subgraph/
-lib/
-out/
-cache/
-broadcast/
-node_modules/
-tape/
-.github/
-foundry.toml
-remappings.txt
-package.json
-yarn.lock
+#
+# Every pattern is ROOT-ANCHORED with a leading slash. Without it these are
+# gitignore patterns that match at any depth, and `src/` silently deletes
+# `app/src/` too — which is exactly what happened on the first deploy: the page
+# shipped, every module 404'd, and it hung on "connecting to HyperEVM…".
+/src/
+/test/
+/script/
+/keeper/
+/subgraph/
+/lib/
+/out/
+/cache/
+/broadcast/
+/node_modules/
+/tape/
+/.github/
+/foundry.toml
+/remappings.txt
+/package.json
+/yarn.lock
