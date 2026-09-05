@@ -10,13 +10,37 @@ HyperEVM deployment has no makers. This is the first program that quotes against
 The program is `XYCSwap || Extruction(CoreQuote)` on the official SwapVM router. `CoreQuote`
 reads the book in the quote itself. In the quiet the desk sits outside L1, so it cannot be taken
 stale. When the book dislocates from oracle, or a fresh liquidation map says mark is walking into
-forced flow, the absorbing side moves inside the spread and warehouses the overshoot. Makers ship
-it from their own wallet; Aqua custodies nothing.
+forced flow, the absorbing side moves inside the spread and warehouses the overshoot. Aqua
+custodies nothing.
+
+## The desk is a contract
+
+`DeskFactory.open` deploys a `DeskAccount` — an EIP-1167 clone owned by the caller — and in the
+same transaction moves the maker's two tokens into it, approves Aqua and ships the strategy. The
+account is the Aqua maker. Its owner has four typed calls: `reopen`, `close`, `withdraw`,
+`armHedge`. `close` is one call that docks the strategy and sends everything home.
+
+It is not a vault: no pooling, no shares, no third party, no fee, no admin, no upgrade. What it
+costs is that the maker's tokens sit in a contract the maker owns rather than in the wallet. What
+it buys is a desk with an address — something a name can point at, an indexer can address, and a
+margin account can belong to. A plain EOA maker still works; the tests ship the control from one.
+
+Aqua keys a strategy by the hash of its bytes and refuses one it has already seen, and docking
+does not free the key. So parameters are immutable per strategy, a parameter change is a dock and
+a fresh ship, and every ship carries a per-account salt.
+
+`DeskHooks` is the single post-transfer-out hook and the single `Fill` emitter: the four L1 words
+and the liquidation map go into the log beside the amounts, so a markout can be computed from
+indexed data alone. After emitting, a maker with code is handed `onFill` under a 250 000 gas cap
+with every failure caught. By then the taker has been paid, so **cover can never fail a fill** — a
+maker that reverts on every callback still gets filled, and one that burns everything it is handed
+costs the taker the cap rather than its budget. Both are tests.
 
 ## Status
 
-Scaffolding, plus a reader that has been run against a live node. The quote itself is next, and
-its numbers arrive when the replay runs.
+The quote, the program encoder and the desk account are built and tested against 1inch's own Aqua
+and router. The HyperCore reader has been run against a live node. Deployment, the console and the
+CoreWriter cover leg are next; the numbers arrive when the replay runs on a real tape.
 
 ## Build
 
@@ -35,6 +59,10 @@ forge test
   at `0x0806` / `0x0807` / `0x0809` / `0x080e` instead. What only a node can answer is measured on
   998 by `./script/probe998.sh`, which needs an RPC URL and no funded key:
   `results/998_precompiles.md` has the numbers and the reasoning they support.
+- A SwapVM instruction is `[opcode][uint8 length][args]`, so **one instruction carries at most
+  255 bytes** and `Extruction` spends 20 of them on its target. `abi.encode(DeskParams)` is 416 and
+  does not build; the packed encoding in `src/libs/DeskParams.sol` is 138 and is exact — `decode`
+  rejects any other length rather than reading a short buffer as a desk with a zero inventory band.
 - The replay that draws the two lines is `forge test --match-contract Oct10Replay -vv`; it writes
   `results/oct10_replay.csv`, whose columns are documented in `results/oct10_replay.schema.md`.
   The committed CSV is a **stub run** off `tape/oct10_btc_1m.stub.json`: 123 minutes whose spot is
