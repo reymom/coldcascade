@@ -4,55 +4,75 @@ pragma solidity 0.8.30;
 import { ISwapVM } from "@1inch/swap-vm/src/interfaces/ISwapVM.sol";
 import { XYCSwap } from "@1inch/swap-vm/src/instructions/XYCSwap.sol";
 import { Extruction } from "@1inch/swap-vm/src/instructions/Extruction.sol";
-import { Salt } from "@1inch/swap-vm/src/instructions/Controls.sol";
+import { Controls } from "@1inch/swap-vm/src/instructions/Controls.sol";
+import { Program, ProgramBuilder } from "@1inch/swap-vm/test/utils/ProgramBuilder.sol";
 import { IAqua } from "@1inch/aqua/src/interfaces/IAqua.sol";
 
 import { DeskTest } from "./base/DeskTest.sol";
 import { DeskParams, DeskParamsLib } from "../src/libs/DeskParams.sol";
 import { DeskPrograms } from "../src/libs/DeskPrograms.sol";
+import { CoreQuote } from "../src/CoreQuote.sol";
+import { DemoToken } from "../src/DemoToken.sol";
 
 /// @notice The encoder is the one place a program can be got wrong, so it is the one place with a
 ///         byte-for-byte test. F4 lives here: Aqua keys a strategy by `keccak256(strategy)` while
 ///         the router hashes `keccak256(abi.encode(order))`, and the two agree only because both
 ///         sides go through `strategyBytes`.
 contract DeskProgramsTest is DeskTest {
+    using ProgramBuilder for Program;
+
     bytes32 internal constant SALT = keccak256("desk-1");
     uint256 internal constant START_BASE = 10e8;
     uint256 internal constant START_QUOTE = 800_000e6;
 
-    /// @dev Nothing in the program is our encoding: it is 1inch's two builders, concatenated in
-    ///      the order the quote depends on, plus their salt.
+    /// @dev **An opcode is a position in the router's own table**, so the three constants in
+    ///      `DeskPrograms` are the one thing in the encoder that could silently become wrong: reorder
+    ///      `AquaOpcodes._opcodes()` and a desk ships a program that dispatches into a different
+    ///      instruction, with no error anywhere. This derives them from the table itself.
+    function test_opcodes_matchTheRoutersOwnTable() public view {
+        Program memory table = ProgramBuilder.init(_opcodes());
+        assertEq(table.findOpcode(XYCSwap._xycSwapXD), DeskPrograms.OP_XYC_SWAP, "XYCSwap");
+        assertEq(table.findOpcode(Controls._salt), DeskPrograms.OP_SALT, "Salt");
+        assertEq(table.findOpcode(Extruction._extruction), DeskPrograms.OP_EXTRUCTION, "Extruction");
+    }
+
+    /// @dev And the bytes around those opcodes are 1inch's own instruction layout, built by their
+    ///      `ProgramBuilder` rather than by ours, in the order the quote depends on.
     function test_canonicalProgramBytes() public view {
         DeskParams memory p = btcParams();
+        Program memory table = ProgramBuilder.init(_opcodes());
         bytes memory program = DeskPrograms.desk(address(coreQuote), p);
 
-        assertEq(
-            program,
-            bytes.concat(XYCSwap.build(), Extruction.build(address(coreQuote), DeskParamsLib.encode(p))),
-            "the desk program is exactly XYCSwap || Extruction(CoreQuote, params)"
-        );
+        bytes memory xyc = table.build(XYCSwap._xycSwapXD);
+        bytes memory extruction =
+            table.build(Extruction._extruction, abi.encodePacked(address(coreQuote), DeskParamsLib.encode(p)));
+        bytes memory salt = table.build(Controls._salt, abi.encodePacked(SALT));
+
+        assertEq(program, bytes.concat(xyc, extruction), "the desk program is XYCSwap || Extruction(CoreQuote, params)");
         assertEq(
             DeskPrograms.deskWithSalt(address(coreQuote), p, SALT),
-            bytes.concat(program, Salt.build(abi.encodePacked(SALT))),
+            bytes.concat(program, salt),
             "the salt is appended, never woven in"
         );
         assertEq(
-            DeskPrograms.control(SALT),
-            bytes.concat(XYCSwap.build(), Salt.build(abi.encodePacked(SALT))),
-            "the control is the same curve with the bound removed"
+            DeskPrograms.control(SALT), bytes.concat(xyc, salt), "the control is the same curve with the bound removed"
         );
     }
 
-    /// @dev F6. The curve fills the leg and CoreQuote bounds what it filled; reversed, the curve
-    ///      overwrites the bound and the desk quotes a constant product with a book-shaped comment.
-    ///      A generous curve makes the difference visible: ordered, it is cut back to the book.
+    /// @dev F6, and it has changed shape. The curve fills the leg and CoreQuote bounds what it
+    ///      filled. Reversed, `XYCSwap` finds `amountOut` already written by the Extruction and
+    ///      reverts `XYCSwapRecomputeDetected` — the deployed SwapVM refuses to recompute a leg
+    ///      another instruction has set, so the ordering mistake is now impossible rather than
+    ///      silent. The ordered program still has to be bounded to the book, which is the half of
+    ///      this that is ours.
     function test_curveComesBeforeQuote() public {
         DeskParams memory p = btcParams();
+        Program memory table = ProgramBuilder.init(_opcodes());
         bytes memory ordered = DeskPrograms.deskWithSalt(address(coreQuote), p, SALT);
         bytes memory reversed = bytes.concat(
-            Extruction.build(address(coreQuote), DeskParamsLib.encode(p)),
-            XYCSwap.build(),
-            Salt.build(abi.encodePacked(SALT))
+            table.build(Extruction._extruction, abi.encodePacked(address(coreQuote), DeskParamsLib.encode(p))),
+            table.build(XYCSwap._xycSwapXD),
+            table.build(Controls._salt, abi.encodePacked(SALT))
         );
 
         // Inventory priced far above the book, so the constant product is the generous side.
@@ -64,15 +84,15 @@ contract DeskProgramsTest is DeskTest {
             true,
             true
         );
-        (, uint256 unbounded) = quoteRouter(
-            shipped(DeskPrograms.order(maker, address(hooks), reversed, p), p, START_BASE, richQuote),
-            p,
-            ONE_UBTC,
-            true,
-            true
-        );
+        ISwapVM.Order memory backwards =
+            shipped(DeskPrograms.order(maker, address(hooks), reversed, p), p, START_BASE, richQuote);
+        ISwapVM view_ = swapVM.asView();
+        (address tokenIn, address tokenOut) = pair(p, true);
+        bytes memory td = deskTakerData(address(taker), true, false);
 
-        assertLt(bounded, unbounded, "the bound only bites when it runs after the curve");
+        vm.expectRevert(XYCSwap.XYCSwapRecomputeDetected.selector);
+        view_.quote(backwards, tokenIn, tokenOut, ONE_UBTC, td);
+
         assertEq(bounded, ONE_UBTC * QUIET_BID * (10_000 - QUIET_BPS) / 10_000_000, "bounded to the quiet desk bid");
     }
 
@@ -138,16 +158,39 @@ contract DeskProgramsTest is DeskTest {
         aqua.ship(address(swapVM), strategy, DeskPrograms.tokens(p), amounts);
     }
 
-    /// @dev The pair is sorted for MakerTraits regardless of which side the desk calls base.
-    function test_order_sortsThePair() public view {
+    /// @dev The order names no tokens: in the SwapVM the desk is deployed against, the taker gives
+    ///      `tokenIn` and `tokenOut` at the call. That is worth pinning, because an earlier revision
+    ///      of the router carried a sorted pair inside the order and this one does not — so the
+    ///      question "what stops a taker naming a pair the maker never shipped" has a new answer.
+    ///
+    ///      It is Aqua, one layer below the program: balances are keyed by strategy *and* token, so
+    ///      a token the strategy never shipped has no balance to read and the call reverts before an
+    ///      instruction runs. `CoreQuote.WrongPair` is the second gate, for a pair that is in the
+    ///      strategy but not the one these parameters price.
+    function test_order_namesNoPair_soTheQuoteChecksIt() public {
         DeskParams memory p = btcParams();
         ISwapVM.Order memory o = deskOrder(p, SALT);
+        shipFunded(o, p, START_BASE, START_QUOTE);
 
-        (address tokenA, address tokenB) = (address(bytes20(_slice(o.data, 0, 20))), address(bytes20(_slice(o.data, 20, 20))));
-        assertTrue(tokenA < tokenB, "MakerTraitsLib.build requires the pair sorted");
-        assertTrue(
-            (tokenA == p.base && tokenB == p.quote) || (tokenA == p.quote && tokenB == p.base), "the pair is the desk's"
+        DemoToken stranger = new DemoToken("Stranger", "STR", 18);
+        ISwapVM view_ = swapVM.asView();
+        bytes memory td = deskTakerData(address(taker), true, false);
+        bytes32 strategyHash = swapVM.hash(o);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAqua.SafeBalancesForTokenNotInActiveStrategy.selector,
+                maker,
+                address(swapVM),
+                strategyHash,
+                address(stranger)
+            )
         );
+        view_.quote(o, address(stranger), address(usdt0), ONE_UBTC, td);
+
+        // And the desk's own pair, the other way round, is a quote and not an error.
+        (, uint256 out) = quoteRouter(o, p, ONE_UBTC, true, true);
+        assertGt(out, 0, "the pair the strategy shipped still prices");
     }
 
     /// @dev The constraint the encoding exists for. SwapVM writes an instruction as

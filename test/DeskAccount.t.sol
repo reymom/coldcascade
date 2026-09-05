@@ -435,7 +435,7 @@ contract DeskAccountTest is DeskTest {
         assertEq(previewNotional, notional);
     }
 
-    /// @dev What cover costs, in the desk's own transaction, paid by the desk. 42 147 gas measured
+    /// @dev What cover costs, in the desk's own transaction, paid by the desk. 42 138 gas measured
     ///      2026-09-05.
     ///      The CoreWriter leg it grows into is ~47 000 gas with 25 000 burned by HyperCore's docs,
     ///      `[UNVERIFIED]` against chain 999 until the 2026-09-07 probe. Whatever it turns out to

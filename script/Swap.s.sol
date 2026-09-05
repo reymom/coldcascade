@@ -50,9 +50,11 @@ contract SwapScript is Addresses {
         console.log("lean", uint256(uint8(lean)));
 
         ISwapVM.Order memory order = desk.order();
-        bytes memory takerData = _takerData(msg.sender, sellBase, p);
+        bytes memory takerData = _takerData(msg.sender);
 
-        (uint256 quotedIn, uint256 quotedOut,) = ISwapVM(router()).quote(order, amount, takerData);
+        address tokenOut = sellBase ? p.quote : p.base;
+        (uint256 quotedIn, uint256 quotedOut,) =
+            ISwapVM(router()).quote(order, tokenIn, tokenOut, amount, takerData);
         console.log("quote in/out", quotedIn, quotedOut);
 
         vm.startBroadcast();
@@ -60,7 +62,8 @@ contract SwapScript is Addresses {
             DemoToken(tokenIn).mint(msg.sender, quotedIn);
         }
         IERC20(tokenIn).forceApprove(router(), quotedIn);
-        (uint256 amountIn, uint256 amountOut, bytes32 orderHash) = ISwapVM(router()).swap(order, amount, takerData);
+        (uint256 amountIn, uint256 amountOut, bytes32 orderHash) =
+            ISwapVM(router()).swap(order, tokenIn, tokenOut, amount, takerData);
         vm.stopBroadcast();
 
         console.log("filled in/out", amountIn, amountOut);
@@ -70,7 +73,7 @@ contract SwapScript is Addresses {
     /// @dev Exact-in, no threshold, no callbacks. A page sets a threshold; a script that is its own
     ///      counterparty does not need one, and leaving it out keeps what is being demonstrated —
     ///      the router dispatching the maker's program — free of anything else.
-    function _takerData(address taker, bool sellBase, DeskParams memory p) private pure returns (bytes memory) {
+    function _takerData(address taker) private pure returns (bytes memory) {
         return TakerTraitsLib.build(
             TakerTraitsLib.Args({
                 taker: taker,
@@ -79,8 +82,6 @@ contract SwapScript is Addresses {
                 isStrictThresholdAmount: false,
                 isFirstTransferFromTaker: false,
                 useTransferFromAndAquaPush: true,
-                isAToB: sellBase == (p.base < p.quote),
-                allowPartialFill: false,
                 threshold: "",
                 to: address(0),
                 deadline: 0,

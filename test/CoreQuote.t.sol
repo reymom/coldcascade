@@ -394,7 +394,13 @@ contract CoreQuoteTest is DeskTest {
     }
 
     function registers(uint256 amountIn, uint256 amountOut) internal pure returns (SwapRegisters memory) {
-        return SwapRegisters({ balanceIn: 0, balanceOut: INVENTORY, amountIn: amountIn, amountOut: amountOut });
+        return SwapRegisters({
+            balanceIn: 0,
+            balanceOut: INVENTORY,
+            amountIn: amountIn,
+            amountOut: amountOut,
+            amountNetPulled: 0
+        });
     }
 
     function query(bool isExactIn, bool bidSide) internal view returns (SwapQuery memory) {

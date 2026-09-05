@@ -3,6 +3,7 @@ pragma solidity 0.8.30;
 
 import { AquaSwapVMTest } from "@1inch/swap-vm/test/base/AquaSwapVMTest.sol";
 import { ISwapVM } from "@1inch/swap-vm/src/interfaces/ISwapVM.sol";
+import { TakerTraitsLib } from "@1inch/swap-vm/src/libs/TakerTraits.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { CoreQuote } from "../../src/CoreQuote.sol";
@@ -150,10 +151,41 @@ abstract contract DeskTest is AquaSwapVMTest {
         return ship(o, p, amountBase, amountQuote);
     }
 
-    /// @dev True when the taker hands over tokenA of the sorted pair. `bidSide` is the desk's word
-    ///      for it (the taker sells base); `isAToB` is the router's.
-    function isAToB(DeskParams memory p, bool bidSide) internal pure returns (bool) {
-        return bidSide == (p.base < p.quote);
+    /// @notice The pair as the router wants it: the desk's bid side is the taker selling base.
+    /// @dev The order names no tokens — the taker does, at the call — so this is the only place the
+    ///      direction turns into two addresses, and `CoreQuote` rejects any pair but the desk's own.
+    function pair(DeskParams memory p, bool bidSide) internal pure returns (address tokenIn, address tokenOut) {
+        return bidSide ? (p.base, p.quote) : (p.quote, p.base);
+    }
+
+    /// @notice The taker traits, in the two shapes that matter.
+    /// @param aquaPush true is what a page sends — the taker approves the router, which pulls and
+    ///        pushes into Aqua on the maker's behalf. false is the harness's `MockTaker`, which
+    ///        pushes for itself from the pre-transfer-in callback.
+    function deskTakerData(address who, bool exactIn, bool aquaPush) internal pure returns (bytes memory) {
+        return TakerTraitsLib.build(
+            TakerTraitsLib.Args({
+                taker: who,
+                isExactIn: exactIn,
+                shouldUnwrapWeth: false,
+                isStrictThresholdAmount: false,
+                isFirstTransferFromTaker: false,
+                useTransferFromAndAquaPush: aquaPush,
+                threshold: "",
+                to: address(0),
+                deadline: 0,
+                hasPreTransferInCallback: !aquaPush,
+                hasPreTransferOutCallback: false,
+                preTransferInHookData: "",
+                postTransferInHookData: "",
+                preTransferOutHookData: "",
+                postTransferOutHookData: "",
+                preTransferInCallbackData: "",
+                preTransferOutCallbackData: "",
+                instructionsArgs: "",
+                signature: ""
+            })
+        );
     }
 
     /// @notice Quote through the official router, exactly as a page would.
@@ -162,8 +194,9 @@ abstract contract DeskTest is AquaSwapVMTest {
         view
         returns (uint256 amountIn, uint256 amountOut)
     {
+        (address tokenIn, address tokenOut) = pair(p, bidSide);
         (amountIn, amountOut,) =
-            swapVM.asView().quote(o, amount, takerData(address(taker), exactIn, isAToB(p, bidSide)));
+            swapVM.asView().quote(o, tokenIn, tokenOut, amount, deskTakerData(address(taker), exactIn, false));
     }
 
     /// @notice Mint the taker whatever the quote says it will owe. Separate from the swap so a test
@@ -182,7 +215,8 @@ abstract contract DeskTest is AquaSwapVMTest {
         internal
         returns (uint256 amountIn, uint256 amountOut)
     {
-        return taker.swap(o, amount, takerData(address(taker), exactIn, isAToB(p, bidSide)));
+        (address tokenIn, address tokenOut) = pair(p, bidSide);
+        return taker.swap(o, tokenIn, tokenOut, amount, deskTakerData(address(taker), exactIn, false));
     }
 
     /// @notice Fund and swap through the official router.

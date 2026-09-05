@@ -50,11 +50,13 @@ send "$L1BLOCK" "setL1Block(uint64)" 1
 echo "book planted: bid $BID ask $ASK mark $MK oracle $OR"
 
 export HYPEREVM_RPC_URL="$LOCAL"
-# --gas-estimate-multiplier 102: forge pads an estimate by 30% by default, and DeskAccount's
-# deposit is 2 863 583 of a 3 000 000 small block, so the padding is what does not fit.
-run() { forge script "$1" --rpc-url "$LOCAL" --unlocked --sender "$DEPLOYER" --gas-estimate-multiplier 102 --broadcast; }
+# The deploy runs at --gas-estimate-multiplier 102: forge pads an estimate by 30% by default, and
+# DeskAccount's deposit is 2 863 583 of a 3 000 000 small block, so the padding is what does not
+# fit. Everything else keeps the padding — a swap that lands in a different book than it was
+# estimated against needs it, and one of these ran out of gas at 102.
+run() { forge script "$1" --rpc-url "$LOCAL" --unlocked --sender "$DEPLOYER" --broadcast "${@:2}"; }
 
-echo; echo "== deploy =="; run script/Deploy.s.sol | grep -E "^  (wrote|.*0x)" || true
+echo; echo "== deploy =="; run script/Deploy.s.sol --gas-estimate-multiplier 102 | grep -E "^  (wrote|.*0x)" || true
 echo; echo "== ship =="; run script/Ship.s.sol | grep -E "canonical|demo |control " || true
 
 DESK=$(jq -r .demoDesk deployments/999.json)

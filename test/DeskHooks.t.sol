@@ -73,7 +73,7 @@ contract DeskHooksTest is DeskTest {
     function test_fill_onlyRouter() public {
         vm.expectRevert(abi.encodeWithSelector(DeskHooks.OnlyRouter.selector, address(this)));
         hooks.postTransferOut(
-            maker, address(taker), address(ubtc), address(usdt0), 1, 1, 0, bytes32(0), hookData(btcParams()), ""
+            maker, address(taker), address(ubtc), address(usdt0), 1, 1, bytes32(0), hookData(btcParams()), ""
         );
     }
 
@@ -91,7 +91,8 @@ contract DeskHooksTest is DeskTest {
 
         fundTaker(o, p, ONE_UBTC, true, true);
         vm.expectRevert(RevertingHooks.HookRan.selector);
-        taker.swap(o, ONE_UBTC, takerData(address(taker), true, isAToB(p, true)));
+        (address tokenIn, address tokenOut) = pair(p, true);
+        taker.swap(o, tokenIn, tokenOut, ONE_UBTC, deskTakerData(address(taker), true, false));
     }
 
     /// @dev Nothing after the transfer may fail the transfer. A reader that reverts leaves the book
@@ -186,11 +187,12 @@ contract DeskHooksTest is DeskTest {
         emit log_named_uint("swap gas, contract maker", againstContract);
         emit log_named_uint("swap gas, EOA maker", againstEoa);
 
-        // Measured 2026-09-05: 97 066 against the contract, 97 098 against the EOA. The contract is
+        // Measured 2026-09-05: 97 966 against the contract, 97 993 against the EOA. The contract is
         // the cheaper of the two, so there is no callback left in the bill; what is left is calldata
         // noise, the two maker addresses having a different number of zero bytes. Both moved up by
-        // ~3 700 when the optimizer dropped to 200 runs so the deployment would fit in a HyperEVM
-        // small block — results/999_deploy_budget.md is what that bought.
+        // ~4 600 from the earlier figure, half of it the optimizer coming down to 200 runs so the
+        // deployment fits a HyperEVM small block and half the move to the SwapVM revision actually
+        // deployed on 999 — results/999_deploy_budget.md and results/999_router_abi.md.
         assertLe(againstContract, againstEoa, "a contract maker is not the more expensive one to fill");
         assertLt(againstEoa - againstContract, 100, "and what is left is not a callback");
     }

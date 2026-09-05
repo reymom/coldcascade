@@ -55,9 +55,9 @@ contract DeskHooks is IMakerHooks {
         external
     { }
 
-    function postTransferIn(
-        address, address, address, address, uint256, uint256, uint256, bytes32, bytes calldata, bytes calldata
-    ) external { }
+    function postTransferIn(address, address, address, address, uint256, uint256, bytes32, bytes calldata, bytes calldata)
+        external
+    { }
 
     function preTransferOut(address, address, address, address, uint256, uint256, bytes32, bytes calldata, bytes calldata)
         external
@@ -65,8 +65,6 @@ contract DeskHooks is IMakerHooks {
 
     /// @param makerData The packed DeskParams the program carries, so the hook knows the perp index
     ///        and the map oracle without storage.
-    /// @dev `feeOut` is the protocol fee the router took on top of `amountOut`. A desk program sets
-    ///      no protocol fee, so it is structurally zero here and is not widened into the event.
     function postTransferOut(
         address maker,
         address taker,
@@ -74,7 +72,6 @@ contract DeskHooks is IMakerHooks {
         address tokenOut,
         uint256 amountIn,
         uint256 amountOut,
-        uint256,
         bytes32 orderHash,
         bytes calldata makerData,
         bytes calldata

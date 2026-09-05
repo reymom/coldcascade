@@ -33,16 +33,17 @@ not only a taker cost.
 | `DeskHooks` | 2 621 | 784 094 | yes |
 | `CoreQuote` | 4 851 | 1 354 271 | yes |
 | `FloorLens` | 6 639 | 1 870 307 | yes |
-| **`DeskAccount`** | **12 890** | **2 863 583** | **yes, with 4.5% to spare** |
+| **`DeskAccount`** | **12 361** | **2 863 583** | **yes, with 4.5% to spare** |
 
 Two things came out of that last row.
 
 **The optimizer had to come down.** At `optimizer_runs = 1_000_000` — the setting a maker program
 would otherwise want — `DeskAccount` compiled to 18 552 bytes, which is 3 710 400 gas of code
 deposit on its own and cannot be deployed in a small block at any price. At 200 runs it is 12 890.
-What that costs: a swap went from 93 324 gas to 97 066 against a contract maker, and cover from
-41 575 to 42 147. Roughly 4% more gas on the taker's side, at 0.1 gwei, to remove a dependency on
-an L1 action from the deploy. Legacy codegen (`via_ir = false`) does not compile this contract at
+What that costs: a swap went from 93 324 gas to 97 966 against a contract maker, and cover from
+41 575 to 42 138. Roughly 5% more gas on the taker's side — half of it this setting and half the
+move to the SwapVM revision actually deployed on 999 — at 0.1 gwei, to remove a dependency on an
+L1 action from the deploy. Legacy codegen (`via_ir = false`) does not compile this contract at
 all, and 1 run instead of 200 saves 161 bytes, so 200 is where the setting sits.
 
 **The factory cannot build the account.** `DeskFactory` used to deploy the `DeskAccount`
