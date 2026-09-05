@@ -10,6 +10,10 @@ import { CorePrecompiles } from "../../src/CorePrecompiles.sol";
 import { DeskHooks } from "../../src/DeskHooks.sol";
 import { MapOracle } from "../../src/MapOracle.sol";
 import { DemoToken } from "../../src/DemoToken.sol";
+import { DemoMapOracle } from "../../src/DemoMapOracle.sol";
+import { BookCache } from "../../src/BookCache.sol";
+import { MarkoutLedger } from "../../src/MarkoutLedger.sol";
+import { FloorLens } from "../../src/FloorLens.sol";
 import { DeskAccount } from "../../src/DeskAccount.sol";
 import { DeskFactory } from "../../src/DeskFactory.sol";
 import { DeskParams, DeskParamsLib } from "../../src/libs/DeskParams.sol";
@@ -55,6 +59,10 @@ abstract contract DeskTest is AquaSwapVMTest {
     CoreQuote internal coreQuote;
     DeskHooks internal hooks;
     MapOracle internal mapOracle;
+    DemoMapOracle internal demoMap;
+    BookCache internal bookCache;
+    MarkoutLedger internal markoutLedger;
+    FloorLens internal lens;
     DeskFactory internal factory;
 
     function setUp() public virtual override {
@@ -70,6 +78,10 @@ abstract contract DeskTest is AquaSwapVMTest {
         coreQuote = new CoreQuote(precompiles);
         hooks = new DeskHooks(address(swapVM), precompiles);
         mapOracle = new MapOracle(address(this));
+        demoMap = new DemoMapOracle();
+        bookCache = new BookCache();
+        markoutLedger = new MarkoutLedger(address(this));
+        lens = new FloorLens();
         factory = new DeskFactory(aqua, address(swapVM), address(coreQuote), address(hooks));
 
         setBook(QUIET_BID, QUIET_ASK, QUIET_MARK, QUIET_ORACLE);
