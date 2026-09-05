@@ -150,17 +150,32 @@ abstract contract DeskTest is AquaSwapVMTest {
             swapVM.asView().quote(o, amount, takerData(address(taker), exactIn, isAToB(p, bidSide)));
     }
 
-    /// @notice Swap through the official router. Mints the taker's leg first; MockTaker pushes it
-    ///         into Aqua on the pre-transfer-in callback, so the maker ends up holding it.
+    /// @notice Mint the taker whatever the quote says it will owe. Separate from the swap so a test
+    ///         can put `vm.expectEmit` immediately before the call that settles.
+    function fundTaker(ISwapVM.Order memory o, DeskParams memory p, uint256 amount, bool exactIn, bool bidSide)
+        internal
+        returns (uint256 needed)
+    {
+        (needed,) = quoteRouter(o, p, amount, exactIn, bidSide);
+        (bidSide ? ubtc : usdt0).mint(address(taker), needed);
+    }
+
+    /// @notice The settling call and nothing else. MockTaker pushes tokenIn into Aqua on the
+    ///         pre-transfer-in callback, so the maker ends up holding it.
+    function swapOnly(ISwapVM.Order memory o, DeskParams memory p, uint256 amount, bool exactIn, bool bidSide)
+        internal
+        returns (uint256 amountIn, uint256 amountOut)
+    {
+        return taker.swap(o, amount, takerData(address(taker), exactIn, isAToB(p, bidSide)));
+    }
+
+    /// @notice Fund and swap through the official router.
     function swapRouter(ISwapVM.Order memory o, DeskParams memory p, uint256 amount, bool exactIn, bool bidSide)
         internal
         returns (uint256 amountIn, uint256 amountOut)
     {
-        (uint256 needed,) = quoteRouter(o, p, amount, exactIn, bidSide);
-        DemoToken tokenIn = bidSide ? ubtc : usdt0;
-        tokenIn.mint(address(taker), exactIn ? amount : needed);
-
-        return taker.swap(o, amount, takerData(address(taker), exactIn, isAToB(p, bidSide)));
+        fundTaker(o, p, amount, exactIn, bidSide);
+        return swapOnly(o, p, amount, exactIn, bidSide);
     }
 
     /// @notice Sets the book on the mock reader and, if etched, on the precompile mocks.

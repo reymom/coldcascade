@@ -17,7 +17,11 @@ contract CoreQuoteTest is DeskTest {
     uint256 internal constant NEXT_PC = 7;
     bytes32 internal constant SALT = keccak256("corequote");
     uint256 internal constant START_BASE = 10e8;
-    uint256 internal constant START_QUOTE = 800_000e6;
+    /// @dev Quote-heavy on purpose. The quiet quote is `min(curve, bound)`, so with inventory
+    ///      priced near the book the curve wins at small sizes and the desk is an AMM that happens
+    ///      to be safe. At 900 000 USDT0 against 10 UBTC the curve is the generous side and the
+    ///      book bound is what settles -- which is the case the desk exists for.
+    uint256 internal constant START_QUOTE = 900_000e6;
     uint256 internal constant ONE_UBTC = 1e8;
     uint256 internal constant INVENTORY = 10e8;
 
@@ -310,6 +314,40 @@ contract CoreQuoteTest is DeskTest {
     }
 
     // ---- on the ship harness: 1inch's Aqua, 1inch's router, 1inch's taker ----
+
+    /// @dev The Extruction contract is the same `view` body in both modes, but the router reaches
+    ///      it through two different interfaces and two different frames. What a page shows a taker
+    ///      has to be what the taker gets, so the equality is asserted at the router, not the unit.
+    function test_quoteEqualsSwap() public {
+        DeskParams memory p = btcParams();
+        ISwapVM.Order memory o = deskOrder(p, SALT);
+        shipFunded(o, p, START_BASE, START_QUOTE);
+
+        (uint256 quotedIn, uint256 quotedOut) = quoteRouter(o, p, ONE_UBTC, true, true);
+        (uint256 swappedIn, uint256 swappedOut) = swapRouter(o, p, ONE_UBTC, true, true);
+
+        assertEq(swappedIn, quotedIn, "exact-in: the taker's leg is what it asked for");
+        assertEq(swappedOut, quotedOut, "exact-in: and the maker's leg is what the quote said");
+        assertEq(quotedOut, ONE_UBTC * QUIET_BID * (10_000 - QUIET_BPS) / 10_000_000, "the quiet desk bid");
+        assertEq(usdt0.balanceOf(address(taker)), swappedOut, "the taker was actually paid");
+        assertEq(ubtc.balanceOf(maker), START_BASE + ONE_UBTC, "and the maker actually holds the base it bought");
+    }
+
+    /// @dev The exact-out leg through the same router. SwapVM guarantees the taker-specified leg
+    ///      survives, so this also pins that the desk cannot resize a fill it does not want.
+    function test_quoteEqualsSwap_exactOut() public {
+        DeskParams memory p = btcParams();
+        ISwapVM.Order memory o = deskOrder(p, SALT);
+        shipFunded(o, p, START_BASE, START_QUOTE);
+
+        uint256 wantQuote = 70_000e6;
+        (uint256 quotedIn, uint256 quotedOut) = quoteRouter(o, p, wantQuote, false, true);
+        (uint256 swappedIn, uint256 swappedOut) = swapRouter(o, p, wantQuote, false, true);
+
+        assertEq(swappedOut, wantQuote, "the taker gets exactly what it named");
+        assertEq(quotedOut, wantQuote);
+        assertEq(swappedIn, quotedIn, "and pays exactly what the quote said");
+    }
 
     /// @dev The other line on the screen, on the same router with the same inventory: the control
     ///      is a constant product and nothing else, so its answer cannot depend on Hyperliquid.
