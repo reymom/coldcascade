@@ -118,7 +118,12 @@ echo
 # The cost of not having it is a half-deployed mainnet at addresses that then have to be abandoned.
 DEPLOY="forge script script/Deploy.s.sol --rpc-url hyperevm --account $ACCOUNT --sender $DEPLOYER --broadcast --slow --gas-estimate-multiplier 102"
 SHIP="forge script script/Ship.s.sol --rpc-url hyperevm --account $ACCOUNT --sender $DEPLOYER --broadcast --slow"
-SWAP="DESK=\$(jq -r .demoDesk deployments/999.json) SELL_BASE=false AMOUNT=1000000000 forge script script/Swap.s.sol --rpc-url hyperevm --account $ACCOUNT --sender $DEPLOYER --broadcast --slow"
+# --skip-simulation because forge simulates locally against a fork first, and a fork cannot reach
+# the HyperCore precompiles — they carry no bytecode, so revm executes nothing and CoreQuote reverts
+# with PrecompileCallFailed before a transaction is ever sent. Deploy and Ship do not read the book,
+# which is why only this one needs it. The node itself answers fine: the deployed CorePrecompiles
+# returns the live BBO to a plain eth_call.
+SWAP="DESK=\$(jq -r .demoDesk deployments/999.json) SELL_BASE=false AMOUNT=1000000000 forge script script/Swap.s.sol --rpc-url hyperevm --account $ACCOUNT --sender $DEPLOYER --broadcast --slow --skip-simulation"
 
 if [ "$GO" = false ]; then
   echo "preflight clean. --go runs these three, in this order:"
