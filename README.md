@@ -33,7 +33,7 @@ a fresh ship, and every ship carries a per-account salt.
 and the liquidation map go into the log beside the amounts, so a markout can be computed from
 indexed data alone. **It emits the fill and stops.** It makes no call to the maker, so a maker
 whose every entry point reverts is still filled — and, more to the point, a maker feature is not a
-taker cost. A swap against a contract maker costs 93 324 gas and one against an EOA maker 93 356:
+taker cost. A swap against a contract maker costs 97 966 gas and one against an EOA maker 97 993:
 the contract is the cheaper of the two, because there is no callback in the bill.
 
 Cover happens in the desk's own transaction. `DeskAccount.cover()` — owner, or an operator the
@@ -48,11 +48,39 @@ What that costs: the contract no longer knows whether a fill was on the absorbin
 to cover is the operator's decision under the owner's ceiling, not a rule in the code. The
 contract still takes no view on the sign — long base sells the perp, short base buys it.
 
+## The console
+
+One URL. The Floor shows Hyperliquid's BTC book as `CoreQuote` reads it, the desks quoting against
+it, and a Take button that swaps through the official router. It is live before the contracts are:
+where nothing is deployed, `CorePrecompiles`, `CoreQuote` and `FloorLens` are planted at throwaway
+addresses by an `eth_call` state override and the canonical parameters are priced against the real
+book. The bytecode is what `forge build` produced and the node running it is a real one —
+`./script/probe999.sh` is the same three calls from a shell, and `results/999_live_quote.md` is what
+they answered.
+
+**Two layers, and only the tokens are mocked.** The canonical desk trades the real pair and names
+`MapOracle`, which has one updater. The demo desk trades tokens anyone can mint and names
+`DemoMapOracle`, which anyone can write, so a visitor can operate the design's one trusted input
+instead of reading a sentence about it. Both price against the same live book.
+
+That split is the trust argument stated as a deployment. The map can only ever *add* a lean, one
+below a desk's own floor does nothing, and a stale one is ignored — so the worst a broken keeper can
+do is take a lean away. But a desk quoting inside L1 is a desk offering a better price than L1, and
+an oracle anyone can write is an oracle anyone can be paid out of. So no desk holding real inventory
+points at the open one, and the console says which oracle each desk names.
+
 ## Status
 
-The quote, the program encoder and the desk account are built and tested against 1inch's own Aqua
-and router. The HyperCore reader has been run against a live node. Deployment, the console and the
-CoreWriter cover leg are next; the numbers arrive when the replay runs on a real tape.
+The quote, the program encoder, the desk account and the console are built and tested against
+1inch's own Aqua and the SwapVM router deployed on 999. The HyperCore reader has been run against a
+live node. Deployment to mainnet, the subgraph and the CoreWriter cover leg are next; the numbers
+arrive when the replay runs on a real tape.
+
+**The death metric, on the deployed router.** Against a fork of 999 carrying the real Aqua and the
+real SwapVM, two swaps of 1 000 quote units into the same desk with the book moved between them:
+`amountOut` went from 1 242 236 at a 799 500 / 799 510 book to 1 226 899 at 810 000 / 810 010. Both
+settled through `swap()` and emitted `Fill` with the four L1 words in it. Reproduce with
+`./script/localnet.sh` — it prints the two commands.
 
 ## Build
 
@@ -60,12 +88,27 @@ CoreWriter cover leg are next; the numbers arrive when the replay runs on a real
 yarn install --frozen-lockfile --ignore-scripts
 forge build
 forge test
+./script/localnet.sh          # fork 999, deploy, ship, swap, against the real router
+python3 -m http.server 8000   # then http://localhost:8000/app/
 ```
 
-- Foundry `nightly`. `@1inch/aqua` and `@1inch/swap-vm` resolve from GitHub at pinned commits;
-  `@1inch/solidity-utils` is held at 6.9.10 through `resolutions`, because Aqua's 6.9.7 is
-  missing `TransientLockUnsafe.sol`.
+- Foundry `nightly`. `@1inch/aqua` and `@1inch/swap-vm` resolve from GitHub at **`v1.0.0` and
+  `v1.0.2`, which is what is deployed on 999** — not at `main`, whose `quote` and `swap` take
+  different arguments. `results/999_router_abi.md` has the selectors and how the difference
+  surfaced. `@1inch/solidity-utils` is held at 6.9.10 through `resolutions`, because Aqua's 6.9.7
+  is missing `TransientLockUnsafe.sol`.
+- A SwapVM opcode is **a position in the router's own instruction table**, so `XYCSwap` is 17,
+  `Salt` 20 and `Extruction` 32. `test_opcodes_matchTheRoutersOwnTable` derives all three from
+  `AquaOpcodes._opcodes()` rather than trusting the constants.
 - HyperEVM mainnet is chain 999 (gas 0.1 gwei), testnet 998. `eth_getLogs` caps at 1000 blocks.
+- **Blocks come in two sizes and the small one is the default**: 118 of 120 sampled blocks capped
+  at 3 000 000 gas, two at 30 000 000. Code deposit is 200 gas a byte, so contract size is a
+  deployment constraint here — `optimizer_runs` is 200 so that `DeskAccount` fits, and the factory
+  takes its implementation as an argument rather than building it. `results/999_deploy_budget.md`
+  has every contract's deploy gas and what the setting costs a taker.
+- **The precompiles ignore the block tag.** A read pinned 200 000 blocks back returns the current
+  book, so there is no archive read of L1 state: `BookCache` is not a fallback, it is the only
+  history there is, and a page must take its whole snapshot in one call.
 - **The HyperCore precompiles carry no bytecode**, so a forge fork cannot call them and much of
   the suite is skipped until the piece it covers exists. Tests etch `test/mocks/HyperCoreMock.sol`
   at `0x0806` / `0x0807` / `0x0809` / `0x080e` instead. What only a node can answer is measured on
