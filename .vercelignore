@@ -1,0 +1,21 @@
+# Vercel serves the deployment root as static files. This repo stays private until
+# submission on 13 Sep, so ship only what the page actually fetches: app/, the
+# replay CSV it reads, and the README. Everything else — the contracts, the tests,
+# the scripts, the keeper — is the edge, and it goes public on our schedule, not
+# because a static host happened to serve it.
+src/
+test/
+script/
+keeper/
+subgraph/
+lib/
+out/
+cache/
+broadcast/
+node_modules/
+tape/
+.github/
+foundry.toml
+remappings.txt
+package.json
+yarn.lock
