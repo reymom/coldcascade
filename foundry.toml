@@ -19,6 +19,11 @@ fs_permissions = [
   { access = "read-write", path = "./deployments" },
 ]
 
+# The inarbitrability property is the central claim, and a property is only as good as the number
+# of books it was tried against. The suite runs in under a second, so the runs are cheap.
+[fuzz]
+runs = 1024
+
 [rpc_endpoints]
 hyperevm = "${HYPEREVM_RPC_URL}"
 hypertestnet = "${HYPERTESTNET_RPC_URL}"
