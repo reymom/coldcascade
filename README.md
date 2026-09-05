@@ -31,10 +31,22 @@ a fresh ship, and every ship carries a per-account salt.
 
 `DeskHooks` is the single post-transfer-out hook and the single `Fill` emitter: the four L1 words
 and the liquidation map go into the log beside the amounts, so a markout can be computed from
-indexed data alone. After emitting, a maker with code is handed `onFill` under a 250 000 gas cap
-with every failure caught. By then the taker has been paid, so **cover can never fail a fill** — a
-maker that reverts on every callback still gets filled, and one that burns everything it is handed
-costs the taker the cap rather than its budget. Both are tests.
+indexed data alone. **It emits the fill and stops.** It makes no call to the maker, so a maker
+whose every entry point reverts is still filled — and, more to the point, a maker feature is not a
+taker cost. A swap against a contract maker costs 93 324 gas and one against an EOA maker 93 356:
+the contract is the cheaper of the two, because there is no callback in the bill.
+
+Cover happens in the desk's own transaction. `DeskAccount.cover()` — owner, or an operator the
+owner names in `armHedge` — reads how much base the desk has accumulated since it was last square,
+values it at mark, caps it at the armed ceiling and emits the intent. 41 575 gas, paid by the
+desk. Exposure is `balanceOf(base) - coveredBase` rather than a fill, because the account cannot
+verify a fill: logs are not readable from the EVM, and a watcher that handed it fill amounts would
+be a watcher that could size a real L1 order. The delta also nets — a desk that bought and sold
+back covers once.
+
+What that costs: the contract no longer knows whether a fill was on the absorbing side, so *when*
+to cover is the operator's decision under the owner's ceiling, not a rule in the code. The
+contract still takes no view on the sign — long base sells the perp, short base buys it.
 
 ## Status
 
