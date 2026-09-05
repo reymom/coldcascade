@@ -7,9 +7,7 @@ import { IAqua } from "@1inch/aqua/src/interfaces/IAqua.sol";
 import { DeskTest } from "./base/DeskTest.sol";
 import { DeskAccount } from "../src/DeskAccount.sol";
 import { DeskFactory } from "../src/DeskFactory.sol";
-import { Book } from "../src/interfaces/ICoreReader.sol";
 import { DeskParams } from "../src/libs/DeskParams.sol";
-import { Side } from "../src/libs/Regime.sol";
 
 /// @notice The desk is a contract the maker owns, not a vault and not an EOA. These are the four
 ///         claims that makes: it can ship, a taker can pull from it, its owner can close it in one
@@ -21,6 +19,7 @@ contract DeskAccountTest is DeskTest {
 
     address internal alice = address(0xA11CE);
     address internal bob = address(0xB0B);
+    address internal keeper = address(0xCAFE);
 
     // ---- open ----
 
@@ -198,7 +197,7 @@ contract DeskAccountTest is DeskTest {
         vm.expectRevert(abi.encodeWithSelector(DeskAccount.OnlyOwner.selector, bob));
         desk.withdraw(address(ubtc), 1);
         vm.expectRevert(abi.encodeWithSelector(DeskAccount.OnlyOwner.selector, bob));
-        desk.armHedge(true, 1);
+        desk.armHedge(true, 1, bob);
         vm.stopPrank();
 
         vm.expectRevert(DeskAccount.AlreadyInitialized.selector);
@@ -222,106 +221,234 @@ contract DeskAccountTest is DeskTest {
         swapOnly(o, p, ONE_UBTC, true, true);
     }
 
-    // ---- the hedge switch ----
+    // ---- cover: the desk's own transaction ----
 
     function test_armHedge_isOwnerState() public {
         DeskAccount desk = openDesk(alice, "ramon", btcParams(), START_BASE, START_QUOTE);
         assertFalse(desk.hedgeArmed(), "a desk opens disarmed");
 
         vm.prank(alice);
-        desk.armHedge(true, 5_000e6);
+        desk.armHedge(true, 5_000e6, keeper);
         assertTrue(desk.hedgeArmed());
         assertEq(desk.hedgeMaxNotional(), 5_000e6);
+        assertEq(desk.hedgeOperator(), keeper);
 
         vm.prank(alice);
-        desk.armHedge(false, 0);
+        desk.armHedge(false, 0, address(0));
         assertFalse(desk.hedgeArmed());
+        assertEq(desk.hedgeOperator(), address(0));
     }
 
-    function test_onFill_onlyHooks() public {
-        DeskAccount desk = openDesk(alice, "ramon", btcParams(), START_BASE, START_QUOTE);
-        vm.expectRevert(abi.encodeWithSelector(DeskAccount.OnlyHooks.selector, address(this)));
-        desk.onFill(bytes32(0), address(ubtc), address(usdt0), ONE_UBTC, 1, quietBook(), Side.Bid);
-    }
-
-    function test_onFill_disarmed_saysSo() public {
-        DeskAccount desk = openDesk(alice, "ramon", btcParams(), START_BASE, START_QUOTE);
-
-        vm.expectEmit(true, true, true, true, address(desk));
-        emit DeskAccount.HedgeSkipped(ORDER, DeskAccount.SkipReason.Disarmed);
-        vm.prank(address(hooks));
-        desk.onFill(ORDER, address(ubtc), address(usdt0), ONE_UBTC, 1, quietBook(), Side.Bid);
-    }
-
-    /// @dev A quiet fill is inventory the desk wanted, not exposure it was forced into. Only the
-    ///      absorbing side is hedged.
-    function test_onFill_quietFill_isNotHedged() public {
-        DeskAccount desk = armed(5_000e6);
-
-        vm.expectEmit(true, true, true, true, address(desk));
-        emit DeskAccount.HedgeSkipped(ORDER, DeskAccount.SkipReason.NotStressSide);
-        vm.prank(address(hooks));
-        desk.onFill(ORDER, address(ubtc), address(usdt0), ONE_UBTC, 1, quietBook(), Side.None);
-    }
-
-    /// @dev Bought base under a bid lean: the desk is long spot, so the perp leg sells. Notional is
-    ///      the absorbed size at mark, in quote units, through the desk's own price scale.
-    function test_onFill_absorbedBid_sellsThePerp() public {
+    /// @dev The operator fires within the ceiling; nobody else fires at all. The operator can move
+    ///      no funds — every call that can is owner-only, and this one transfers nothing.
+    function test_cover_onlyOwnerOrOperator() public {
         DeskAccount desk = armed(500_000e6);
-        uint256 expected = ONE_UBTC * uint256(QUIET_MARK) / 1000;
 
-        vm.expectEmit(true, true, true, true, address(desk));
-        emit DeskAccount.HedgeIntent(ORDER, BTC, false, ONE_UBTC, expected, QUIET_MARK);
-        vm.prank(address(hooks));
-        desk.onFill(ORDER, address(ubtc), address(usdt0), ONE_UBTC, expected, quietBook(), Side.Bid);
+        vm.expectRevert(abi.encodeWithSelector(DeskAccount.OnlyCoverCaller.selector, bob));
+        vm.prank(bob);
+        desk.cover();
+
+        vm.prank(keeper);
+        desk.cover();
+        vm.prank(alice);
+        desk.cover();
     }
 
-    /// @dev The mirror. Sold base under an ask lean: short spot, so the perp leg buys.
-    function test_onFill_absorbedAsk_buysThePerp() public {
+    function test_cover_disarmedReverts() public {
+        DeskAccount desk = openDesk(alice, "ramon", btcParams(), START_BASE, START_QUOTE);
+        vm.expectRevert(DeskAccount.HedgeDisarmed.selector);
+        vm.prank(alice);
+        desk.cover();
+    }
+
+    /// @dev A desk opens square: what it was funded with is inventory its owner chose.
+    function test_cover_aFreshDeskIsFlat() public {
         DeskAccount desk = armed(500_000e6);
-        uint256 notional = ONE_UBTC * uint256(QUIET_MARK) / 1000;
+        assertEq(desk.coveredBase(), START_BASE, "the opening balance is the square mark");
 
         vm.expectEmit(true, true, true, true, address(desk));
-        emit DeskAccount.HedgeIntent(ORDER, BTC, true, ONE_UBTC, notional, QUIET_MARK);
-        vm.prank(address(hooks));
-        desk.onFill(ORDER, address(usdt0), address(ubtc), notional, ONE_UBTC, quietBook(), Side.Ask);
+        emit DeskAccount.HedgeSkipped(1, DeskAccount.SkipReason.Flat);
+        vm.prank(keeper);
+        (bool covered,,) = desk.cover();
+        assertFalse(covered);
     }
 
-    /// @dev The ceiling caps the size, it does not cancel the hedge. Half cover beats none, and the
-    ///      ceiling is the number the owner signed for on the device.
-    function test_onFill_capsAtMaxNotional() public {
+    /// @dev The move, end to end: a taker absorbs into the desk, the swap settles with the hook
+    ///      emitting nothing but `Fill`, and cover happens afterwards in a transaction the desk
+    ///      pays for. The two are not in the same block by construction and do not need to be.
+    function test_cover_afterAFill_isASeparateTransaction() public {
+        DeskParams memory p = btcParams();
+        DeskAccount desk = armed(500_000e6);
+        setBook(780_000, 790_000, 782_000, QUIET_ORACLE);
+
+        swapRouter(desk.order(), p, ONE_UBTC, true, true);
+        assertEq(ubtc.balanceOf(address(desk)), START_BASE + ONE_UBTC, "the desk absorbed the base");
+
+        uint256 expected = ONE_UBTC * 782_000 / 1000;
+        vm.expectEmit(true, true, true, true, address(desk));
+        emit DeskAccount.HedgeIntent(1, BTC, false, ONE_UBTC, expected, 782_000);
+        vm.prank(keeper);
+        (bool covered, uint256 baseAmount, uint256 notional) = desk.cover();
+
+        assertTrue(covered);
+        assertEq(baseAmount, ONE_UBTC);
+        assertEq(notional, expected);
+        assertEq(desk.coveredBase(), START_BASE + ONE_UBTC, "and the desk is square again");
+    }
+
+    /// @dev Long base sells the perp. No sign is hard-coded anywhere else.
+    function test_cover_longSellsThePerp() public {
+        DeskAccount desk = armed(500_000e6);
+        ubtc.mint(address(desk), ONE_UBTC);
+
+        vm.expectEmit(true, true, true, true, address(desk));
+        emit DeskAccount.HedgeIntent(1, BTC, false, ONE_UBTC, ONE_UBTC * QUIET_MARK / 1000, QUIET_MARK);
+        vm.prank(keeper);
+        desk.cover();
+    }
+
+    /// @dev The mirror: a desk that has shed base is short spot and the perp leg buys.
+    function test_cover_shortBuysThePerp() public {
+        DeskAccount desk = armed(500_000e6);
+        vm.prank(address(desk));
+        ubtc.transfer(bob, ONE_UBTC);
+
+        vm.expectEmit(true, true, true, true, address(desk));
+        emit DeskAccount.HedgeIntent(1, BTC, true, ONE_UBTC, ONE_UBTC * QUIET_MARK / 1000, QUIET_MARK);
+        vm.prank(keeper);
+        desk.cover();
+    }
+
+    /// @dev The delta nets. A desk that bought and sold back covers once, where a per-fill hedge
+    ///      would have sent two orders and paid two spreads for a position it no longer has.
+    function test_cover_netsRoundTrips() public {
+        DeskAccount desk = armed(500_000e6);
+        ubtc.mint(address(desk), ONE_UBTC);
+        vm.prank(address(desk));
+        ubtc.transfer(bob, ONE_UBTC);
+
+        vm.expectEmit(true, true, true, true, address(desk));
+        emit DeskAccount.HedgeSkipped(1, DeskAccount.SkipReason.Flat);
+        vm.prank(keeper);
+        (bool covered,,) = desk.cover();
+        assertFalse(covered, "bought and sold back is not a position");
+    }
+
+    /// @dev The ceiling caps a call, it does not drop the remainder: the next call picks it up.
+    ///      That is the difference between a ceiling and a switch.
+    function test_cover_capLeavesTheRemainderForNextTime() public {
         uint256 full = ONE_UBTC * uint256(QUIET_MARK) / 1000;
         DeskAccount desk = armed(uint64(full / 4));
+        ubtc.mint(address(desk), ONE_UBTC);
 
         vm.expectEmit(true, true, true, true, address(desk));
-        emit DeskAccount.HedgeIntent(ORDER, BTC, false, ONE_UBTC / 4, full / 4, QUIET_MARK);
-        vm.prank(address(hooks));
-        desk.onFill(ORDER, address(ubtc), address(usdt0), ONE_UBTC, full, quietBook(), Side.Bid);
+        emit DeskAccount.HedgeIntent(1, BTC, false, ONE_UBTC / 4, full / 4, QUIET_MARK);
+        vm.prank(keeper);
+        desk.cover();
+        assertEq(desk.coveredBase(), START_BASE + ONE_UBTC / 4, "only what was covered is marked");
+
+        vm.expectEmit(true, true, true, true, address(desk));
+        emit DeskAccount.HedgeIntent(2, BTC, false, ONE_UBTC / 4, full / 4, QUIET_MARK);
+        vm.prank(keeper);
+        desk.cover();
     }
 
-    /// @dev The book the hook hands over is zeros when the reader could not be reached — the hook
-    ///      emits the fill anyway rather than unwinding it. A hedge sized off a mark of zero is not
-    ///      a small hedge, it is a division by zero, so the account says so and does nothing.
-    function test_onFill_unreadableBook_isNotHedged() public {
-        DeskAccount desk = armed(5_000e6);
+    /// @dev In its own transaction there is no fill to protect, so a book that cannot be read is an
+    ///      error the caller sees rather than a silence it has to notice.
+    function test_cover_unreadableBookReverts() public {
+        DeskAccount desk = armed(500_000e6);
+        ubtc.mint(address(desk), ONE_UBTC);
+        setBook(0, 0, 0, 0);
+
+        vm.expectRevert();
+        vm.prank(keeper);
+        desk.cover();
+    }
+
+    /// @dev `coveredBase` is the balance level at which the desk is square, so taking base out
+    ///      lowers the level by the same amount and leaves the uncovered delta where it was.
+    function test_cover_withdrawDoesNotReadAsAShort() public {
+        DeskAccount desk = armed(500_000e6);
+        ubtc.mint(address(desk), ONE_UBTC);
+
+        vm.prank(alice);
+        desk.withdraw(address(ubtc), 2e8);
+        assertEq(desk.coveredBase(), START_BASE - 2e8, "the square level dropped by what left");
 
         vm.expectEmit(true, true, true, true, address(desk));
-        emit DeskAccount.HedgeSkipped(ORDER, DeskAccount.SkipReason.NoNotional);
-        vm.prank(address(hooks));
-        desk.onFill(ORDER, address(ubtc), address(usdt0), ONE_UBTC, 1, Book(0, 0, 0, 0), Side.Bid);
+        emit DeskAccount.HedgeIntent(1, BTC, false, ONE_UBTC, ONE_UBTC * QUIET_MARK / 1000, QUIET_MARK);
+        vm.prank(keeper);
+        desk.cover();
+    }
+
+    /// @dev A parameter change is not a position change.
+    function test_cover_reopenKeepsTheMark() public {
+        DeskParams memory p = btcParams();
+        DeskAccount desk = armed(500_000e6);
+        ubtc.mint(address(desk), ONE_UBTC);
+
+        DeskParams memory wider = p;
+        wider.quietBps = 60;
+        vm.prank(alice);
+        desk.reopen(wider, START_BASE, START_QUOTE);
+
+        assertEq(desk.coveredBase(), START_BASE, "reopening did not silently mark the desk square");
+        (bool wouldCover,, uint256 baseAmount,) = desk.coverPreview();
+        assertTrue(wouldCover);
+        assertEq(baseAmount, ONE_UBTC, "the uncovered fill survived the parameter change");
+    }
+
+    function test_cover_closeLeavesNothingToCover() public {
+        DeskAccount desk = armed(500_000e6);
+        ubtc.mint(address(desk), ONE_UBTC);
+
+        vm.prank(alice);
+        desk.close();
+        assertEq(desk.coveredBase(), 0);
+        assertEq(ubtc.balanceOf(address(desk)), 0);
+
+        (bool wouldCover,,,) = desk.coverPreview();
+        assertFalse(wouldCover, "nothing held, nothing to cover");
+    }
+
+    /// @dev What the keeper's queue and the console's hedge row read before anyone signs.
+    function test_coverPreview_matchesWhatCoverDoes() public {
+        DeskAccount desk = armed(500_000e6);
+        ubtc.mint(address(desk), ONE_UBTC);
+
+        (bool wouldCover, bool isBuy, uint256 previewBase, uint256 previewNotional) = desk.coverPreview();
+        vm.prank(keeper);
+        (bool covered, uint256 baseAmount, uint256 notional) = desk.cover();
+
+        assertEq(wouldCover, covered);
+        assertFalse(isBuy, "long base sells");
+        assertEq(previewBase, baseAmount);
+        assertEq(previewNotional, notional);
+    }
+
+    /// @dev What cover costs, in the desk's own transaction, paid by the desk. Measured 2026-09-05.
+    ///      The CoreWriter leg it grows into is ~47 000 gas with 25 000 burned by HyperCore's docs,
+    ///      `[UNVERIFIED]` against chain 999 until the 2026-09-07 probe. Whatever it turns out to
+    ///      be, it is charged here and not to a taker.
+    function test_cover_costsTheDeskNotTheTaker() public {
+        DeskAccount desk = armed(500_000e6);
+        ubtc.mint(address(desk), ONE_UBTC);
+
+        vm.prank(keeper);
+        uint256 before = gasleft();
+        desk.cover();
+        uint256 spent = before - gasleft();
+
+        emit log_named_uint("cover gas, paid by the desk", spent);
+        assertLt(spent, 100_000, "one transaction, and no taker is in it");
     }
 
     // ---- helpers ----
 
-    bytes32 internal constant ORDER = keccak256("fill");
-
     function armed(uint64 maxNotional) internal returns (DeskAccount desk) {
         desk = openDesk(alice, "ramon", btcParams(), START_BASE, START_QUOTE);
         vm.prank(alice);
-        desk.armHedge(true, maxNotional);
+        desk.armHedge(true, maxNotional, keeper);
     }
 
-    function quietBook() internal pure returns (Book memory) {
-        return Book({ bid: QUIET_BID, ask: QUIET_ASK, mark: QUIET_MARK, oracle: QUIET_ORACLE });
-    }
 }
