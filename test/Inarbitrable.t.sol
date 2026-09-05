@@ -236,6 +236,9 @@ contract InarbitrableTest is DeskTest {
         return bps(amountIn, closeOnL1(p, true, amountOut));
     }
 
+    /// @dev Signed, so a profitable round trip would show as a positive number rather than wrap.
+    ///      Both legs are bounded by the fuzz ranges and by the fixtures — nothing here is within
+    ///      thirty orders of magnitude of `int256`'s range — so the casts cannot flip a sign.
     function bps(uint256 paid, uint256 back) internal pure returns (int256) {
         return (int256(back) - int256(paid)) * 10_000 / int256(paid);
     }

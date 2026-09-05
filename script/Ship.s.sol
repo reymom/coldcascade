@@ -36,8 +36,9 @@ import { DeskPrograms } from "../src/libs/DeskPrograms.sol";
 ///
 ///      Both layers read the same live HyperCore book. The mock is the token, never the price.
 ///
-///      `BASE_TOKEN` / `QUOTE_TOKEN` default to the deployed demo pair, so this runs end to end
-///      before any real inventory exists; set them to the real pair on the day it does.
+///      The canonical pair is the real UBTC/USDT0 on chain 999 and the deployed demo pair on every
+///      other chain, so this runs end to end on a fork before any real inventory exists and needs
+///      no flag on the day it does. `BASE_TOKEN` / `QUOTE_TOKEN` override both.
 contract ShipScript is Addresses {
     using SafeERC20 for IERC20;
 
@@ -53,8 +54,8 @@ contract ShipScript is Addresses {
         address demoBase = readAddress("demoBase");
         address demoQuote = readAddress("demoQuote");
 
-        address base = vm.envOr("BASE_TOKEN", demoBase);
-        address quote = vm.envOr("QUOTE_TOKEN", demoQuote);
+        address base = baseToken(demoBase);
+        address quote = quoteToken(demoQuote);
 
         DeskParams memory canonical = canonicalParams(base, quote, readAddress("mapOracle"), CANONICAL_MAP_MAX_AGE);
         DeskParams memory demo = canonicalParams(demoBase, demoQuote, readAddress("demoMapOracle"), DEMO_MAP_MAX_AGE);

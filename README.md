@@ -107,17 +107,19 @@ One URL. The Floor leads with the round trip above — recomputed off the live b
 seconds, and the reason the quiet screen is the evidence rather than the absence of it. Under it:
 Hyperliquid's BTC book as `CoreQuote` reads it, the desks quoting against it, a map button that
 puts a desk into a lean so the other half is on the screen on demand, and a Take button that swaps
-through the official router. It is live before the contracts are:
-where nothing is deployed, `CorePrecompiles`, `CoreQuote` and `FloorLens` are planted at throwaway
-addresses by an `eth_call` state override and the canonical parameters are priced against the real
-book. The bytecode is what `forge build` produced and the node running it is a real one —
-`./script/probe999.sh` is the same three calls from a shell, and `results/999_live_quote.md` is what
-they answered.
+through the official router.
 
-**Two layers, and only the tokens are mocked.** The canonical desk trades the real pair and names
-`MapOracle`, which has one updater. The demo desk trades tokens anyone can mint and names
-`DemoMapOracle`, which anyone can write, so a visitor can operate the design's one trusted input
-instead of reading a sentence about it. Both price against the same live book.
+It is live before the contracts are: where nothing is deployed, `CorePrecompiles`, `CoreQuote` and
+`FloorLens` are planted at throwaway addresses by an `eth_call` state override and the canonical
+parameters are priced against the real book. The bytecode is what `forge build` produced and the
+node running it is a real one — `./script/probe999.sh` is the same three calls from a shell, and
+`results/999_live_quote.md` is what they answered.
+
+**Two layers, and only the tokens are mocked.** The canonical desk trades the real pair — UBTC
+`0x9FDBdA0A…3463` against USD₮0 `0xB8CE59FC…5ebb` on 999 — and names `MapOracle`, which has one
+updater. The demo desk trades tokens anyone can mint and names `DemoMapOracle`, which anyone can
+write, so a visitor can operate the design's one trusted input instead of reading a sentence about
+it. Both price against the same live book.
 
 That split is the trust argument stated as a deployment. The map can only ever *add* a lean, one
 below a desk's own floor does nothing, and a stale one is ignored — so the worst a broken keeper can
@@ -129,7 +131,10 @@ points at the open one, and the console says which oracle each desk names.
 
 The quote, the program encoder, the desk account and the console are built and tested against
 1inch's own Aqua and the SwapVM router deployed on 999. The HyperCore reader has been run against a
-live node. Deployment to mainnet, the subgraph and the CoreWriter cover leg are next; the numbers
+live node, and the round trip above is the live book answering today. Mainnet is one command behind
+`./script/mainnet.sh`, whose preflight is every read that can fail a deploy — chain id, both 1inch
+contracts, the deployer's HYPE, and UBTC and USD₮0 answering with the symbol and the decimals they
+are supposed to have. The subgraph and the CoreWriter cover leg are after it; the markout numbers
 arrive when the replay runs on a real tape.
 
 **The death metric, on the deployed router.** Against a fork of 999 carrying the real Aqua and the
@@ -144,7 +149,9 @@ settled through `swap()` and emitted `Fill` with the four L1 words in it. Reprod
 yarn install --frozen-lockfile --ignore-scripts
 forge build
 forge test
+./script/probe999.sh          # the live book and the desk's two prices, no key, nothing deployed
 ./script/localnet.sh          # fork 999, deploy, ship, swap, against the real router
+./script/mainnet.sh           # every read that can fail a mainnet deploy, before it costs anything
 python3 -m http.server 8000   # then http://localhost:8000/app/
 ```
 
