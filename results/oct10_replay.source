@@ -2,3 +2,5 @@ tape: tape/oct10_btc_1m.stub.json
 keccak256: 0x36b07b4abff618b01672b824870243c086eb9790558936a43ddda49d91084fba
 ticks: 123
 takers: placeholder
+absorbed edge, desk (USD): 1493
+absorbed edge, control (USD): 377

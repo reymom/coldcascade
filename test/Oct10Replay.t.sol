@@ -93,6 +93,10 @@ contract Oct10ReplayTest is DeskTest {
     uint256 internal constant MARKOUT_60M = 60;
     uint256 internal constant LONGEST_MARKOUT = MARKOUT_60M;
 
+    /// @dev How far ahead of the control the desk's absorbed edge has to come out. A multiple you
+    ///      would not have to explain to anyone.
+    int256 internal constant MIN_EDGE_MULTIPLE = 2;
+
     uint16 internal constant ARB_EDGE_BPS = 10;       // todo: set from the dry run
     uint16 internal constant ARB_SHARE_BPS = 500;     // share of the minute's aggressive flow the arb is
     uint16 internal constant FLOW_CAPTURE_BPS = 10;   // share of the minute's forced notional routed here
@@ -197,6 +201,46 @@ contract Oct10ReplayTest is DeskTest {
             );
         }
         assertTrue(anyFill, "the tape produced no fills at all");
+    }
+
+    /// @notice The second gate, and it is not the death metric.
+    ///
+    ///         §2.5 asks whether one swap's amountOut responds to the book. A desk can pass that
+    ///         and still draw two flat lines, because responding to the regime is not the same
+    ///         claim as coming out ahead of the maker that ignores it.
+    ///
+    ///         This asks the other question: over the session, does what the desk absorbed
+    ///         actually revert in its favour, by a multiple of what the control got? That is the
+    ///         one number the argument rests on, and it is a notional, not a rate. Leaning inside
+    ///         the spread means paying up, so the desk's markout *per fill* is a few bps behind
+    ///         the control's on every single fill and always will be — by construction, not by
+    ///         accident. The trade is size at a price that reverts.
+    ///
+    /// @dev When this fails, suspect the taker model before the quote. A flow taker that hands
+    ///      both makers the same size cannot show the difference no matter what the quote does.
+    function test_gate_absorbedEdgeBeatsControl() public {
+        (Tick[] memory tape,) = loadTape();
+        (int256 desk, int256 control) = absorbedEdge(run(tape));
+
+        emit log_named_int("absorbed edge, desk (USD)", desk);
+        emit log_named_int("absorbed edge, control (USD)", control);
+
+        assertGt(desk, 0, "the desk lost money on what it absorbed: the lean is not paying for itself");
+        assertGe(
+            desk,
+            control > 0 ? control * MIN_EDGE_MULTIPLE : int256(0),
+            "the absorbed edge does not separate: look at the taker model before the quote"
+        );
+    }
+
+    /// @notice Each maker's markout weighted by what it actually absorbed, summed over the
+    ///         session, in USD. `markoutBps` is a rate and the desk is meant to lose on it; this
+    ///         is the quantity the rate is a rate *of*.
+    function absorbedEdge(Row[] memory rows) internal pure returns (int256 desk, int256 control) {
+        for (uint256 i = 0; i < rows.length; ++i) {
+            desk += int256(rows[i].absorbedDeskNtl) * rows[i].markoutDesk60mBps / 10_000;
+            control += int256(rows[i].absorbedControlNtl) * rows[i].markoutControl60mBps / 10_000;
+        }
     }
 
     // ---- the loop ----
@@ -338,6 +382,7 @@ contract Oct10ReplayTest is DeskTest {
             writeRow(rows[i]);
         }
 
+        (int256 deskEdge, int256 controlEdge) = absorbedEdge(rows);
         string memory path = isRealTape ? TAPE : STUB_TAPE;
         vm.writeFile(
             SOURCE,
@@ -345,7 +390,9 @@ contract Oct10ReplayTest is DeskTest {
                 "tape: ", path, "\n",
                 "keccak256: ", vm.toString(keccak256(bytes(vm.readFile(path)))), "\n",
                 "ticks: ", vm.toString(tape.length), "\n",
-                "takers: ", PLACEHOLDER_TAKERS ? "placeholder" : "router", "\n"
+                "takers: ", PLACEHOLDER_TAKERS ? "placeholder" : "router", "\n",
+                "absorbed edge, desk (USD): ", vm.toString(deskEdge), "\n",
+                "absorbed edge, control (USD): ", vm.toString(controlEdge), "\n"
             )
         );
     }

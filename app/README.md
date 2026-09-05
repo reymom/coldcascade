@@ -8,11 +8,19 @@ The Oct-10 tab, built. It reads `results/oct10_replay.csv` and draws three thing
   in one picture. In the quiet the desk's band encloses L1's on both sides: it is never the best
   price on the screen, so a stale quote is not worth taking. Under stress one side crosses inside
   and the wedge is filled — amber buying from forced sellers, teal selling to forced buyers.
-- **60 minute markout** — each minute's fills against spot an hour later, desk against the plain
-  `XYCSwap` control.
+- **what the absorbing was worth** — each minute's 60 minute markout applied to the notional that
+  maker actually absorbed, run forward over the session, in dollars. Not the markout rate: the
+  desk quotes worse per fill on purpose, because leaning inside the spread is paying up, so its
+  rate is a few bps behind the control's on every fill and will stay there with a real taker
+  model. The trade is size at a price that reverts, and that is what this curve is. Both rates
+  stay in the hover as a diagnostic.
 
 Hovering anywhere reads out that minute: both books, the lean, the dislocation, the forced
-notional on each side and the markout.
+notional on each side, what each maker absorbed, both markout rates and both PnLs.
+
+The edge curve is derived from two of the frozen columns rather than stored as a third, so nothing
+about the schema moved: `markoutDesk60mBps / 10 000 × absorbedDeskNtl`, accumulated.
+`test_gate_absorbedEdgeBeatsControl` computes the same quantity on the Solidity side and gates it.
 
 ## Running it
 

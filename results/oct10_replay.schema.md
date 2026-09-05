@@ -52,6 +52,22 @@ the desk is holding what it caught, and cutting them shows only the half of the 
 The map is *resting* forced notional within 1% of mark, rebuilt by the keeper; the forced columns
 are flow that already traded. They separate as soon as the real map builder runs.
 
+## Derived, and deliberately not a column
+
+The number the whole comparison rests on is not in the file, because it does not need to be:
+
+```
+absorbed edge = Σ  markoutDesk60mBps / 10 000 × absorbedDeskNtl
+```
+
+and the same against the control. A markout in basis points is a *rate*, and the desk is supposed
+to lose on that rate — leaning inside the spread means paying up, on every fill, by construction.
+What it buys is size at a price that reverts, so the quantity that carries the argument is the
+rate applied to the notional actually absorbed. Both terms are already columns, so the page and
+`test_gate_absorbedEdgeBeatsControl` each compute it and the schema did not have to move.
+
+`oct10_replay.source` records the two totals for whatever run produced the file.
+
 ## Provenance
 
 `oct10_replay.source`, written by the same test, names the tape the CSV came from, its

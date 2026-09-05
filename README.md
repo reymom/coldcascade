@@ -42,6 +42,11 @@ forge test
   overlay, and whose quote columns are the contract itself answering. Its inventory and PnL
   columns are placeholders. The file next to it, `oct10_replay.source`, says which tape produced
   it. The tape runs 60 minutes past its own last fill so every markout horizon exists.
+- Two gates, and they are different questions. `test_deathMetric_amountOutMovesWithBook` asks
+  whether a swap responds to the regime at all. `test_gate_absorbedEdgeBeatsControl` asks whether
+  the session's absorbed notional actually reverted in the desk's favour by a multiple of the
+  control's — a desk can pass the first and still draw two flat lines. When the second one fails,
+  the taker model is the suspect before the quote is.
 
 ## Prior art
 

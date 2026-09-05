@@ -75,8 +75,12 @@ h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacin
 .lean-bid { fill: var(--bid); }
 .lean-ask { fill: var(--ask); }
 
-.bar-desk { fill: var(--desk); }
-.bar-control { fill: #56657a; }
+.edge-desk { stroke: var(--desk); stroke-width: 2; }
+.edge-control { stroke: #7d8ea6; stroke-width: 1.6; }
+.edge-gap { fill: var(--desk); fill-opacity: 0.13; }
+.edge-label { font: 11px var(--font); font-weight: 600; }
+.edge-label-desk { fill: var(--desk); }
+.edge-label-control { fill: #7d8ea6; }
 
 .crosshair { stroke: #8fa6c4; stroke-width: 1; stroke-dasharray: 2 3; opacity: 0; }
 .tracking .crosshair { opacity: 0.65; }
@@ -84,6 +88,9 @@ h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacin
 .legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 10px 0 0; color: var(--muted);
   font-size: 12px; }
 .legend span { display: inline-flex; align-items: center; gap: 7px; }
+.caveat { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 12px 0 0;
+  max-width: 84ch; border-left: 2px solid var(--line); padding-left: 12px; }
+.caveat b { color: var(--text); font-weight: 600; }
 .swatch { width: 22px; height: 10px; border-radius: 2px; }
 .sw-l1 { background: var(--l1); border: 1px solid #6b7d97; }
 .sw-desk { background: rgba(74,163,255,0.16); border: 1px solid var(--desk); }
@@ -120,10 +127,12 @@ footer code { color: var(--text); }
 
   <div id="page" hidden>
     <div class="stats">
-      <div class="stat"><div class="stat-label">desk</div>
+      <div class="stat"><div class="stat-label">desk edge</div>
         <div class="stat-value" id="stat-desk">—</div><div class="stat-sub" id="stat-desk-sub"></div></div>
-      <div class="stat"><div class="stat-label">control</div>
+      <div class="stat"><div class="stat-label">control edge</div>
         <div class="stat-value" id="stat-control">—</div><div class="stat-sub" id="stat-control-sub"></div></div>
+      <div class="stat"><div class="stat-label">multiple</div>
+        <div class="stat-value" id="stat-multiple">—</div><div class="stat-sub" id="stat-multiple-sub"></div></div>
       <div class="stat"><div class="stat-label">minutes leaning</div>
         <div class="stat-value" id="stat-lean">—</div><div class="stat-sub" id="stat-lean-sub"></div></div>
       <div class="stat"><div class="stat-label">trough</div>
@@ -168,15 +177,20 @@ footer code { color: var(--text); }
         <div id="chart-lean"></div>
       </section>
 
-      <section class="chart" id="wrap-markout">
-        <h2>60 minute markout</h2>
-        <p class="note">Each minute's fills against spot an hour later, in basis points. Positive is
-          the maker having been right.</p>
-        <div id="chart-markout"></div>
+      <section class="chart" id="wrap-edge">
+        <h2>what the absorbing was worth</h2>
+        <p class="note">Each minute's 60 minute markout applied to the notional that maker actually
+          absorbed, run forward over the session, in dollars.</p>
+        <div id="chart-edge"></div>
         <div class="legend">
           <span><i class="swatch sw-desk" style="background:var(--desk)"></i>desk</span>
           <span><i class="swatch sw-control"></i>control, plain XYCSwap</span>
         </div>
+        <p class="caveat"><b>The desk quotes worse per fill, on purpose.</b> Leaning inside the
+          spread means paying up, so its markout <i>rate</i> comes out a few basis points behind
+          the control's on every single fill — by construction, and that will still be true with a
+          real taker model. The rate is not the trade. The trade is size at a price that reverts,
+          which is this curve. Hover any minute for both rates.</p>
       </section>
     </div>
 
@@ -188,11 +202,10 @@ footer code { color: var(--text); }
         2025-10-10 cascade; the desk's own two prices are <code>CoreQuote.bounds()</code> answering
         under each minute's book. The book, the forced flow and both takers in that file are still
         synthetic, so the inventory, PnL and markout numbers show the shape of the comparison and
-        not its size. The two markout series sit within twenty basis points of each other for a
-        real reason and a placeholder one: leaning in means paying up, so the desk's entry price
-        on a fill is slightly worse than the control's, and its case is the size it absorbs rather
-        than the price of any one fill — which is exactly what the placeholder takers do not
-        model, since they hand both makers nearly the same flow.
+        not its size: the multiple on this page is a property of the placeholder flow taker as
+        much as of the quote. <code>test_gate_absorbedEdgeBeatsControl</code> is the gate that
+        makes that multiple mean something once the takers ship through the official router — and
+        when it fails, the taker model is the suspect before the quote is.
         <code>results/oct10_replay.schema.md</code> says which layer is which.</p>
     </footer>
   </div>

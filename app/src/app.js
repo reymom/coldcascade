@@ -4,7 +4,7 @@ import { el, svg, xScale, yScale, niceBounds, ticksFor, line, band, yAxis, xLabe
 
 const CSV = "../results/oct10_replay.csv";
 
-const H = { spot: 96, bands: 300, lean: 26, markout: 210 };
+const H = { spot: 96, bands: 300, lean: 26, edge: 210 };
 const LABEL_EVERY = 15;
 
 const fmtUsd = (v) => `$${Math.round(v).toLocaleString("en-US")}`;
@@ -32,27 +32,49 @@ async function main() {
   document.getElementById("page").hidden = false;
 
   const x = xScale(rows.length);
-  drawHeadline(rows);
+  const edge = absorbedEdge(rows);
+  drawHeadline(rows, edge);
   drawSpot(rows, x);
   drawBands(rows, x);
   drawLean(rows, x);
-  drawMarkouts(rows, x);
+  drawEdge(rows, x, edge);
   wireCrosshair(rows, x);
 }
 
 // ---- headline ----
 
-function drawHeadline(rows) {
-  const last = rows[rows.length - 1];
+function drawHeadline(rows, edge) {
   const trough = rows.reduce((a, b) => (b.spot < a.spot ? b : a));
+  const deskTotal = edge.desk[edge.desk.length - 1];
+  const controlTotal = edge.control[edge.control.length - 1];
   const set = (id, value, sub) => {
     document.getElementById(id).textContent = value;
     if (sub) document.getElementById(`${id}-sub`).textContent = sub;
   };
-  set("stat-desk", fmtBps(last.pnlDeskBps), "bps, marked at spot");
-  set("stat-control", fmtBps(last.pnlControlBps), "bps, plain XYCSwap");
+  set("stat-desk", fmtUsd(deskTotal), "absorbed, marked out at 60m");
+  set("stat-control", fmtUsd(controlTotal), "plain XYCSwap, same tape");
+  set("stat-multiple", controlTotal > 0 ? `${(deskTotal / controlTotal).toFixed(1)}x` : "—",
+    "desk over control");
   set("stat-lean", String(rows.filter((r) => r.lean !== 0).length), `of ${rows.length} minutes`);
   set("stat-trough", fmtUsd(usd(trough.spot)), `at ${hhmm(trough.t)} UTC`);
+}
+
+/// The quantity the argument rests on. A markout in bps is a rate, and the desk is meant to lose
+/// on that rate: leaning inside the spread is paying up, on every fill, by construction. What it
+/// buys with that is size at a price that reverts, so the number that matters is the rate applied
+/// to the notional it actually absorbed, run forward over the session.
+function absorbedEdge(rows) {
+  let d = 0;
+  let c = 0;
+  const desk = [];
+  const control = [];
+  for (const r of rows) {
+    d += (r.markoutDesk60mBps / 10_000) * r.absorbedDeskNtl;
+    c += (r.markoutControl60mBps / 10_000) * r.absorbedControlNtl;
+    desk.push(d);
+    control.push(c);
+  }
+  return { desk, control };
 }
 
 // ---- the price the whole thing happened at ----
@@ -134,43 +156,29 @@ function drawLean(rows, x) {
 
 // ---- was the desk right an hour later ----
 
-function drawMarkouts(rows, x) {
-  const node = svg(document.getElementById("chart-markout"), H.markout);
-  const filled = rows
-    .map((r, i) => ({ r, i }))
-    .filter(({ r }) => r.markoutDesk60mBps !== 0 || r.markoutControl60mBps !== 0);
+function drawEdge(rows, x, edge) {
+  const node = svg(document.getElementById("chart-edge"), H.edge);
+  const [lo, hi] = niceBounds([...edge.desk, ...edge.control, 0], { padding: 0.16 });
+  const y = yScale(lo, hi, H.edge);
+  yAxis(node, y, ticksFor(lo, hi, 5), (v) => fmtUsd(v), H.edge);
 
-  if (filled.length === 0) {
-    el("text", { x: VIEW_W / 2, y: H.markout / 2, class: "empty", "text-anchor": "middle" }, node)
-      .append("no fill on this tape carries a 60 minute markout");
-    return;
-  }
+  const xs = rows.map((_, i) => x(i));
+  const deskY = edge.desk.map(y);
+  const controlY = edge.control.map(y);
 
-  const values = filled.flatMap(({ r }) => [r.markoutDesk60mBps, r.markoutControl60mBps, 0]);
-  const [lo, hi] = niceBounds(values, { padding: 0.18 });
-  const y = yScale(lo, hi, H.markout);
-  yAxis(node, y, ticksFor(lo, hi, 5), (v) => fmtBps(v), H.markout);
+  band(node, xs, deskY, controlY, { class: "edge-gap" });
+  line(node, xs, controlY, { class: "edge-control" });
+  line(node, xs, deskY, { class: "edge-desk" });
 
-  // The control sits behind and wider, the desk in front and narrower. The two agree to within
-  // twenty bps on this tape, and a side-by-side pair would read as one bar; nested, both are
-  // always visible and the difference is the collar.
-  const zero = y(0);
-  const wide = Math.max(4, Math.min(14, x.step * 0.8));
-  const narrow = wide * 0.5;
-  for (const { r, i } of filled) {
-    for (const [value, cls, w] of [
-      [r.markoutControl60mBps, "bar-control", wide],
-      [r.markoutDesk60mBps, "bar-desk", narrow],
-    ]) {
-      const py = y(value);
-      el("rect", {
-        x: x(i) - w / 2, width: w,
-        y: Math.min(py, zero), height: Math.max(1.5, Math.abs(py - zero)),
-        class: `bar ${cls}`,
-      }, node);
-    }
-  }
-  xLabels(node, x, rows, H.markout - 6, LABEL_EVERY, (r) => hhmm(r.t));
+  const label = (value, py, cls) => {
+    const text = el("text", { x: VIEW_W - PAD.right, y: py - 6, class: `edge-label ${cls}`,
+      "text-anchor": "end" }, node);
+    text.append(fmtUsd(value));
+  };
+  label(edge.desk.at(-1), deskY.at(-1), "edge-label-desk");
+  label(edge.control.at(-1), controlY.at(-1) + 18, "edge-label-control");
+
+  xLabels(node, x, rows, H.edge - 6, LABEL_EVERY, (r) => hhmm(r.t));
 }
 
 // ---- the readout ----
@@ -201,9 +209,13 @@ function wireCrosshair(rows, x) {
       ["lean", r.leanName],
       ["dislocation", `${fmtBps(r.dislocationBps)} bps`],
       ["forced sell / buy", `$${r.forcedSellNtl.toLocaleString("en-US")} / $${r.forcedBuyNtl.toLocaleString("en-US")}`],
-      ["markout 60m", r.markoutDesk60mBps || r.markoutControl60mBps
-        ? `desk ${fmtBps(r.markoutDesk60mBps)} · control ${fmtBps(r.markoutControl60mBps)}`
+      ["absorbed", r.absorbedDeskNtl || r.absorbedControlNtl
+        ? `desk $${r.absorbedDeskNtl.toLocaleString("en-US")} · control $${r.absorbedControlNtl.toLocaleString("en-US")}`
         : "—"],
+      ["markout rate 60m", r.markoutDesk60mBps || r.markoutControl60mBps
+        ? `desk ${fmtBps(r.markoutDesk60mBps)} · control ${fmtBps(r.markoutControl60mBps)} bps`
+        : "—"],
+      ["pnl, marked at spot", `desk ${fmtBps(r.pnlDeskBps)} · control ${fmtBps(r.pnlControlBps)} bps`],
     ]) {
       const cell = document.createElement("div");
       cell.className = "readout-cell";
