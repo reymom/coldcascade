@@ -131,11 +131,20 @@ points at the open one, and the console says which oracle each desk names.
 
 The quote, the program encoder, the desk account and the console are built and tested against
 1inch's own Aqua and the SwapVM router deployed on 999. The HyperCore reader has been run against a
-live node, and the round trip above is the live book answering today. Mainnet is one command behind
-`./script/mainnet.sh`, whose preflight is every read that can fail a deploy — chain id, both 1inch
-contracts, the deployer's HYPE, and UBTC and USD₮0 answering with the symbol and the decimals they
-are supposed to have. The subgraph and the CoreWriter cover leg are after it; the markout numbers
-arrive when the replay runs on a real tape.
+live node, and the round trip above is the live book answering today. **It is deployed.** Twelve contracts on chain 999 since 6 September, three desks shipped, and the
+canonical desk holds real UBTC and USD₮0. The subgraph and the CoreWriter cover leg come next; the
+markout numbers arrive when the replay runs on a real tape.
+
+| | |
+|---|---|
+| Canonical desk | [`0xCbDe7c24…A197`](https://hyperevmscan.io/address/0xCbDe7c24B5963d01eC64b08BB4e2e8BA1707A197) — real inventory |
+| Demo desk | [`0xC76137e4…15B2`](https://hyperevmscan.io/address/0xC76137e49BF4D323190a4Ee694b47D5a2Ac515B2) — mintable tokens, take it for nothing |
+| `CoreQuote` | [`0xE4DE197A…Df2B`](https://hyperevmscan.io/address/0xE4DE197A81dEa935F72557DC5Bd4F6f1e194Df2B) |
+| `DeskHooks` | [`0x84C1D720…A363`](https://hyperevmscan.io/address/0x84C1D720787F7D197dfc2890862E69c42aB0A363) |
+| `DeskFactory` | [`0xd72e2293…093d`](https://hyperevmscan.io/address/0xd72e2293a37DAd1596c68a35261Eef6B8B7c093d) |
+
+The full address book is `deployments/999.json`; the deploy itself, what it cost and the three
+node-level failures it hit are in [`results/999_deploy.md`](results/999_deploy.md).
 
 **The death metric, on the deployed router.** Against a fork of 999 carrying the real Aqua and the
 real SwapVM, two swaps of 1 000 quote units into the same desk with the book moved between them:
