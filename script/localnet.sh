@@ -27,7 +27,10 @@ PERP="${PERP_INDEX:-0}"
 forge build >/dev/null
 
 echo "forking $RPC_UPSTREAM on :$PORT"
-anvil --fork-url "$RPC_UPSTREAM" --port "$PORT" --auto-impersonate --silent &
+# Chain id 31337, not 999: the fork keeps 999's state, so Aqua and the router are the real ones,
+# but the deployment lands in deployments/31337.json and cannot be mistaken for the mainnet
+# addresses the console reads. Point the console at it with ?rpc=http://127.0.0.1:8545.
+anvil --fork-url "$RPC_UPSTREAM" --port "$PORT" --chain-id 31337 --auto-impersonate --silent &
 ANVIL=$!
 trap 'echo; echo "anvil still running as pid $ANVIL — kill it when done"' EXIT
 until cast block-number --rpc-url "$LOCAL" >/dev/null 2>&1; do sleep 0.3; done
@@ -59,13 +62,13 @@ run() { forge script "$1" --rpc-url "$LOCAL" --unlocked --sender "$DEPLOYER" --b
 echo; echo "== deploy =="; run script/Deploy.s.sol --gas-estimate-multiplier 102 | grep -E "^  (wrote|.*0x)" || true
 echo; echo "== ship =="; run script/Ship.s.sol | grep -E "canonical|demo |control " || true
 
-DESK=$(jq -r .demoDesk deployments/999.json)
+DESK=$(jq -r .demoDesk deployments/31337.json)
 echo; echo "== swap: buy demo base from $DESK =="
 DESK="$DESK" SELL_BASE=false AMOUNT="${AMOUNT:-1000000000}" run script/Swap.s.sol \
   | grep -E "desk bid|lean|quote in|filled in|^  0x" || true
 
 echo
-echo "deployments/999.json:"; jq . deployments/999.json
+echo "deployments/31337.json:"; jq . deployments/31337.json
 echo
 echo "move the book and quote again — this is the death metric, by hand:"
 echo "  cast send $BBO 'setBbo(uint32,uint64,uint64)' $PERP 810000 810010 --rpc-url $LOCAL --unlocked --from $DEPLOYER"

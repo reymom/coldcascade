@@ -10,6 +10,9 @@ subgraph/generated/
 app/node_modules/
 app/dist/
 
+# the local rehearsal writes its own address book; only a real deployment is committed
+deployments/31337.json
+
 # working docs — never shipped; the submission repo holds only what a judge reads
 CLAUDE.md
 AGENTS.md

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>coldcascade — 10 October 2025</title>
+<title>coldcascade</title>
 <style>
 :root {
   color-scheme: dark;
@@ -112,6 +112,67 @@ footer { color: var(--muted); font-size: 12px; border-top: 1px solid var(--line)
   padding-top: 16px; margin-top: 34px; max-width: 82ch; }
 footer code { color: var(--text); }
 
+/* ---- the console shell ---- */
+.topbar { display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; margin-bottom: 6px; }
+.topbar h1 { margin: 0; }
+.tabs { display: flex; gap: 2px; margin-left: auto; }
+.tab { background: none; border: 1px solid var(--line); color: var(--muted); font: inherit;
+  padding: 5px 12px; border-radius: 6px; cursor: pointer; }
+.tab[aria-selected="true"] { color: var(--text); border-color: #38506e; background: var(--panel); }
+#floor-meta { color: var(--muted); font-size: 12px; margin: 0 0 18px; }
+.chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px;
+  border: 1px solid var(--line); }
+.chip-simulated { color: #e0b978; border-color: #5b4a2a; }
+.chip-deployed { color: var(--ask); border-color: #275c54; }
+
+.regime { margin: 0 0 16px; font-size: 13px; color: var(--muted); }
+.regime-lean { color: var(--bid); }
+
+.strip { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 6px; margin-bottom: 8px; }
+.strip svg { display: block; width: 100%; height: auto; overflow: visible; }
+.strip-zero { stroke: #6b7d97; stroke-width: 1; }
+.strip-grid { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 4; }
+.strip-tick, .strip-edge { fill: var(--muted); font: 10px var(--font); }
+.strip-name { fill: var(--text); font: 10px var(--font); }
+.strip-l1 { fill: var(--l1); fill-opacity: 0.8; stroke: #6b7d97; }
+.strip-desk { fill: rgba(74,163,255,0.14); stroke: var(--desk); }
+.strip-wedge-bid { fill: var(--bid); fill-opacity: 0.85; }
+.strip-wedge-ask { fill: var(--ask); fill-opacity: 0.85; }
+.strip-ghost { fill: none; stroke: #3b4a63; stroke-width: 1; stroke-dasharray: 3 3; }
+.strip-lean-bid { stroke: var(--bid); stroke-width: 2.5; }
+.strip-lean-ask { stroke: var(--ask); stroke-width: 2.5; }
+.strip-travel-bid { stroke: var(--bid); stroke-width: 1; stroke-dasharray: 2 2; }
+.strip-travel-ask { stroke: var(--ask); stroke-width: 1; stroke-dasharray: 2 2; }
+.strip-travel-label { fill: var(--bid); font: 10px var(--font); }
+
+table.desks { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 26px; }
+table.desks th { text-align: left; font-weight: 600; color: var(--muted); font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.07em; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+table.desks td { padding: 8px 10px; border-bottom: 1px solid var(--line); }
+table.desks td.name { color: var(--text); font-weight: 600; }
+table.desks td.num { color: var(--desk); }
+table.desks td.lean-1 { color: var(--bid); }
+table.desks td.lean-2 { color: var(--ask); }
+
+.panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 16px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; }
+.panel h3 { margin: 0 0 4px; font-size: 13px; }
+.panel .why { color: var(--muted); font-size: 12px; margin: 0 0 12px; line-height: 1.55; }
+.panel .why b { color: var(--text); font-weight: 600; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.controls select, .controls input { background: #0d1219; color: var(--text); font: inherit;
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+.controls input { width: 8em; }
+button.go { background: #17324f; color: #cfe4ff; border: 1px solid #2d5480; font: inherit;
+  padding: 6px 14px; border-radius: 6px; cursor: pointer; }
+button.go:disabled { opacity: 0.45; cursor: default; }
+.out { color: var(--muted); font-size: 12px; min-height: 1.4em; margin: 0; word-break: break-word; }
+.out-error { color: #e5b4b4; }
+#floor-connect { margin-left: auto; }
+#floor-error { color: #e5b4b4; font-size: 12px; margin: 0 0 12px; }
+.label-hard { color: var(--bid); font-weight: 600; }
+
 .status { white-space: pre-wrap; background: var(--panel); border: 1px solid var(--line);
   border-radius: 8px; padding: 20px; color: var(--muted); }
 .status.error { border-color: #6d3030; color: #e5b4b4; }
@@ -119,9 +180,97 @@ footer code { color: var(--text); }
 </head>
 <body>
 <main>
-  <h1>coldcascade — 10 October 2025</h1>
+  <div class="topbar">
+    <h1>coldcascade</h1>
+    <div class="tabs" role="tablist">
+      <button class="tab" id="tab-floor" role="tab" aria-selected="true" aria-controls="panel-floor">Floor</button>
+      <button class="tab" id="tab-evidence" role="tab" aria-selected="false" aria-controls="panel-evidence">Evidence · 10 Oct 2025</button>
+    </div>
+  </div>
+
+  <section id="panel-floor" role="tabpanel">
+    <p id="floor-meta">reading the chain…</p>
+    <pre id="floor-status" class="status">connecting to HyperEVM…</pre>
+
+    <div id="floor-page" hidden>
+      <div class="topbar" style="margin-bottom:14px">
+        <span id="floor-mode" class="chip">—</span>
+        <button class="go" id="floor-connect">connect a wallet</button>
+      </div>
+      <p id="floor-error" hidden></p>
+
+      <h2>Hyperliquid BTC, read by the quote itself</h2>
+      <p class="note">Four words out of <code>0x080e</code>, <code>0x0806</code> and
+        <code>0x0807</code> — the perp book, read inside the same call that prices the swap.</p>
+      <div class="stats" id="floor-book"></div>
+      <p class="regime" id="floor-regime"></p>
+
+      <h2>the two books</h2>
+      <p class="note">Distance from L1's mid, in basis points. A desk sitting outside L1 on both
+        sides is a desk that cannot be taken stale; the filled wedge is a desk quoting
+        <b>inside</b> L1 to absorb.</p>
+      <div class="strip" id="floor-strip"></div>
+
+      <h2>desks</h2>
+      <table class="desks">
+        <thead><tr>
+          <th>desk</th><th>band</th><th>quote now</th><th>inventory</th>
+          <th>map</th><th>cover</th><th>lean</th>
+        </tr></thead>
+        <tbody id="floor-rows"></tbody>
+      </table>
+
+      <div class="panels">
+        <div class="panel">
+          <h3>Take</h3>
+          <p class="why" id="take-note"></p>
+          <div class="controls">
+            <select id="take-desk"></select>
+            <select id="take-side">
+              <option value="buy">buy base</option>
+              <option value="sell">sell base</option>
+            </select>
+            <input id="take-amount" type="text" inputmode="decimal" value="100" aria-label="amount in">
+            <button class="go" id="take-go">quote and swap</button>
+          </div>
+          <p class="out" id="take-out"></p>
+        </div>
+
+        <div class="panel">
+          <h3>Post a liquidation map <span class="label-hard">— this is the trusted input</span></h3>
+          <p class="why">The desk's quote is a function of two things. The <b>book</b> it reads from
+            the chain, which nobody signs. And the <b>map</b> — how much forced notional sits within
+            1% of mark — which is reconstructed off chain and taken on trust. This button writes one.
+            <br><br>
+            It is the honest place to point at, so it is a button rather than a paragraph: a map can
+            only ever <b>add</b> a lean, one below the desk's own floor does nothing, and a stale one
+            is ignored, so the worst a broken keeper does is take a lean away. The <b>demo</b> desk
+            names an oracle <b>anyone</b> can write, which is why you can press this. The
+            <b>canonical</b> desk names one with a single updater, because a desk quoting inside L1
+            is a desk offering a better price than L1, and an oracle anyone can write is an oracle
+            anyone can be paid out of.
+            <br><br>
+            The map expires on its own. Nobody clears it; it simply stops counting.</p>
+          <div class="controls">
+            <select id="map-desk"></select>
+            <select id="map-side">
+              <option value="below">forced selling below</option>
+              <option value="above">forced buying above</option>
+            </select>
+            <input id="map-notional" type="text" inputmode="numeric" value="40000000" aria-label="forced notional">
+            <button class="go" id="map-go">post the map</button>
+          </div>
+          <p class="out" id="map-out"></p>
+          <p class="out" id="map-note"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="panel-evidence" role="tabpanel" hidden>
+  <h2 style="font-size:20px;text-transform:none;letter-spacing:-0.01em;color:var(--text)">10 October 2025</h2>
   <p class="sub">One maker program on HyperEVM, quoting against Hyperliquid's own book, through the
-    cascade and the hour after it.</p>
+    cascade and the hour after it. A reproduction from a frozen tape, not a live reading.</p>
 
   <pre id="status" class="status">loading results/oct10_replay.csv…</pre>
 
@@ -209,7 +358,8 @@ footer code { color: var(--text); }
         <code>results/oct10_replay.schema.md</code> says which layer is which.</p>
     </footer>
   </div>
+  </section>
 </main>
-<script type="module" src="./src/app.js"></script>
+<script type="module" src="./src/console.js"></script>
 </body>
 </html>
