@@ -112,9 +112,13 @@ echo
 
 # `forge script` pads a gas estimate by 30%. DeskAccount's code deposit is 2 863 583 gas of a
 # 3 000 000 small block, so on the deploy the padding is what does not fit; everything else keeps it.
-DEPLOY="forge script script/Deploy.s.sol --rpc-url hyperevm --account $ACCOUNT --sender $DEPLOYER --broadcast --gas-estimate-multiplier 102"
-SHIP="forge script script/Ship.s.sol --rpc-url hyperevm --account $ACCOUNT --sender $DEPLOYER --broadcast"
-SWAP="DESK=\$(jq -r .demoDesk deployments/999.json) SELL_BASE=false AMOUNT=1000000000 forge script script/Swap.s.sol --rpc-url hyperevm --account $ACCOUNT --sender $DEPLOYER --broadcast"
+# --slow sends one transaction at a time and waits for each receipt. Without it the first deploy
+# died at "nonce too high" after 8 of 12 contracts: HyperEVM's RPC rejects any nonce ahead of the
+# account's current state rather than queueing it, and forge fires the batch without waiting.
+# The cost of not having it is a half-deployed mainnet at addresses that then have to be abandoned.
+DEPLOY="forge script script/Deploy.s.sol --rpc-url hyperevm --account $ACCOUNT --sender $DEPLOYER --broadcast --slow --gas-estimate-multiplier 102"
+SHIP="forge script script/Ship.s.sol --rpc-url hyperevm --account $ACCOUNT --sender $DEPLOYER --broadcast --slow"
+SWAP="DESK=\$(jq -r .demoDesk deployments/999.json) SELL_BASE=false AMOUNT=1000000000 forge script script/Swap.s.sol --rpc-url hyperevm --account $ACCOUNT --sender $DEPLOYER --broadcast --slow"
 
 if [ "$GO" = false ]; then
   echo "preflight clean. --go runs these three, in this order:"
