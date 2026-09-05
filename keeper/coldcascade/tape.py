@@ -14,6 +14,7 @@ import json
 import time
 import urllib.request
 from pathlib import Path
+from math import fabs
 from statistics import median
 
 #: The markout horizons the replay reports, in minutes. Mirrors test/Oct10Replay.t.sol.
@@ -194,13 +195,29 @@ def _iso(unix_seconds: int) -> str:
 # reconstruction and nothing measured on it may be quoted. `fetch_hl_fills` retires it.
 # ---------------------------------------------------------------------------
 
-#: Bps of perp-to-oracle dislocation per bp of adverse minute return. The perp leads the CEX in
-#: both directions during a cascade; this is the crudest possible statement of that.
-DISLOCATION_GAIN = 0.5
+#: Bps of perp-to-oracle dislocation per bp of *sustained* move. The perp overshoots in whichever
+#: direction the flow is going and stays there while the flow lasts: that persistence is the
+#: phenomenon, not a detail of it. Driving the dislocation off a single minute's return instead
+#: mean-reverts every other minute and makes the desk change its mind once a minute, which no
+#: dislocated book does.
+DISLOCATION_GAIN = 1.2
 DISLOCATION_CAP_BPS = 300.0
 
-#: Bps the book widens per bp of adverse move, over the quiet spread measured on 999.
-SPREAD_GAIN = 0.6
+#: Half-life, in minutes, of the momentum the perp overshoots on.
+DISLOCATION_HALF_LIFE_MINUTES = 3.0
+
+#: Bps the book widens per bp of recent movement *in excess of the session's own baseline*, over
+#: the quiet spread measured on 999. Excess rather than absolute, so a minute that is only as
+#: volatile as the rest of the session quotes the 10-raw spread the live 999 book actually shows
+#: and the widening is visibly an event rather than a permanent state.
+SPREAD_GAIN = 0.9
+
+#: Half-life, in minutes, of the volatility the spread is quoted off. A book that has just been
+#: run over does not re-tighten to a tenth of a bp for one quiet minute and widen again on the
+#: next; market makers widen on the way in and come back slowly. Driving the spread off an
+#: instantaneous return instead makes the band flicker once a minute, which is an artifact of the
+#: overlay and not something a real book does.
+SPREAD_HALF_LIFE_MINUTES = 5.0
 
 #: Share of the minute's flow that is forced, per bp of adverse move, and its ceiling.
 FORCED_SHARE_PER_BPS = 1 / 500
@@ -218,25 +235,40 @@ FORCED_MIN_MULTIPLE = 8.0
 def forced_overlay(minutes: list[dict], quiet_spread_raw: int) -> list[dict]:
     """Derives mark, the book and the forced columns from the real spot path.
 
-    Spot, oracle and takerNtl stay as they came from Coinbase. Mark is walked off oracle in
-    proportion to the minute's return, so a fast down minute puts the perp below the CEX and a
-    fast up minute puts it above; the book widens with the same move and the forced notional is a
-    share of the minute's flow, above a threshold the session sets for itself. Deterministic:
-    same candles, same tape.
+    Spot, oracle and takerNtl stay as they came from Coinbase. Everything else is derived from
+    the shape of that price path:
+
+    - **mark** overshoots oracle in the direction of recent momentum, so sustained selling holds
+      the perp below the CEX for as long as the selling lasts and sustained buying holds it above.
+    - **the spread** widens with recent movement in excess of the session's own baseline, and
+      comes back slowly, because a book that has just been run over does not re-tighten for one
+      quiet minute and widen again on the next.
+    - **the forced columns** are a share of the minute's flow, above a threshold the session sets
+      for itself.
+
+    Both decays matter to the picture and not only to the realism: driven off a single minute's
+    return, the regime flips almost every minute and the desk is drawn changing its mind
+    constantly, which is an artifact of the overlay rather than anything the quote does.
+
+    Deterministic: same candles, same tape.
     """
     returns = _minute_returns_bps(minutes)
-    threshold = FORCED_MIN_MULTIPLE * median(abs(r) for r in returns)
+    baseline = median(abs(r) for r in returns)
+    threshold = FORCED_MIN_MULTIPLE * baseline
+    vol = _ewma(fabs, returns, SPREAD_HALF_LIFE_MINUTES)
+    momentum = _ewma(lambda r: r, returns, DISLOCATION_HALF_LIFE_MINUTES)
 
     out = []
     for i, m in enumerate(minutes):
         ret_bps = returns[i]
         adverse = abs(ret_bps)
 
-        disloc = max(-DISLOCATION_CAP_BPS, min(DISLOCATION_CAP_BPS, -ret_bps * DISLOCATION_GAIN))
+        disloc = max(-DISLOCATION_CAP_BPS, min(DISLOCATION_CAP_BPS, -momentum[i] * DISLOCATION_GAIN))
         oracle = m["oracle"]
         mark = round(oracle * (1 - disloc / 10_000))
 
-        spread = max(quiet_spread_raw, round(mark * (adverse * SPREAD_GAIN) / 10_000))
+        excess = max(0.0, vol[i] - baseline)
+        spread = max(quiet_spread_raw, round(mark * (excess * SPREAD_GAIN) / 10_000))
         share = min(FORCED_SHARE_CAP, adverse * FORCED_SHARE_PER_BPS) if adverse >= threshold else 0.0
         forced = round(m["takerNtl"] * share)
 
@@ -281,4 +313,16 @@ def _minute_returns_bps(minutes: list[dict]) -> list[float]:
     for i, m in enumerate(minutes):
         prev = minutes[i - 1]["spot"] if i else m["spot"]
         out.append((m["spot"] - prev) * 10_000 / prev if prev else 0.0)
+    return out
+
+
+def _ewma(key, values: list[float], half_life: float) -> list[float]:
+    """Exponentially weighted mean of `key(v)`, seeded with the first value so the series does not
+    start from zero and climb into itself."""
+    alpha = 1 - 0.5 ** (1 / half_life)
+    out: list[float] = []
+    acc = key(values[0]) if values else 0.0
+    for v in values:
+        acc += alpha * (key(v) - acc)
+        out.append(acc)
     return out

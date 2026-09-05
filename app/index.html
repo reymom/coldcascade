@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>coldcascade — 10 October 2025</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0a0d13;
+  --panel: #111722;
+  --line: #1e2736;
+  --text: #d5dde9;
+  --muted: #7b8899;
+  --spot: #8fa6c4;
+  --l1: #46566f;
+  --desk: #4aa3ff;
+  --bid: #ff9f45;
+  --ask: #3fd2bd;
+  --font: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.55 var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+main { max-width: 1180px; margin: 0 auto; padding: 40px 24px 72px; }
+
+h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 28px; font-size: 13px; }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px;
+  background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+  margin-bottom: 28px; }
+.stat { background: var(--panel); padding: 14px 16px; }
+.stat-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+.stat-value { font-size: 24px; font-weight: 600; margin-top: 4px; letter-spacing: -0.02em; }
+.stat-sub { color: var(--muted); font-size: 11px; }
+#stat-desk { color: var(--desk); }
+
+.lede { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  padding: 16px 18px; margin-bottom: 24px; max-width: 78ch; }
+.lede p { margin: 0 0 8px; }
+.lede p:last-child { margin: 0; }
+.lede b { font-weight: 600; }
+.k-l1 { color: var(--l1); filter: brightness(1.9); font-weight: 600; }
+.k-desk { color: var(--desk); font-weight: 600; }
+.k-bid { color: var(--bid); font-weight: 600; }
+.k-ask { color: var(--ask); font-weight: 600; }
+
+section { margin-bottom: 26px; }
+h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.09em;
+  color: var(--muted); margin: 0 0 2px; }
+.note { color: var(--muted); font-size: 12px; margin: 0 0 10px; }
+
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+#panels { position: relative; }
+
+.grid { stroke: var(--line); stroke-width: 1; }
+.grid-zero { stroke: #2f3d52; }
+.tick, .unit { fill: var(--muted); font: 10px var(--font); }
+.empty { fill: var(--muted); font: 12px var(--font); }
+
+.spot-line { stroke: var(--spot); stroke-width: 1.5; }
+.l1-fill { fill: var(--l1); fill-opacity: 0.55; }
+.l1-edge { stroke: #6b7d97; stroke-width: 1; }
+.desk-fill { fill: var(--desk); fill-opacity: 0.1; }
+.desk-edge { stroke: var(--desk); stroke-width: 1.4; }
+.inside-bid { fill: var(--bid); fill-opacity: 0.85; }
+.inside-ask { fill: var(--ask); fill-opacity: 0.85; }
+
+.lean { fill: #182031; }
+.lean-bid { fill: var(--bid); }
+.lean-ask { fill: var(--ask); }
+
+.bar-desk { fill: var(--desk); }
+.bar-control { fill: #56657a; }
+
+.crosshair { stroke: #8fa6c4; stroke-width: 1; stroke-dasharray: 2 3; opacity: 0; }
+.tracking .crosshair { opacity: 0.65; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 10px 0 0; color: var(--muted);
+  font-size: 12px; }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.swatch { width: 22px; height: 10px; border-radius: 2px; }
+.sw-l1 { background: var(--l1); border: 1px solid #6b7d97; }
+.sw-desk { background: rgba(74,163,255,0.16); border: 1px solid var(--desk); }
+.sw-bid { background: var(--bid); }
+.sw-ask { background: var(--ask); }
+.sw-control { background: #5b6b80; }
+
+#readout { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+  background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+  margin-top: 14px; }
+.readout-cell { background: var(--panel); padding: 9px 12px; display: flex; flex-direction: column; }
+.readout-key { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; }
+.readout-val { font-size: 13px; }
+.readout-bid { color: var(--bid); }
+.readout-ask { color: var(--ask); }
+
+@media (max-width: 860px) { #readout { grid-template-columns: repeat(2, 1fr); } }
+footer { color: var(--muted); font-size: 12px; border-top: 1px solid var(--line);
+  padding-top: 16px; margin-top: 34px; max-width: 82ch; }
+footer code { color: var(--text); }
+
+.status { white-space: pre-wrap; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 20px; color: var(--muted); }
+.status.error { border-color: #6d3030; color: #e5b4b4; }
+</style>
+</head>
+<body>
+<main>
+  <h1>coldcascade — 10 October 2025</h1>
+  <p class="sub">One maker program on HyperEVM, quoting against Hyperliquid's own book, through the
+    cascade and the hour after it.</p>
+
+  <pre id="status" class="status">loading results/oct10_replay.csv…</pre>
+
+  <div id="page" hidden>
+    <div class="stats">
+      <div class="stat"><div class="stat-label">desk</div>
+        <div class="stat-value" id="stat-desk">—</div><div class="stat-sub" id="stat-desk-sub"></div></div>
+      <div class="stat"><div class="stat-label">control</div>
+        <div class="stat-value" id="stat-control">—</div><div class="stat-sub" id="stat-control-sub"></div></div>
+      <div class="stat"><div class="stat-label">minutes leaning</div>
+        <div class="stat-value" id="stat-lean">—</div><div class="stat-sub" id="stat-lean-sub"></div></div>
+      <div class="stat"><div class="stat-label">trough</div>
+        <div class="stat-value" id="stat-trough">—</div><div class="stat-sub" id="stat-trough-sub"></div></div>
+    </div>
+
+    <div class="lede">
+      <p>The <span class="k-l1">grey band</span> is Hyperliquid's own best bid and offer. The
+        <span class="k-desk">blue band</span> is where this desk is willing to trade.</p>
+      <p>When nothing is happening the blue band sits <b>outside</b> the grey one on both sides:
+        the desk is never the best price on the screen, so a stale quote is not worth taking.</p>
+      <p>When the book breaks, one side of the blue band crosses <b>inside</b> the grey one and the
+        wedge lights up — <span class="k-bid">amber</span> when the desk is buying from forced
+        sellers, <span class="k-ask">teal</span> when it is selling to forced buyers. That is the
+        desk stepping in front of L1 to take the flow, on one side only, and only while the
+        dislocation lasts.</p>
+    </div>
+
+    <div id="panels">
+      <section class="chart" id="wrap-spot">
+        <h2>spot</h2>
+        <p class="note">Coinbase BTC-USD, one minute closes.</p>
+        <div id="chart-spot"></div>
+      </section>
+
+      <section class="chart" id="wrap-bands">
+        <h2>the two books</h2>
+        <p class="note">Distance from L1's mid, in basis points — the only scale on which a
+          25 bps quote and a $7 000 crash fit in one picture.</p>
+        <div id="chart-bands"></div>
+        <div class="legend">
+          <span><i class="swatch sw-l1"></i>L1 bid–ask</span>
+          <span><i class="swatch sw-desk"></i>desk bid–ask</span>
+          <span><i class="swatch sw-bid"></i>desk inside L1, buying</span>
+          <span><i class="swatch sw-ask"></i>desk inside L1, selling</span>
+        </div>
+      </section>
+
+      <section class="chart" id="wrap-lean">
+        <h2>lean</h2>
+        <p class="note">Which side is absorbing, minute by minute.</p>
+        <div id="chart-lean"></div>
+      </section>
+
+      <section class="chart" id="wrap-markout">
+        <h2>60 minute markout</h2>
+        <p class="note">Each minute's fills against spot an hour later, in basis points. Positive is
+          the maker having been right.</p>
+        <div id="chart-markout"></div>
+        <div class="legend">
+          <span><i class="swatch sw-desk" style="background:var(--desk)"></i>desk</span>
+          <span><i class="swatch sw-control"></i>control, plain XYCSwap</span>
+        </div>
+      </section>
+    </div>
+
+    <div id="readout"></div>
+
+    <footer>
+      <p>Reads <code>results/oct10_replay.csv</code>, written by
+        <code>forge test --match-contract Oct10Replay</code>. Spot is real Coinbase data from the
+        2025-10-10 cascade; the desk's own two prices are <code>CoreQuote.bounds()</code> answering
+        under each minute's book. The book, the forced flow and both takers in that file are still
+        synthetic, so the inventory, PnL and markout numbers show the shape of the comparison and
+        not its size. The two markout series sit within twenty basis points of each other for a
+        real reason and a placeholder one: leaning in means paying up, so the desk's entry price
+        on a fill is slightly worse than the control's, and its case is the size it absorbs rather
+        than the price of any one fill — which is exactly what the placeholder takers do not
+        model, since they hand both makers nearly the same flow.
+        <code>results/oct10_replay.schema.md</code> says which layer is which.</p>
+    </footer>
+  </div>
+</main>
+<script type="module" src="./src/app.js"></script>
+</body>
+</html>

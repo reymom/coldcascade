@@ -63,7 +63,7 @@ are not equally real:
 | layer | source |
 |---|---|
 | `spot`, `oracle`, `takerNtl` | **real.** Coinbase BTC-USD 1m closes and volume, 2025-10-10 21:03 → 23:05 UTC, pulled 2026-09-05. The trough on the tape is $107 600 at 21:21; Coinbase's low for the day was $107 000 at 21:26 |
-| `mark`, `bid`, `ask`, `forcedSellNtl`, `forcedBuyNtl` | **synthetic.** `forced_overlay` walks mark off oracle in proportion to each minute's return and calls a minute forced when it moves more than eight times the session's own median. The fill log that would replace this is on S3 and requester-pays |
+| `mark`, `bid`, `ask`, `forcedSellNtl`, `forcedBuyNtl` | **synthetic.** `forced_overlay` overshoots mark off oracle in the direction of recent momentum and widens the book with recent movement in excess of the session's baseline — both decaying, because a dislocated perp stays dislocated and a book that has been run over comes back slowly. A minute counts as forced when it moves more than eight times the session's own median. The fill log that would replace all of this is on S3 and requester-pays |
 | `deskBid`, `deskAsk`, `lean`, `dislocationBps` | **the contract.** `CoreQuote.bounds()` and `.regime()` answering under the row's book — not a model of the quote, the quote |
 | everything else | **placeholder.** Both takers are stubs, so every inventory, PnL, absorbed, arbitrage and markout figure is synthetic and none may be quoted |
 
