@@ -311,46 +311,6 @@ contract DeskAccountTest is DeskTest {
         desk.onFill(ORDER, address(ubtc), address(usdt0), ONE_UBTC, 1, Book(0, 0, 0, 0), Side.Bid);
     }
 
-    /// @dev End to end, through 1inch's router: a taker sells into a dislocated book, the desk is
-    ///      the absorbing side, and the cover decision comes out of the taker's own transaction --
-    ///      same block, no keeper, nobody watching. This is the shape the CoreWriter leg drops into.
-    function test_onFill_firesInsideTheTakersSwap() public {
-        DeskParams memory p = btcParams();
-        DeskAccount desk = openDesk(alice, "ramon", p, START_BASE, START_QUOTE);
-        vm.prank(alice);
-        desk.armHedge(true, 500_000e6);
-
-        // mark 782 000 against oracle 795 790 is 173 bps below: forced selling, and the desk leans
-        // its bid inside the spread to take the flow.
-        setBook(780_000, 790_000, 782_000, QUIET_ORACLE);
-        ISwapVM.Order memory o = desk.order();
-        (, uint256 expectedOut) = quoteRouter(o, p, ONE_UBTC, true, true);
-        fundTaker(o, p, ONE_UBTC, true, true);
-
-        vm.expectEmit(true, true, true, true, address(desk));
-        emit DeskAccount.HedgeIntent(swapVM.hash(o), BTC, false, ONE_UBTC, ONE_UBTC * 782_000 / 1000, 782_000);
-        swapOnly(o, p, ONE_UBTC, true, true);
-
-        assertEq(ubtc.balanceOf(address(desk)), START_BASE + ONE_UBTC, "the desk absorbed the base");
-        assertEq(usdt0.balanceOf(address(taker)), expectedOut, "and paid for it");
-    }
-
-    /// @dev Disarmed is the default, and it stays a decision the fill records rather than a silence.
-    function test_onFill_disarmedDeskStillFills() public {
-        DeskParams memory p = btcParams();
-        DeskAccount desk = openDesk(alice, "ramon", p, START_BASE, START_QUOTE);
-        setBook(780_000, 790_000, 782_000, QUIET_ORACLE);
-
-        ISwapVM.Order memory o = desk.order();
-        fundTaker(o, p, ONE_UBTC, true, true);
-
-        vm.expectEmit(true, true, true, true, address(desk));
-        emit DeskAccount.HedgeSkipped(swapVM.hash(o), DeskAccount.SkipReason.Disarmed);
-        swapOnly(o, p, ONE_UBTC, true, true);
-
-        assertEq(ubtc.balanceOf(address(desk)), START_BASE + ONE_UBTC, "the fill is the fill either way");
-    }
-
     // ---- helpers ----
 
     bytes32 internal constant ORDER = keccak256("fill");

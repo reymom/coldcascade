@@ -1,17 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import { Vm } from "forge-std/Vm.sol";
-
 import { ISwapVM } from "@1inch/swap-vm/src/interfaces/ISwapVM.sol";
 
 import { DeskTest } from "./base/DeskTest.sol";
-import { DeskAccount } from "../src/DeskAccount.sol";
 import { DeskHooks } from "../src/DeskHooks.sol";
 import { ICoreReader, Book } from "../src/interfaces/ICoreReader.sol";
 import { DeskParams, DeskParamsLib } from "../src/libs/DeskParams.sol";
 import { DeskPrograms } from "../src/libs/DeskPrograms.sol";
-import { Side } from "../src/libs/Regime.sol";
 
 /// @notice The hook is how the L1 book becomes an EVM log. Everything the markout needs is in the
 ///         `Fill` event, so a later join needs the subgraph and nothing else — no archive node, no
@@ -24,13 +20,6 @@ contract DeskHooksTest is DeskTest {
     ///      a 1 UBTC fill above the book, so the book bound is what settles the price and the event
     ///      is about a fill the desk actually chose. See CoreQuoteTest for the other side of the min.
     uint256 internal constant START_QUOTE = 900_000e6;
-
-    event MakerCallFailed(bytes32 indexed orderHash, address indexed maker);
-
-    /// @dev A dislocated book, so the fill is on the absorbing side and the hedge branch runs.
-    uint64 internal constant WIDE_BID = 780_000;
-    uint64 internal constant WIDE_ASK = 790_000;
-    uint64 internal constant WIDE_MARK = 782_000;
 
     event Fill(
         bytes32 indexed orderHash,
@@ -158,73 +147,60 @@ contract DeskHooksTest is DeskTest {
         swapOnly(o, p, ONE_UBTC, true, true);
     }
 
-    // ---- the maker callback: a hedge can never fail a fill ----
+    // ---- the hook emits the fill and stops ----
 
-    /// @dev The sentence this is worth more than the hedge for. A maker account that reverts on
-    ///      every fill still gets filled; the failure is a log, not an unwind.
-    function test_makerCallback_revertCannotFailAFill() public {
+    /// @dev The strongest form of "a maker that reverts still gets its fill": the hook does not
+    ///      call the maker at all, so there is nothing to revert. A contract whose every entry
+    ///      point throws is still a maker.
+    function test_makerIsNeverCalled_evenWhenItWouldRevert() public {
         (ISwapVM.Order memory o, DeskParams memory p, uint256 expectedOut) = shipFromMaker(address(new AngryDesk()));
 
-        vm.expectEmit(true, true, true, true, address(hooks));
-        emit MakerCallFailed(swapVM.hash(o), o.maker);
         swapOnly(o, p, ONE_UBTC, true, true);
 
         assertEq(usdt0.balanceOf(address(taker)), expectedOut, "the taker was paid");
+        assertEq(ubtc.balanceOf(o.maker), START_BASE + ONE_UBTC, "and the maker holds what it bought");
     }
 
-    /// @dev And a maker that tries to burn the taker's whole budget is stopped at the cap. Without
-    ///      it, the 1/64 EIP-150 leaves behind is not a guarantee that the transaction finishes.
-    ///      Measured 2026-09-05: 374 478 gas for the whole swap against a maker burning everything
-    ///      it is handed, of which 250 000 is the cap.
-    function test_makerCallback_gasIsCapped() public {
-        (ISwapVM.Order memory o, DeskParams memory p,) = shipFromMaker(address(new GreedyDesk()));
-
-        uint256 before = gasleft();
-        swapOnly(o, p, ONE_UBTC, true, true);
-        uint256 spent = before - gasleft();
-
-        emit log_named_uint("swap gas against a maker burning everything it is given", spent);
-        assertLt(spent, 250_000 + 200_000, "the cap plus the swap is the ceiling, not the taker's whole budget");
-    }
-
-    /// @dev An EOA maker is never called: `maker.code.length` is zero and the branch is skipped.
-    ///      The control strategy ships from one, so this is not a hypothetical.
-    function test_makerCallback_eoaMakerIsNotCalled() public {
+    /// @dev A maker feature is not a taker cost. Two swaps identical but for the maker being a
+    ///      contract that would burn everything it was handed cost the taker the same gas, because
+    ///      neither maker is handed anything.
+    /// @dev A warm-up swap first, against a third maker: the taker's own token slots are cold on
+    ///      the first swap of a test and that dominates a 5 797 gas question. After it, the two
+    ///      measured swaps differ only in who the maker is.
+    function test_contractMakerCostsTheTakerNothingExtra() public {
         DeskParams memory p = btcParams();
-        ISwapVM.Order memory o = deskOrder(p, SALT);
-        shipFunded(o, p, START_BASE, START_QUOTE);
-        fundTaker(o, p, ONE_UBTC, true, true);
+        warmUp(p);
 
-        vm.recordLogs();
-        swapOnly(o, p, ONE_UBTC, true, true);
-
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        for (uint256 i = 0; i < logs.length; ++i) {
-            assertTrue(logs[i].topics[0] != MakerCallFailed.selector, "an EOA maker is not called at all");
-        }
-    }
-
-    /// @dev What the callback costs a taker today, so the cap is a stated number and not a guess.
-    ///      Measured 2026-09-05: 5 797 gas with the hedge armed and the fill on the absorbing side.
-    ///      The CoreWriter leg it grows into is ~47 000 gas with 25 000 burned by HyperCore's docs,
-    ///      `[UNVERIFIED]` against chain 999 until the 2026-09-07 probe.
-    function test_onFill_costsWhatTheCapAllowsFor() public {
-        DeskParams memory p = btcParams();
-        DeskAccount desk = openDesk(address(this), "measured", p, START_BASE, START_QUOTE);
-        desk.armHedge(true, 500_000e6);
-        setBook(WIDE_BID, WIDE_ASK, WIDE_MARK, QUIET_ORACLE);
-
-        Book memory book = Book(WIDE_BID, WIDE_ASK, WIDE_MARK, QUIET_ORACLE);
-        vm.prank(address(hooks));
+        (ISwapVM.Order memory greedy,,) = shipFromMaker(address(new GreedyDesk()));
         uint256 before = gasleft();
-        desk.onFill(bytes32(uint256(1)), address(ubtc), address(usdt0), ONE_UBTC, 1, book, Side.Bid);
-        uint256 spent = before - gasleft();
+        swapOnly(greedy, p, ONE_UBTC, true, true);
+        uint256 againstContract = before - gasleft();
 
-        emit log_named_uint("onFill gas, hedge armed and firing", spent);
-        assertLt(spent, 20_000, "today's callback, with room left under the cap for the CoreWriter leg");
+        ISwapVM.Order memory eoa = deskOrder(p, keccak256("eoa"));
+        shipFunded(eoa, p, START_BASE, START_QUOTE);
+        fundTaker(eoa, p, ONE_UBTC, true, true);
+        before = gasleft();
+        swapOnly(eoa, p, ONE_UBTC, true, true);
+        uint256 againstEoa = before - gasleft();
+
+        emit log_named_uint("swap gas, contract maker", againstContract);
+        emit log_named_uint("swap gas, EOA maker", againstEoa);
+
+        // Measured 2026-09-05: 93 324 against the contract, 93 356 against the EOA. The contract is
+        // the cheaper of the two, so there is no callback left in the bill; what is left is calldata
+        // noise, the two maker addresses having a different number of zero bytes.
+        assertLe(againstContract, againstEoa, "a contract maker is not the more expensive one to fill");
+        assertLt(againstEoa - againstContract, 100, "and what is left is not a callback");
     }
 
     // ---- helpers ----
+
+    /// @dev One throwaway swap so the taker's token slots and the router's accounts are warm.
+    function warmUp(DeskParams memory p) internal {
+        ISwapVM.Order memory o = deskOrder(p, keccak256("warmup"));
+        shipFunded(o, p, START_BASE, START_QUOTE);
+        swapRouter(o, p, ONE_UBTC, true, true);
+    }
 
     /// @dev Ships the canonical desk program from `deskMaker`, funds both sides and the taker, and
     ///      returns what the quote says the fill will pay.
@@ -271,20 +247,20 @@ contract RevertingReader is ICoreReader {
     }
 }
 
-/// @notice A maker account that reverts on every fill callback.
+/// @notice A maker account that rejects every call it receives. Being filled is not a call.
 contract AngryDesk {
     error Angry();
 
-    function onFill(bytes32, address, address, uint256, uint256, Book calldata, uint8) external pure {
+    fallback() external {
         revert Angry();
     }
 }
 
-/// @notice A maker account that burns whatever gas it is given.
+/// @notice A maker account that would burn whatever gas it were given, if it were given any.
 contract GreedyDesk {
     uint256 public sink;
 
-    function onFill(bytes32, address, address, uint256, uint256, Book calldata, uint8) external {
+    fallback() external {
         while (true) {
             sink++;
         }
