@@ -10,6 +10,8 @@ import { CorePrecompiles } from "../../src/CorePrecompiles.sol";
 import { DeskHooks } from "../../src/DeskHooks.sol";
 import { MapOracle } from "../../src/MapOracle.sol";
 import { DemoToken } from "../../src/DemoToken.sol";
+import { DeskAccount } from "../../src/DeskAccount.sol";
+import { DeskFactory } from "../../src/DeskFactory.sol";
 import { DeskParams, DeskParamsLib } from "../../src/libs/DeskParams.sol";
 import { DeskPrograms } from "../../src/libs/DeskPrograms.sol";
 import { HyperCore } from "../../src/libs/HyperCore.sol";
@@ -53,6 +55,7 @@ abstract contract DeskTest is AquaSwapVMTest {
     CoreQuote internal coreQuote;
     DeskHooks internal hooks;
     MapOracle internal mapOracle;
+    DeskFactory internal factory;
 
     function setUp() public virtual override {
         super.setUp();
@@ -67,6 +70,7 @@ abstract contract DeskTest is AquaSwapVMTest {
         coreQuote = new CoreQuote(precompiles);
         hooks = new DeskHooks(address(swapVM), precompiles);
         mapOracle = new MapOracle(address(this));
+        factory = new DeskFactory(aqua, address(swapVM), address(coreQuote), address(hooks));
 
         setBook(QUIET_BID, QUIET_ASK, QUIET_MARK, QUIET_ORACLE);
     }
@@ -176,6 +180,23 @@ abstract contract DeskTest is AquaSwapVMTest {
     {
         fundTaker(o, p, amount, exactIn, bidSide);
         return swapOnly(o, p, amount, exactIn, bidSide);
+    }
+
+    /// @notice Mint both legs to `who`, approve the factory and open a desk owned by them.
+    function openDesk(address who, string memory deskLabel, DeskParams memory p, uint256 amountBase, uint256 amountQuote)
+        internal
+        returns (DeskAccount desk)
+    {
+        ubtc.mint(who, amountBase);
+        usdt0.mint(who, amountQuote);
+
+        vm.startPrank(who);
+        ubtc.approve(address(factory), amountBase);
+        usdt0.approve(address(factory), amountQuote);
+        (address account,) = factory.open(deskLabel, p, amountBase, amountQuote);
+        vm.stopPrank();
+
+        return DeskAccount(account);
     }
 
     /// @notice Sets the book on the mock reader and, if etched, on the precompile mocks.
