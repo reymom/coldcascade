@@ -4,12 +4,19 @@ test = "test"
 script = "script"
 solc = "0.8.30"
 optimizer = true
-optimizer_runs = 1_000_000
+# HyperEVM small blocks cap at 3 000 000 gas (measured on 999, 2026-09-05: 118 of 120 sampled
+# blocks). Code deposit is 200 gas a byte, so a contract's runtime size is a deployment constraint
+# and not only a taker cost. At 1 000 000 runs `DeskAccount` compiled to 18 552 bytes — 3 710 400
+# gas of deposit, undeployable without opting into big blocks through an L1 action. At 200 it is
+# 13 036 and every contract fits in a small block. See results/999_deploy_budget.md for what the
+# difference costs a taker, which is what was traded away.
+optimizer_runs = 200
 via_ir = true
 libs = ["node_modules"]
 fs_permissions = [
   { access = "read", path = "./tape" },
   { access = "read-write", path = "./results" },
+  { access = "read-write", path = "./deployments" },
 ]
 
 [rpc_endpoints]

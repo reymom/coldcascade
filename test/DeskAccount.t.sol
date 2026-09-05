@@ -46,15 +46,24 @@ contract DeskAccountTest is DeskTest {
         assertEq(desk.strategyHash(), swapVM.hash(desk.order()), "the account's own view of its order is the live one");
     }
 
-    /// @dev The implementation is not a desk. Only the factory can initialize, and it only ever
-    ///      calls its own clones, so the implementation stays ownerless forever.
+    /// @dev The implementation is not a desk and cannot become one: its own constructor took the
+    ///      owner slot. A clone delegates into that code with blank storage of its own, so the same
+    ///      slot is empty there and `initialize` works exactly once.
     function test_open_implementationCannotBeSeized() public {
         DeskAccount implementation = DeskAccount(factory.IMPLEMENTATION());
-        assertEq(implementation.owner(), address(0));
+        assertEq(implementation.owner(), address(implementation), "the implementation owns itself");
 
-        vm.expectRevert(abi.encodeWithSelector(DeskAccount.OnlyFactory.selector, bob));
+        vm.expectRevert(DeskAccount.AlreadyInitialized.selector);
         vm.prank(bob);
         implementation.initialize(bob, "steal", btcParams(), 0, 0);
+    }
+
+    /// @dev And a clone that is already a desk cannot be re-initialized into somebody else's.
+    function test_open_aDeskCannotBeReinitialized() public {
+        DeskAccount desk = openDesk(alice, "ramon", btcParams(), START_BASE, START_QUOTE);
+        vm.expectRevert(DeskAccount.AlreadyInitialized.selector);
+        vm.prank(bob);
+        desk.initialize(bob, "steal", btcParams(), 0, 0);
     }
 
     /// @dev Two desks from the same wallet with the same parameters are two objects with two
@@ -426,7 +435,8 @@ contract DeskAccountTest is DeskTest {
         assertEq(previewNotional, notional);
     }
 
-    /// @dev What cover costs, in the desk's own transaction, paid by the desk. Measured 2026-09-05.
+    /// @dev What cover costs, in the desk's own transaction, paid by the desk. 42 147 gas measured
+    ///      2026-09-05.
     ///      The CoreWriter leg it grows into is ~47 000 gas with 25 000 burned by HyperCore's docs,
     ///      `[UNVERIFIED]` against chain 999 until the 2026-09-07 probe. Whatever it turns out to
     ///      be, it is charged here and not to a taker.

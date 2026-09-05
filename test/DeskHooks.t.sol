@@ -186,9 +186,11 @@ contract DeskHooksTest is DeskTest {
         emit log_named_uint("swap gas, contract maker", againstContract);
         emit log_named_uint("swap gas, EOA maker", againstEoa);
 
-        // Measured 2026-09-05: 93 324 against the contract, 93 356 against the EOA. The contract is
+        // Measured 2026-09-05: 97 066 against the contract, 97 098 against the EOA. The contract is
         // the cheaper of the two, so there is no callback left in the bill; what is left is calldata
-        // noise, the two maker addresses having a different number of zero bytes.
+        // noise, the two maker addresses having a different number of zero bytes. Both moved up by
+        // ~3 700 when the optimizer dropped to 200 runs so the deployment would fit in a HyperEVM
+        // small block — results/999_deploy_budget.md is what that bought.
         assertLe(againstContract, againstEoa, "a contract maker is not the more expensive one to fill");
         assertLt(againstEoa - againstContract, 100, "and what is left is not a callback");
     }

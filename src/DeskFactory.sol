@@ -5,8 +5,6 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 
-import { IAqua } from "@1inch/aqua/src/interfaces/IAqua.sol";
-
 import { DeskAccount } from "./DeskAccount.sol";
 import { DeskParams } from "./libs/DeskParams.sol";
 
@@ -16,6 +14,10 @@ import { DeskParams } from "./libs/DeskParams.sol";
 /// @dev EIP-1167 minimal proxies, so a desk costs a few tens of thousands of gas rather than a
 ///      deployment. Every clone shares the implementation's immutables: the same Aqua, the same
 ///      official router, the same `CoreQuote`, the same `DeskHooks`.
+///
+///      The implementation is deployed first and handed in, rather than built in this constructor.
+///      HyperEVM small blocks cap at 3 000 000 gas and `DeskAccount`'s code deposit alone is most
+///      of that (`results/999_deploy_budget.md`), so the two have to be two transactions.
 contract DeskFactory {
     using SafeERC20 for IERC20;
 
@@ -27,8 +29,8 @@ contract DeskFactory {
 
     address public immutable IMPLEMENTATION;
 
-    constructor(IAqua aqua, address router, address coreQuote, address hooks) {
-        IMPLEMENTATION = address(new DeskAccount(aqua, router, coreQuote, hooks, address(this)));
+    constructor(DeskAccount implementation) {
+        IMPLEMENTATION = address(implementation);
     }
 
     /// @notice Open a desk owned by the caller.

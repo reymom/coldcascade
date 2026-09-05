@@ -42,7 +42,6 @@ contract DeskAccount {
     address public immutable ROUTER;
     address public immutable CORE_QUOTE;
     address public immutable HOOKS;
-    address public immutable FACTORY;
 
     address public owner;
     /// @notice The label this desk was opened under. The ENS subname is minted from it later; the
@@ -105,7 +104,6 @@ contract DeskAccount {
     }
 
     error OnlyOwner(address caller);
-    error OnlyFactory(address caller);
     error OnlyCoverCaller(address caller);
     error AlreadyInitialized();
     error NotOpen();
@@ -124,17 +122,29 @@ contract DeskAccount {
         _;
     }
 
-    constructor(IAqua aqua, address router, address coreQuote, address hooks, address factory) {
+    /// @dev The implementation is the code a clone delegates into and is never itself a desk, so
+    ///      it is given an owner here. Clone storage starts blank, so a clone reads `owner == 0` and
+    ///      initializes exactly once; the implementation reads its own address and never can.
+    ///
+    ///      That check replaces an `onlyFactory` one, and the reason is the block: HyperEVM's small
+    ///      blocks cap at 3 000 000 gas, and a factory that deployed this contract inside its own
+    ///      constructor could not fit in one. Deploying the implementation first means the factory
+    ///      cannot be its own constructor argument, so the guard has to be state and not identity.
+    ///      Nothing is lost — a clone is created and initialized in the same transaction, so there
+    ///      is no window to initialize one that was not, and a clone somebody else deploys and
+    ///      funds is simply their own desk.
+    constructor(IAqua aqua, address router, address coreQuote, address hooks) {
         AQUA = aqua;
         ROUTER = router;
         CORE_QUOTE = coreQuote;
         HOOKS = hooks;
-        FACTORY = factory;
+        owner = address(this);
     }
 
-    /// @notice Called once by the factory, in the transaction that deploys the clone and funds it.
-    /// @dev The implementation itself is never initialized: only the factory may call this, and the
-    ///      factory only ever calls its own clones.
+    /// @notice Called once, in the transaction that deploys the clone and funds it.
+    /// @dev Whoever calls it first owns the desk, which in practice is always `DeskFactory.open` in
+    ///      the same transaction as the clone. The implementation cannot be reached: its constructor
+    ///      already set an owner.
     function initialize(
         address owner_,
         string calldata label_,
@@ -142,7 +152,6 @@ contract DeskAccount {
         uint256 amountBase,
         uint256 amountQuote
     ) external returns (bytes32) {
-        if (msg.sender != FACTORY) revert OnlyFactory(msg.sender);
         if (owner != address(0)) revert AlreadyInitialized();
         owner = owner_;
         label = label_;

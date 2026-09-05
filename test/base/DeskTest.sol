@@ -82,7 +82,7 @@ abstract contract DeskTest is AquaSwapVMTest {
         bookCache = new BookCache();
         markoutLedger = new MarkoutLedger(address(this));
         lens = new FloorLens();
-        factory = new DeskFactory(aqua, address(swapVM), address(coreQuote), address(hooks));
+        factory = new DeskFactory(new DeskAccount(aqua, address(swapVM), address(coreQuote), address(hooks)));
 
         setBook(QUIET_BID, QUIET_ASK, QUIET_MARK, QUIET_ORACLE);
     }
