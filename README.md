@@ -38,7 +38,7 @@ the contract is the cheaper of the two, because there is no callback in the bill
 
 Cover happens in the desk's own transaction. `DeskAccount.cover()` — owner, or an operator the
 owner names in `armHedge` — reads how much base the desk has accumulated since it was last square,
-values it at mark, caps it at the armed ceiling and emits the intent. 41 575 gas, paid by the
+values it at mark, caps it at the armed ceiling and emits the intent. 42 138 gas, paid by the
 desk. Exposure is `balanceOf(base) - coveredBase` rather than a fill, because the account cannot
 verify a fill: logs are not readable from the EVM, and a watcher that handed it fill amounts would
 be a watcher that could size a real L1 order. The delta also nets — a desk that bought and sold
