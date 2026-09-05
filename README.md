@@ -1,17 +1,70 @@
 # coldcascade
 
-A maker program on 1inch Aqua, on HyperEVM, whose quote is bounded by Hyperliquid's own book and
-leans into liquidation cascades.
+A maker program on 1inch Aqua whose quote is computed from Hyperliquid's own order book inside the
+call that settles the swap. It has no stale price, so there is nothing on it to arbitrage.
 
-HyperEVM is the only chain where Aqua is deployed and a contract can read the perp book in the
-same call: `0x0806` mark, `0x0807` oracle, `0x080e` best bid and ask, as precompiles. Aqua's
-HyperEVM deployment has no makers. This is the first program that quotes against that book.
+That is the problem it is built against. An automated market maker is arbitraged for the distance
+between its price and the reference venue's, because its price was set before the trade that takes
+it. The arbitrageur's profit is the LP's loss, it has a name — **loss-versus-rebalancing** — and
+fees are what an LP has to cover it with. Fees shrink it and faster blocks shrink it, but nothing
+in the shape of an AMM takes it to zero, because the gap between quoting and being taken is where
+the whole construction lives.
 
-The program is `XYCSwap || Extruction(CoreQuote)` on the official SwapVM router. `CoreQuote`
-reads the book in the quote itself. In the quiet the desk sits outside L1, so it cannot be taken
-stale. When the book dislocates from oracle, or a fresh liquidation map says mark is walking into
-forced flow, the absorbing side moves inside the spread and warehouses the overshoot. Aqua
-custodies nothing.
+A maker that reads the reference book in the same call has no such gap. This one reads it and then
+clamps itself to what crossing L1 would have paid, so the round trip against L1 is negative in the
+quiet by the desk's own band, exactly zero while it is leaning, and positive never.
+
+**HyperEVM is not the argument. It is where the argument is possible today** — the one chain with
+1inch Aqua deployed and a perp book a contract can read in the same call: `0x0806` mark, `0x0807`
+oracle, `0x080e` best bid and ask, as precompiles. Aqua's HyperEVM deployment has no makers. This
+is the first program that quotes against that book.
+
+The program is `XYCSwap || Extruction(CoreQuote)` on the official SwapVM router. `CoreQuote` reads
+the book in the quote itself, and Aqua custodies nothing.
+
+**Absorbing a liquidation cascade is the same property under stress**, and it is the consequence,
+not the thesis. When the book dislocates from oracle, or a fresh liquidation map says mark is
+walking into forced flow, the absorbing side moves from outside L1 to L1's own price and warehouses
+the overshoot: the same clamp, reached from the other end. The desk becomes the best price on the
+screen for whoever is being forced out and is still not arbitrable. That half pays twice a year.
+The half above is true in every block.
+
+## It cannot be arbitraged
+
+One round trip, priced entirely off the same book the quote read: take the desk's price, close the
+position at L1's own touch. On chain 999 at block 45 117 336, 2026-09-05T18:46:42Z, the canonical
+parameters answered against a live L1 bid of 799 290 and ask of 799 300:
+
+| the round trip | desk price | closed at | result |
+|---|---|---|---|
+| buy base from the desk, sell it into L1's bid | 800 899 | 799 290 | **−20.09 bps** |
+| sell base to the desk, buy it back at L1's ask | 797 691 | 799 300 | **−20.13 bps** |
+
+L1's own spread was 0.13 bps of that, and the exit has to cross it. `./script/probe999.sh` is those
+prices from a shell with no key and nothing deployed; the Floor recomputes them every two seconds
+and puts the better of the two directions — the arbitrageur's best case — in its header.
+
+**The property is asserted, not described.** `test/Inarbitrable.t.sol` runs the same round trip
+against `CoreQuote.extruction`, which is the code path the router settles through and not a display
+helper. It never returns more than went in: either side, exact-in or exact-out, with or without a
+curve ahead of the bound, over a fuzzed book, with the lean driven by the book or by a map oracle
+that is lying, and with every rounding handed to the arbitrageur. The exit is priced at L1's touch
+with no fee and no depth limit, which is a better exit than any that exists.
+
+`test_lvr_theControlIsArbitrableAfterAMove_theDeskIsNot` is the whole argument in one test. Two
+makers on 1inch's router, same pair, same inventory, both priced at the book they were shipped at.
+The book then moves 12%, which is the 10 October 2025 move. The control is a constant product and
+has not heard about it, so an arbitrageur now takes **1 352 bps** out of it in a single round trip.
+The desk carries *the same constant product* — `XYCSwap` runs first in its own program and its
+curve wants to pay that same stale price — and the bound cuts 794 715 284 units of quote back to
+700 010 000, which is L1's own offer to the last unit. **Zero, not negative:** the desk is never a
+better price than crossing L1, and never worse than useless.
+
+**What this does not claim.** That the desk cannot lose. It can, and in the ordinary way: the
+reference price moves after a fill, which is inventory risk — what the markout measures and what
+the cover leg is for. It also inherits HyperCore's book, so if that book is wrong against the rest
+of the world the desk is wrong with it. LVR is the loss to somebody holding a better price than
+yours *at the same instant*. That one is zero here by construction.
 
 ## The desk is a contract
 
@@ -50,8 +103,11 @@ contract still takes no view on the sign — long base sells the perp, short bas
 
 ## The console
 
-One URL. The Floor shows Hyperliquid's BTC book as `CoreQuote` reads it, the desks quoting against
-it, and a Take button that swaps through the official router. It is live before the contracts are:
+One URL. The Floor leads with the round trip above — recomputed off the live book every two
+seconds, and the reason the quiet screen is the evidence rather than the absence of it. Under it:
+Hyperliquid's BTC book as `CoreQuote` reads it, the desks quoting against it, a map button that
+puts a desk into a lean so the other half is on the screen on demand, and a Take button that swaps
+through the official router. It is live before the contracts are:
 where nothing is deployed, `CorePrecompiles`, `CoreQuote` and `FloorLens` are planted at throwaway
 addresses by an `eth_call` state override and the canonical parameters are priced against the real
 book. The bytecode is what `forge build` produced and the node running it is a real one —
@@ -125,14 +181,22 @@ python3 -m http.server 8000   # then http://localhost:8000/app/
   overlay, and whose quote columns are the contract itself answering. Its inventory and PnL
   columns are placeholders. The file next to it, `oct10_replay.source`, says which tape produced
   it. The tape runs 60 minutes past its own last fill so every markout horizon exists.
-- Two gates, and they are different questions. `test_deathMetric_amountOutMovesWithBook` asks
-  whether a swap responds to the regime at all. `test_gate_absorbedEdgeBeatsControl` asks whether
-  the session's absorbed notional actually reverted in the desk's favour by a multiple of the
-  control's — a desk can pass the first and still draw two flat lines. When the second one fails,
-  the taker model is the suspect before the quote is.
+- Three claims, three tests, and they are different questions.
+  `testFuzz_noRoundTripEverProfits` asks whether the quote can ever be arbitraged against the book
+  it read, which is the claim that has to hold in every block.
+  `test_deathMetric_amountOutMovesWithBook` asks whether a swap responds to the regime at all — a
+  program can be perfectly inarbitrable and still be a constant product that ignores L1.
+  `test_gate_absorbedEdgeBeatsControl` asks whether the session's absorbed notional actually
+  reverted in the desk's favour by a multiple of the control's; a desk can pass the first two and
+  still draw two flat lines. When that last one fails, the taker model is the suspect before the
+  quote is.
 
 ## Prior art
 
+- Milionis, Moallemi, Roughgarden, Zhang, arXiv:2208.06046, *Automated Market Making and
+  Loss-Versus-Rebalancing* — the loss this desk is built to not have.
+- Milionis, Moallemi, Roughgarden, arXiv:2305.14604, *Automated Market Making and Arbitrage Profits
+  in the Presence of Fees* — fees scale the loss down; they do not remove the gap that causes it.
 - P1, arXiv:2607.27070 — no early warning exists; this is a nowcast, not a forecast.
 - P2, arXiv:2608.03616 — the venue backstop absorbed most of the cascade; this is public absorber
   capacity.

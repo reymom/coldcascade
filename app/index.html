@@ -217,8 +217,8 @@ button.go:disabled { opacity: 0.45; cursor: default; }
         <p><b>A maker that reads the reference book in the same call cannot be arbitraged against
           it.</b> That is the loss every automated market maker pays and the central problem in
           their design: the maker's price was set before the trade that takes it, and somebody is
-          paid the difference. It has a name, <b>loss-versus-rebalancing</b>, and for a Uniswap v2
-          pool it is most of what an LP earns in fees, handed straight back.</p>
+          paid the difference. It has a name — <b>loss-versus-rebalancing</b> — and fees are what an
+          LP has to cover it with.</p>
         <p>This desk has no <i>before</i>. <code>CoreQuote</code> reads Hyperliquid's own book
           inside the call that settles the swap, and the last thing it does is clamp itself to what
           crossing L1 would have paid. There is no stale price on this screen to take, in any
