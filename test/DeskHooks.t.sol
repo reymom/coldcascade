@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
+import { Vm } from "forge-std/Vm.sol";
+
 import { ISwapVM } from "@1inch/swap-vm/src/interfaces/ISwapVM.sol";
 
 import { DeskTest } from "./base/DeskTest.sol";
+import { DeskAccount } from "../src/DeskAccount.sol";
 import { DeskHooks } from "../src/DeskHooks.sol";
 import { ICoreReader, Book } from "../src/interfaces/ICoreReader.sol";
 import { DeskParams, DeskParamsLib } from "../src/libs/DeskParams.sol";
 import { DeskPrograms } from "../src/libs/DeskPrograms.sol";
+import { Side } from "../src/libs/Regime.sol";
 
 /// @notice The hook is how the L1 book becomes an EVM log. Everything the markout needs is in the
 ///         `Fill` event, so a later join needs the subgraph and nothing else — no archive node, no
@@ -20,6 +24,13 @@ contract DeskHooksTest is DeskTest {
     ///      a 1 UBTC fill above the book, so the book bound is what settles the price and the event
     ///      is about a fill the desk actually chose. See CoreQuoteTest for the other side of the min.
     uint256 internal constant START_QUOTE = 900_000e6;
+
+    event MakerCallFailed(bytes32 indexed orderHash, address indexed maker);
+
+    /// @dev A dislocated book, so the fill is on the absorbing side and the hedge branch runs.
+    uint64 internal constant WIDE_BID = 780_000;
+    uint64 internal constant WIDE_ASK = 790_000;
+    uint64 internal constant WIDE_MARK = 782_000;
 
     event Fill(
         bytes32 indexed orderHash,
@@ -147,6 +158,98 @@ contract DeskHooksTest is DeskTest {
         swapOnly(o, p, ONE_UBTC, true, true);
     }
 
+    // ---- the maker callback: a hedge can never fail a fill ----
+
+    /// @dev The sentence this is worth more than the hedge for. A maker account that reverts on
+    ///      every fill still gets filled; the failure is a log, not an unwind.
+    function test_makerCallback_revertCannotFailAFill() public {
+        (ISwapVM.Order memory o, DeskParams memory p, uint256 expectedOut) = shipFromMaker(address(new AngryDesk()));
+
+        vm.expectEmit(true, true, true, true, address(hooks));
+        emit MakerCallFailed(swapVM.hash(o), o.maker);
+        swapOnly(o, p, ONE_UBTC, true, true);
+
+        assertEq(usdt0.balanceOf(address(taker)), expectedOut, "the taker was paid");
+    }
+
+    /// @dev And a maker that tries to burn the taker's whole budget is stopped at the cap. Without
+    ///      it, the 1/64 EIP-150 leaves behind is not a guarantee that the transaction finishes.
+    ///      Measured 2026-09-05: 374 478 gas for the whole swap against a maker burning everything
+    ///      it is handed, of which 250 000 is the cap.
+    function test_makerCallback_gasIsCapped() public {
+        (ISwapVM.Order memory o, DeskParams memory p,) = shipFromMaker(address(new GreedyDesk()));
+
+        uint256 before = gasleft();
+        swapOnly(o, p, ONE_UBTC, true, true);
+        uint256 spent = before - gasleft();
+
+        emit log_named_uint("swap gas against a maker burning everything it is given", spent);
+        assertLt(spent, 250_000 + 200_000, "the cap plus the swap is the ceiling, not the taker's whole budget");
+    }
+
+    /// @dev An EOA maker is never called: `maker.code.length` is zero and the branch is skipped.
+    ///      The control strategy ships from one, so this is not a hypothetical.
+    function test_makerCallback_eoaMakerIsNotCalled() public {
+        DeskParams memory p = btcParams();
+        ISwapVM.Order memory o = deskOrder(p, SALT);
+        shipFunded(o, p, START_BASE, START_QUOTE);
+        fundTaker(o, p, ONE_UBTC, true, true);
+
+        vm.recordLogs();
+        swapOnly(o, p, ONE_UBTC, true, true);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i = 0; i < logs.length; ++i) {
+            assertTrue(logs[i].topics[0] != MakerCallFailed.selector, "an EOA maker is not called at all");
+        }
+    }
+
+    /// @dev What the callback costs a taker today, so the cap is a stated number and not a guess.
+    ///      Measured 2026-09-05: 5 797 gas with the hedge armed and the fill on the absorbing side.
+    ///      The CoreWriter leg it grows into is ~47 000 gas with 25 000 burned by HyperCore's docs,
+    ///      `[UNVERIFIED]` against chain 999 until the 2026-09-07 probe.
+    function test_onFill_costsWhatTheCapAllowsFor() public {
+        DeskParams memory p = btcParams();
+        DeskAccount desk = openDesk(address(this), "measured", p, START_BASE, START_QUOTE);
+        desk.armHedge(true, 500_000e6);
+        setBook(WIDE_BID, WIDE_ASK, WIDE_MARK, QUIET_ORACLE);
+
+        Book memory book = Book(WIDE_BID, WIDE_ASK, WIDE_MARK, QUIET_ORACLE);
+        vm.prank(address(hooks));
+        uint256 before = gasleft();
+        desk.onFill(bytes32(uint256(1)), address(ubtc), address(usdt0), ONE_UBTC, 1, book, Side.Bid);
+        uint256 spent = before - gasleft();
+
+        emit log_named_uint("onFill gas, hedge armed and firing", spent);
+        assertLt(spent, 20_000, "today's callback, with room left under the cap for the CoreWriter leg");
+    }
+
+    // ---- helpers ----
+
+    /// @dev Ships the canonical desk program from `deskMaker`, funds both sides and the taker, and
+    ///      returns what the quote says the fill will pay.
+    function shipFromMaker(address deskMaker)
+        internal
+        returns (ISwapVM.Order memory o, DeskParams memory p, uint256 expectedOut)
+    {
+        p = btcParams();
+        o = DeskPrograms.order(deskMaker, address(hooks), DeskPrograms.deskWithSalt(address(coreQuote), p, SALT), p);
+
+        ubtc.mint(deskMaker, START_BASE);
+        usdt0.mint(deskMaker, START_QUOTE);
+        uint256[] memory amounts = new uint256[](2);
+        (amounts[0], amounts[1]) = (START_BASE, START_QUOTE);
+
+        vm.startPrank(deskMaker);
+        ubtc.approve(address(aqua), type(uint256).max);
+        usdt0.approve(address(aqua), type(uint256).max);
+        aqua.ship(address(swapVM), DeskPrograms.strategyBytes(o), DeskPrograms.tokens(p), amounts);
+        vm.stopPrank();
+
+        (, expectedOut) = quoteRouter(o, p, ONE_UBTC, true, true);
+        fundTaker(o, p, ONE_UBTC, true, true);
+    }
+
     function hookData(DeskParams memory p) internal pure returns (bytes memory) {
         return DeskParamsLib.encode(p);
     }
@@ -165,5 +268,25 @@ contract RevertingReader is ICoreReader {
 
     function read(uint32) external pure returns (Book memory) {
         revert NoBook();
+    }
+}
+
+/// @notice A maker account that reverts on every fill callback.
+contract AngryDesk {
+    error Angry();
+
+    function onFill(bytes32, address, address, uint256, uint256, Book calldata, uint8) external pure {
+        revert Angry();
+    }
+}
+
+/// @notice A maker account that burns whatever gas it is given.
+contract GreedyDesk {
+    uint256 public sink;
+
+    function onFill(bytes32, address, address, uint256, uint256, Book calldata, uint8) external {
+        while (true) {
+            sink++;
+        }
     }
 }

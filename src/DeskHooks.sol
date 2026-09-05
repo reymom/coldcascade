@@ -4,6 +4,7 @@ pragma solidity 0.8.30;
 import { IMakerHooks } from "@1inch/swap-vm/src/interfaces/IMakerHooks.sol";
 
 import { ICoreReader, Book } from "./interfaces/ICoreReader.sol";
+import { IDeskAccount } from "./interfaces/IDeskAccount.sol";
 import { IMapOracle, LiquidationMap } from "./interfaces/IMapOracle.sol";
 import { DeskParams, DeskParamsLib } from "./libs/DeskParams.sol";
 import { Regime, RegimeLib } from "./libs/Regime.sol";
@@ -41,7 +42,23 @@ contract DeskHooks is IMakerHooks {
         uint128 mapAbove
     );
 
+    /// @notice The maker is a contract and its `onFill` did not succeed. The fill stood anyway.
+    /// @dev Emitted rather than swallowed: a desk whose hedge is silently failing every fill is a
+    ///      desk whose owner needs to know, and it is one subgraph query.
+    event MakerCallFailed(bytes32 indexed orderHash, address indexed maker);
+
     error OnlyRouter(address caller);
+
+    /// @notice Gas forwarded to a maker account's `onFill`.
+    /// @dev The cap is what makes "a hedge can never fail a fill" a bound and not a hope: without
+    ///      it a maker could burn the taker's whole budget and the 1/64 EIP-150 leaves behind might
+    ///      not finish the transaction. It is also a taker cost, so it is a stated number.
+    ///
+    ///      Today's `DeskAccount.onFill` costs 5 797 gas with the hedge armed and firing, measured
+    ///      2026-09-05 by `test_onFill_costsWhatTheCapAllowsFor`. The ceiling has room for the
+    ///      CoreWriter leg it grows into -- HyperCore's docs put `sendRawAction` at ~47 000 gas
+    ///      with 25 000 burned, `[UNVERIFIED]` against the chain until the 999 probe on 2026-09-07.
+    uint256 internal constant ONFILL_GAS_CAP = 250_000;
 
     address public immutable ROUTER;
     ICoreReader public immutable READER;
@@ -100,6 +117,18 @@ contract DeskHooks is IMakerHooks {
             r.mapBelow,
             r.mapAbove
         );
+
+        // The maker may be a contract that wants to cover what it just absorbed. By here the taker
+        // has been paid and the maker has been pulled, so this call is allowed to do nothing and
+        // is not allowed to do anything else: capped gas, and every failure caught. An EOA maker
+        // -- the control strategy is one -- is not called at all.
+        if (maker.code.length != 0) {
+            try IDeskAccount(maker).onFill{ gas: ONFILL_GAS_CAP }(
+                orderHash, tokenIn, tokenOut, amountIn, amountOut, book, r.lean
+            ) { } catch {
+                emit MakerCallFailed(orderHash, maker);
+            }
+        }
     }
 
     /// @dev The quote that priced this fill read the same book in the same transaction, so a read
