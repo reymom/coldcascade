@@ -6,6 +6,7 @@ import {
 } from "./chain.js";
 import { wallet, waitForReceipt, DEFAULT_RPC, CHAIN_ID } from "./rpc.js";
 import { drawStrip } from "./bands.js";
+import { roundTrip, bestRoundTrip } from "./arb.js";
 
 const POLL_MS = 2000;
 
@@ -147,19 +148,95 @@ function render(view) {
     stat("oracle − mark", `${dislocation > 0 ? "+" : ""}${dislocation} bps`),
   );
 
-  const leaning = desks.filter((d) => d.lean !== 0);
-  ui.regime.textContent = leaning.length === 0
-    ? "QUIET — every desk is sitting outside L1, which is where a desk that cannot be taken stale sits"
-    : `LEANING — ${leaning.map((d) => `${name(d)} is inside L1 on the ${d.lean === 1 ? "bid" : "ask"}`).join(", ")}`;
-  ui.regime.className = leaning.length === 0 ? "regime" : "regime regime-lean";
+  const best = bestRoundTrip(book, desks);
+  renderArb(view, best);
+  renderRegime(view, desks, best);
 
   drawStrip(ui.strip, book, desks);
-  renderTable(view, desks);
+  renderTable(view, desks, book);
   renderPanels(view, desks);
 }
 
-function renderTable(view, desks) {
+/**
+ * The number the whole page is about.
+ *
+ * It is one subtraction on two prices out of the same `eth_call`, and the reason it is worth a
+ * headline is that it does not need a cascade to be true. `app/src/arb.js` has the arithmetic and
+ * `test/Inarbitrable.t.sol` has the same round trip asserted against the contract, fuzzed.
+ */
+function renderArb(view, best) {
+  const { ui } = view;
+  if (!best) {
+    ui.arb.replaceChildren(div("arb-caption",
+      "No desk on this screen has a price right now, so there is nothing to arbitrage and nothing "
+      + "to claim. An empty field here means a read failed, not that a number was zero."));
+    return;
+  }
+
+  const { desk, trip } = best;
+  // The compact name: the panel says "canonical" four times, and the mode chip above it already
+  // says whether anything is deployed.
+  const who = desk.label && desk.label.length ? desk.label : desk.account === ZERO ? "canonical" : short(desk.account);
+  const open = trip.best > 0;
+  const atTheTouch = !open && trip.best > -0.5;
+
+  const caption = div("arb-caption");
+  if (open) {
+    caption.innerHTML =
+      `<b>${escape(who)}</b> can be taken and closed at L1 for a profit right now. That is not `
+      + `supposed to be reachable — every leg of the quote is clamped to L1's own crossing price — `
+      + `so read it as a book that moved between two reads, or as a bug on this screen. It is not `
+      + `an invitation.`;
+  } else if (atTheTouch) {
+    caption.innerHTML =
+      `<b>${escape(who)}</b> is leaning. Its absorbing side has walked the whole way to L1's own `
+      + `price and stopped on it: a better fill than L1 for whoever is being forced out, and still `
+      + `exactly nothing for an arbitrageur. Zero is the tightest this can ever be.`;
+  } else {
+    caption.innerHTML =
+      `The best round trip available against any desk on this screen, and it is against `
+      + `<b>${escape(who)}</b>. Nothing here can be bought and sold back to L1 for a profit — not `
+      + `because the desk is wide, but because it has no earlier price to be wrong about.`;
+  }
+
+  const legs = div("arb-legs");
+  legs.append(
+    leg(`buy from ${who} at ${px(trip.prices.deskAsk)}, sell into L1's bid ${px(trip.prices.bid)}`,
+      `${bpsText(trip.buyFromDesk)} bps`),
+    leg(`sell to ${who} at ${px(trip.prices.deskBid)}, buy back at L1's ask ${px(trip.prices.ask)}`,
+      `${bpsText(trip.sellToDesk)} bps`),
+    leg("L1's own spread, which either exit has to cross", `${trip.l1SpreadBps.toFixed(2)} bps`, true),
+  );
+
+  ui.arb.replaceChildren(
+    div(`arb-value ${open ? "arb-open" : "arb-safe"}`, `${bpsText(trip.best)} bps`),
+    caption,
+    legs,
+  );
+}
+
+/** What regime the floor is in, said as what it proves rather than as what is happening. */
+function renderRegime(view, desks, best) {
+  const leaning = desks.filter((d) => d.lean !== 0);
+  const { ui } = view;
+
+  if (leaning.length === 0) {
+    ui.regime.textContent =
+      "QUIET — every desk is outside L1 on both sides. This is the regime the page is here to show:"
+      + " nothing is happening, and the round trip above is still under water.";
+    ui.regime.className = "regime";
+    return;
+  }
+  ui.regime.textContent =
+    `LEANING — ${leaning.map((d) => `${name(d)} on the ${d.lean === 1 ? "bid" : "ask"}`).join(", ")}`
+    + ". The absorbing side is inside L1 and capped at L1's own price; the same round trip is now"
+    + " zero rather than negative, which is as good as it is ever allowed to get.";
+  ui.regime.className = "regime regime-lean";
+}
+
+function renderTable(view, desks, book) {
   const rows = desks.map((d) => {
+    const trip = roundTrip(book, d);
     const tr = document.createElement("tr");
     const band = d.quoted
       ? `−${d.params.quietBps} / +${d.params.quietBps} bps`
@@ -178,8 +255,10 @@ function renderTable(view, desks) {
       : "off";
 
     for (const [text, cls] of [
-      [name(d), "name"], [band, ""], [quote, "num"], [inventory, ""],
-      [map, ""], [hedge, ""], [d.lean === 0 ? "—" : d.lean === 1 ? "bid" : "ask", `lean-${d.lean}`],
+      [name(d), "name"], [band, ""], [quote, "num"],
+      [trip ? `${bpsText(trip.best)} bps` : "—", trip && trip.best > 0 ? "lean-1" : ""],
+      [inventory, ""], [map, ""], [hedge, ""],
+      [d.lean === 0 ? "—" : d.lean === 1 ? "bid" : "ask", `lean-${d.lean}`],
     ]) {
       const td = document.createElement("td");
       td.className = cls;
@@ -377,6 +456,27 @@ const units = (text, decimals) => {
   return BigInt(Math.round(n * 10 ** decimals));
 };
 
+/** A signed bps figure. "−0.00" is a lie about a positive number, so the sign follows the value. */
+const bpsText = (v) => `${v > 0 ? "+" : v < 0 ? "\u2212" : ""}${Math.abs(v).toFixed(2)}`;
+
+const escape = (s) => s.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c]);
+
+function div(cls, text) {
+  const node = document.createElement("div");
+  node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function leg(label, value, muted = false) {
+  const row = document.createElement("div");
+  row.className = "arb-leg";
+  const k = div("arb-leg-k", label);
+  const v = div(`arb-leg-v${muted ? " arb-muted" : ""}`, value);
+  row.append(k, v);
+  return row;
+}
+
 function stat(label, value) {
   const div = document.createElement("div");
   div.className = "stat";
@@ -400,7 +500,7 @@ function build(root) {
   return {
     status: id("floor-status"), page: id("floor-page"), error: id("floor-error"),
     mode: id("floor-mode"), meta: id("floor-meta"),
-    book: id("floor-book"), regime: id("floor-regime"), strip: id("floor-strip"),
+    book: id("floor-book"), arb: id("floor-arb"), regime: id("floor-regime"), strip: id("floor-strip"),
     rows: id("floor-rows"), connect: id("floor-connect"),
     takeDesk: id("take-desk"), takeSide: id("take-side"), takeAmount: id("take-amount"),
     takeGo: id("take-go"), takeOut: id("take-out"), takeNote: id("take-note"),

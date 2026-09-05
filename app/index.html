@@ -128,6 +128,20 @@ footer code { color: var(--text); }
 .regime { margin: 0 0 16px; font-size: 13px; color: var(--muted); }
 .regime-lean { color: var(--bid); }
 
+.arb { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  padding: 18px 20px; margin-bottom: 12px; }
+.arb-value { font-size: 34px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; }
+.arb-safe { color: var(--ask); }
+.arb-open { color: var(--bid); }
+.arb-caption { color: var(--muted); font-size: 12px; margin-top: 6px; max-width: 76ch; }
+.arb-caption b { color: var(--text); font-weight: 600; }
+.arb-legs { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px;
+  display: grid; gap: 5px; }
+.arb-leg { display: flex; gap: 14px; align-items: baseline; font-size: 12px; }
+.arb-leg-k { color: var(--muted); }
+.arb-leg-v { margin-left: auto; white-space: nowrap; }
+.arb-muted { color: var(--muted); }
+
 .strip { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
   padding: 8px 6px; margin-bottom: 8px; }
 .strip svg { display: block; width: 100%; height: auto; overflow: visible; }
@@ -199,10 +213,33 @@ button.go:disabled { opacity: 0.45; cursor: default; }
       </div>
       <p id="floor-error" hidden></p>
 
+      <div class="lede">
+        <p><b>A maker that reads the reference book in the same call cannot be arbitraged against
+          it.</b> That is the loss every automated market maker pays and the central problem in
+          their design: the maker's price was set before the trade that takes it, and somebody is
+          paid the difference. It has a name, <b>loss-versus-rebalancing</b>, and for a Uniswap v2
+          pool it is most of what an LP earns in fees, handed straight back.</p>
+        <p>This desk has no <i>before</i>. <code>CoreQuote</code> reads Hyperliquid's own book
+          inside the call that settles the swap, and the last thing it does is clamp itself to what
+          crossing L1 would have paid. There is no stale price on this screen to take, in any
+          block, and that is a property of the construction rather than of the week.</p>
+        <p>HyperEVM is not the argument — it is where the argument is possible today: the one chain
+          with 1inch Aqua deployed and a perp book readable as a precompile. <b>Absorbing a
+          liquidation cascade is the same property under stress</b>, and it is on the screen too,
+          twice a year in the wild and on demand in the map panel below.</p>
+      </div>
+
       <h2>Hyperliquid BTC, read by the quote itself</h2>
       <p class="note">Four words out of <code>0x080e</code>, <code>0x0806</code> and
         <code>0x0807</code> — the perp book, read inside the same call that prices the swap.</p>
       <div class="stats" id="floor-book"></div>
+
+      <h2>if you tried to arbitrage this floor against L1, right now</h2>
+      <p class="note">One round trip: take a desk's price, close the position at L1's own touch in
+        the same book the quote read. Negative is what the arbitrageur loses. Both legs are priced
+        at L1's touch with no fee and no depth limit, which is the most generous exit that exists —
+        a real one is worse for them than this.</p>
+      <div class="arb" id="floor-arb"></div>
       <p class="regime" id="floor-regime"></p>
 
       <h2>the two books</h2>
@@ -214,8 +251,8 @@ button.go:disabled { opacity: 0.45; cursor: default; }
       <h2>desks</h2>
       <table class="desks">
         <thead><tr>
-          <th>desk</th><th>band</th><th>quote now</th><th>inventory</th>
-          <th>map</th><th>cover</th><th>lean</th>
+          <th>desk</th><th>band</th><th>quote now</th><th>best round trip</th>
+          <th>inventory</th><th>map</th><th>cover</th><th>lean</th>
         </tr></thead>
         <tbody id="floor-rows"></tbody>
       </table>
@@ -250,7 +287,12 @@ button.go:disabled { opacity: 0.45; cursor: default; }
             is a desk offering a better price than L1, and an oracle anyone can write is an oracle
             anyone can be paid out of.
             <br><br>
-            The map expires on its own. Nobody clears it; it simply stops counting.</p>
+            The map expires on its own. Nobody clears it; it simply stops counting.
+            <br><br>
+            <b>This is the other half.</b> The panel above is the property that holds in every
+            block; this button is the one that pays twice a year. Post a map and the absorbing side
+            walks from 20 bps outside L1 to L1's own price — twenty basis points in one tick, drawn
+            on the strip — and the round trip above goes to zero and stops there.</p>
           <div class="controls">
             <select id="map-desk"></select>
             <select id="map-side">
