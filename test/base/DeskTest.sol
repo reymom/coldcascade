@@ -3,6 +3,7 @@ pragma solidity 0.8.30;
 
 import { AquaSwapVMTest } from "@1inch/swap-vm/test/base/AquaSwapVMTest.sol";
 import { ISwapVM } from "@1inch/swap-vm/src/interfaces/ISwapVM.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { CoreQuote } from "../../src/CoreQuote.sol";
 import { CorePrecompiles } from "../../src/CorePrecompiles.sol";
@@ -10,6 +11,7 @@ import { DeskHooks } from "../../src/DeskHooks.sol";
 import { MapOracle } from "../../src/MapOracle.sol";
 import { DemoToken } from "../../src/DemoToken.sol";
 import { DeskParams, DeskParamsLib } from "../../src/libs/DeskParams.sol";
+import { DeskPrograms } from "../../src/libs/DeskPrograms.sol";
 import { HyperCore } from "../../src/libs/HyperCore.sol";
 import { MockCoreReader } from "../mocks/MockCoreReader.sol";
 import { HyperCoreMock } from "../mocks/HyperCoreMock.sol";
@@ -90,12 +92,75 @@ abstract contract DeskTest is AquaSwapVMTest {
         });
     }
 
+    /// @notice The canonical desk order from `maker`: the curve, then the book bound, then a salt.
     function deskOrder(DeskParams memory p, bytes32 salt) internal view returns (ISwapVM.Order memory) {
-        revert("todo");
+        return DeskPrograms.order(maker, address(hooks), DeskPrograms.deskWithSalt(address(coreQuote), p, salt), p);
     }
 
-    function controlOrder(bytes32 salt) internal view returns (ISwapVM.Order memory) {
-        revert("todo");
+    /// @notice The other line on the screen: the same pair and inventory, plain XYCSwap, no hook.
+    function controlOrder(DeskParams memory p, bytes32 salt) internal view returns (ISwapVM.Order memory) {
+        return DeskPrograms.order(maker, address(0), DeskPrograms.control(salt), p);
+    }
+
+    // ---- the ship harness ----
+    //
+    // 1inch's own `shipStrategy` is typed to their TokenMock; the desk trades a pair with real
+    // decimals, so these are the same four calls over IERC20. Nothing else differs: same Aqua,
+    // same router, same MockTaker.
+
+    /// @notice Approve Aqua from `maker` and ship the order with the two starting balances.
+    /// @return strategyHash What Aqua keyed the strategy by, which must be the router's order hash.
+    function ship(ISwapVM.Order memory o, DeskParams memory p, uint256 amountBase, uint256 amountQuote)
+        internal
+        returns (bytes32 strategyHash)
+    {
+        vm.startPrank(maker);
+        IERC20(p.base).approve(address(aqua), type(uint256).max);
+        IERC20(p.quote).approve(address(aqua), type(uint256).max);
+
+        uint256[] memory amounts = new uint256[](2);
+        (amounts[0], amounts[1]) = (amountBase, amountQuote);
+        strategyHash = aqua.ship(address(swapVM), DeskPrograms.strategyBytes(o), DeskPrograms.tokens(p), amounts);
+        vm.stopPrank();
+    }
+
+    /// @notice Mint both legs to the maker and ship. The taker side is minted per swap.
+    function shipFunded(ISwapVM.Order memory o, DeskParams memory p, uint256 amountBase, uint256 amountQuote)
+        internal
+        returns (bytes32)
+    {
+        ubtc.mint(maker, amountBase);
+        usdt0.mint(maker, amountQuote);
+        return ship(o, p, amountBase, amountQuote);
+    }
+
+    /// @dev True when the taker hands over tokenA of the sorted pair. `bidSide` is the desk's word
+    ///      for it (the taker sells base); `isAToB` is the router's.
+    function isAToB(DeskParams memory p, bool bidSide) internal pure returns (bool) {
+        return bidSide == (p.base < p.quote);
+    }
+
+    /// @notice Quote through the official router, exactly as a page would.
+    function quoteRouter(ISwapVM.Order memory o, DeskParams memory p, uint256 amount, bool exactIn, bool bidSide)
+        internal
+        view
+        returns (uint256 amountIn, uint256 amountOut)
+    {
+        (amountIn, amountOut,) =
+            swapVM.asView().quote(o, amount, takerData(address(taker), exactIn, isAToB(p, bidSide)));
+    }
+
+    /// @notice Swap through the official router. Mints the taker's leg first; MockTaker pushes it
+    ///         into Aqua on the pre-transfer-in callback, so the maker ends up holding it.
+    function swapRouter(ISwapVM.Order memory o, DeskParams memory p, uint256 amount, bool exactIn, bool bidSide)
+        internal
+        returns (uint256 amountIn, uint256 amountOut)
+    {
+        (uint256 needed,) = quoteRouter(o, p, amount, exactIn, bidSide);
+        DemoToken tokenIn = bidSide ? ubtc : usdt0;
+        tokenIn.mint(address(taker), exactIn ? amount : needed);
+
+        return taker.swap(o, amount, takerData(address(taker), exactIn, isAToB(p, bidSide)));
     }
 
     /// @notice Sets the book on the mock reader and, if etched, on the precompile mocks.

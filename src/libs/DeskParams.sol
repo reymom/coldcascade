@@ -21,14 +21,62 @@ struct DeskParams {
 library DeskParamsLib {
     uint256 internal constant BPS = 10_000;
 
-    error PriceScaleOutOfRange(int256 exponent);
+    /// @notice Fixed width of the packed encoding, in bytes.
+    /// @dev SwapVM writes an instruction as `[opcode][uint8 length][args]`, so **one instruction
+    ///      carries at most 255 bytes of args** (`InstructionBuilder.patchLength`). Extruction
+    ///      spends 20 of them on the target address, which leaves 235 for the maker's parameters.
+    ///      `abi.encode` of this struct is 416 — thirteen fields padded to a word each — and a desk
+    ///      program encoded that way does not build. Packed, the same thirteen fields are 138.
+    ///
+    ///      So the encoding is fixed-width packed, and it is exact: `decode` rejects any other
+    ///      length rather than reading a short buffer as zeros. The struct is what a maker signs
+    ///      for and what the strategy hash freezes (F3); a field added here changes both, which is
+    ///      the intended cost of touching it.
+    uint256 internal constant ENCODED_LENGTH = 138;
 
+    error PriceScaleOutOfRange(int256 exponent);
+    error MalformedParams(uint256 length);
+
+    /// @dev Field order is the struct's. `abi.encodePacked` gives each field its own width, so the
+    ///      layout is: base 20 | quote 20 | perpIndex 4 | pxNum 8 | pxDen 8 | quietBps 2 |
+    ///      leanBps 2 | stressBps 2 | mapOracle 20 | mapMaxAge 4 | mapMinNotional 16 |
+    ///      minBase 16 | maxBase 16.
     function encode(DeskParams memory p) internal pure returns (bytes memory) {
-        return abi.encode(p);
+        return abi.encodePacked(
+            p.base,
+            p.quote,
+            p.perpIndex,
+            p.pxNum,
+            p.pxDen,
+            p.quietBps,
+            p.leanBps,
+            p.stressBps,
+            p.mapOracle,
+            p.mapMaxAge,
+            p.mapMinNotional,
+            p.minBase,
+            p.maxBase
+        );
     }
 
-    function decode(bytes calldata args) internal pure returns (DeskParams memory) {
-        return abi.decode(args, (DeskParams));
+    /// @dev The mirror, read straight out of calldata. A wrong length is a malformed program, not
+    ///      a quote of zero: the desk would otherwise fill against `maxBase == 0` and revert
+    ///      somewhere less obvious.
+    function decode(bytes calldata args) internal pure returns (DeskParams memory p) {
+        if (args.length != ENCODED_LENGTH) revert MalformedParams(args.length);
+        p.base = address(bytes20(args[0:20]));
+        p.quote = address(bytes20(args[20:40]));
+        p.perpIndex = uint32(bytes4(args[40:44]));
+        p.pxNum = uint64(bytes8(args[44:52]));
+        p.pxDen = uint64(bytes8(args[52:60]));
+        p.quietBps = uint16(bytes2(args[60:62]));
+        p.leanBps = uint16(bytes2(args[62:64]));
+        p.stressBps = uint16(bytes2(args[64:66]));
+        p.mapOracle = address(bytes20(args[66:86]));
+        p.mapMaxAge = uint32(bytes4(args[86:90]));
+        p.mapMinNotional = uint128(bytes16(args[90:106]));
+        p.minBase = uint128(bytes16(args[106:122]));
+        p.maxBase = uint128(bytes16(args[122:138]));
     }
 
     /// @notice pxNum / pxDen such that amountQuote = amountBase * rawPx * pxNum / pxDen.

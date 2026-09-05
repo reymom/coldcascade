@@ -3,6 +3,8 @@ pragma solidity 0.8.30;
 
 import { SwapQuery, SwapRegisters } from "@1inch/swap-vm/src/libs/VM.sol";
 
+import { ISwapVM } from "@1inch/swap-vm/src/interfaces/ISwapVM.sol";
+
 import { DeskTest } from "./base/DeskTest.sol";
 import { CoreQuote } from "../src/CoreQuote.sol";
 import { DeskParams, DeskParamsLib } from "../src/libs/DeskParams.sol";
@@ -13,6 +15,9 @@ import { Regime, Side } from "../src/libs/Regime.sol";
 ///      so these exercise the reader the desk actually ships with. Books are raw HyperCore units.
 contract CoreQuoteTest is DeskTest {
     uint256 internal constant NEXT_PC = 7;
+    bytes32 internal constant SALT = keccak256("corequote");
+    uint256 internal constant START_BASE = 10e8;
+    uint256 internal constant START_QUOTE = 800_000e6;
     uint256 internal constant ONE_UBTC = 1e8;
     uint256 internal constant INVENTORY = 10e8;
 
@@ -304,18 +309,44 @@ contract CoreQuoteTest is DeskTest {
         assertEq(bidPx, QUIET_ASK, "the lean is clamped at L1's ask, same as the quote");
     }
 
-    // ---- still on the ship harness ----
+    // ---- on the ship harness: 1inch's Aqua, 1inch's router, 1inch's taker ----
 
-    function test_quoteEqualsSwap() public {
-        vm.skip(true);
-    }
-
+    /// @dev The other line on the screen, on the same router with the same inventory: the control
+    ///      is a constant product and nothing else, so its answer cannot depend on Hyperliquid.
     function test_plainXycUnchangedOnOfficialRouter() public {
-        vm.skip(true);
+        DeskParams memory p = btcParams();
+        ISwapVM.Order memory control = controlOrder(p, SALT);
+        shipFunded(control, p, START_BASE, START_QUOTE);
+
+        (, uint256 before) = quoteRouter(control, p, ONE_UBTC, true, true);
+        assertEq(before, ONE_UBTC * START_QUOTE / (START_BASE + ONE_UBTC), "the constant product, exactly");
+
+        setBook(700_000, 700_010, 690_000, 700_000);
+        (, uint256 afterMove) = quoteRouter(control, p, ONE_UBTC, true, true);
+        assertEq(afterMove, before, "an 12% move on L1 and the curve has not heard of it");
     }
 
+    /// @dev The death metric. If this fails the project is a constant-product AMM with a story
+    ///      attached, and ARCHITECTURE §2.5 says the week stops here and becomes the measurement
+    ///      product instead. Both lines are quoted through the deployed router, not the unit.
     function test_deathMetric_amountOutMovesWithBook() public {
-        vm.skip(true);
+        DeskParams memory p = btcParams();
+        ISwapVM.Order memory desk = deskOrder(p, SALT);
+        ISwapVM.Order memory control = controlOrder(p, keccak256("control"));
+        shipFunded(desk, p, START_BASE, START_QUOTE);
+        shipFunded(control, p, START_BASE, START_QUOTE);
+
+        (, uint256 deskBefore) = quoteRouter(desk, p, ONE_UBTC, true, true);
+        (, uint256 controlBefore) = quoteRouter(control, p, ONE_UBTC, true, true);
+
+        // The book moves. Nothing else does: same inventory, same order, same block.
+        setBook(700_000, 700_010, 699_950, 700_290);
+        (, uint256 deskAfter) = quoteRouter(desk, p, ONE_UBTC, true, true);
+        (, uint256 controlAfter) = quoteRouter(control, p, ONE_UBTC, true, true);
+
+        assertTrue(deskAfter != deskBefore, "the desk's quote is a function of Hyperliquid's book");
+        assertEq(controlAfter, controlBefore, "the control's is not");
+        assertLt(deskAfter, deskBefore, "and it moved the way the book did");
     }
 
     // ---- helpers ----
