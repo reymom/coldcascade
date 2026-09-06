@@ -4,7 +4,7 @@ import {
   Rpc, plant, loadSelectors, readFloor, readOrder, takerTraits, quoteCall, swapCall,
   erc20, mapUpdate, paramsTuple, decode, calldata,
 } from "./chain.js";
-import { wallet, waitForReceipt, DEFAULT_RPC, CHAIN_ID } from "./rpc.js";
+import { wallet, waitForReceipt, DEFAULT_RPC } from "./rpc.js";
 import { drawStrip } from "./bands.js";
 import { roundTrip, bestRoundTrip } from "./arb.js";
 
@@ -54,7 +54,7 @@ export async function mountFloor(root) {
   ui.status.remove();
   ui.page.hidden = false;
 
-  const view = { state, rpc, ui, floor: null, account: null, chainOk: false };
+  const view = { state, rpc, ui, floor: null, account: null, walletChainId: null, chainOk: false };
   wireTake(view);
   wireMap(view);
   wireWallet(view);
@@ -280,7 +280,11 @@ function renderPanels(view, desks) {
   const none = takeable.length === 0;
   view.ui.takeNote.textContent = none
     ? "No desk is deployed yet. The Floor is quoting the canonical parameters against the live book; Take turns on when the desks are on chain."
-    : "One swap through the official SwapVM router on 999. The page reads the order back from the account rather than rebuilding it.";
+    : !view.account
+      ? `One swap through the official SwapVM router on chain ${view.state.chainId}. Connect a wallet to send it.`
+      : !view.chainOk
+        ? `Your wallet is on chain ${view.walletChainId ?? "?"}; this page is reading chain ${view.state.chainId}. Press connect to switch.`
+        : `One swap through the official SwapVM router on chain ${view.state.chainId}. The page reads the order back from the account rather than rebuilding it.`;
   view.ui.takeGo.disabled = none || !view.chainOk;
 
   const mapNone = view.ui.mapDesk.options.length === 0;
@@ -318,7 +322,7 @@ function wireTake(view) {
     try {
       ui.takeGo.disabled = true;
       const [account] = await w.connect();
-      await w.switchToHyperEvm(state.rpcUrl);
+      await w.switchTo(state.chainId, state.rpcUrl);
 
       const order = await readOrder(rpc, state.sel, desk.account);
       const traits = takerTraits({ isExactIn: true, minOut: 0n });
@@ -394,7 +398,7 @@ function wireMap(view) {
     try {
       ui.mapGo.disabled = true;
       const [account] = await w.connect();
-      await w.switchToHyperEvm(view.state.rpcUrl);
+      await w.switchTo(view.state.chainId, view.state.rpcUrl);
       const below = units(ui.mapNotional.value, 0) * (ui.mapSide.value === "below" ? 1n : 0n);
       const above = units(ui.mapNotional.value, 0) * (ui.mapSide.value === "above" ? 1n : 0n);
       const hash = await w.send({
@@ -422,12 +426,15 @@ function wireWallet(view) {
   const refresh = async () => {
     const [account] = await w.accounts();
     view.account = account ?? null;
-    view.chainOk = account ? (await w.chainId()) === CHAIN_ID : false;
+    // The chain the page is *reading* is the one a write has to land on, whether that is 999 or a
+    // fork of it. Comparing against a constant is how the button ends up disabled on a fork.
+    view.walletChainId = account ? await w.chainId() : null;
+    view.chainOk = view.walletChainId === view.state.chainId;
     view.ui.connect.textContent = account ? short(account) : "connect a wallet";
   };
   view.ui.connect.addEventListener("click", async () => {
     await w.connect();
-    await w.switchToHyperEvm(view.state.rpcUrl);
+    await w.switchTo(view.state.chainId, view.state.rpcUrl);
     await refresh();
   });
   w.provider.on?.("accountsChanged", refresh);
