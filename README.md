@@ -181,11 +181,28 @@ map empty. The strategy hash in the log is the one `quote()` returned before it 
 0.6% of the demo desk's quote reserve, and constant product alone on its 2 base / 160 000 quote
 gives `2e8 · 1e9 / (1.6e11 + 1e9)` = **1 242 236**, which is the fill to the last unit. The bound
 only ever cuts a quote *down* to L1's crossing price; here `XYCSwap` was already asking more than
-L1 plus the band, so there was nothing to cut. A size the desk is actually built for rides the
-band instead — `./script/probe999.sh` prices the same parameters at ±20 bps around L1 — and
-`test_deathMetric_amountOutMovesWithBook` is where the bound binds. Read this transaction as proof
-that the program dispatches and settles on 1inch's deployed router, not as a demonstration of the
-clamp.
+L1 plus the band, so there was nothing to cut. Read it as proof that the program dispatches and
+settles on 1inch's deployed router, not as a demonstration of the clamp.
+
+**The clamp is this one.**
+[`0xfaf1b6c6…ab20`](https://hyperevmscan.io/tx/0xfaf1b6c68aeae9eaed9ff49acc54d0ac7081f1537b602f5609679238c22dab20),
+block 45 195 770, 194 108 gas — 0.01 base sold *to* the desk, where the bound has something to cut,
+because the desk's own curve wanted to pay far more than L1 for base it was short of:
+
+| | |
+|---|---|
+| the desk paid | 795 396 020 quote for 1 000 000 base = **79 539.60** per unit |
+| L1's bid, in the same call | 796 990 raw = **79 699.00** |
+| | **−20.00 bps**, which is `quietBps` to the basis point |
+
+The pool ratio at that moment was 81 003, so `XYCSwap` alone would have paid **+163 bps over L1** —
+free money for whoever took it. The bound cut it to L1's own bid less the band and stopped there.
+That is the whole mechanism in one transaction: the desk is never a better price than crossing L1,
+so there is nothing on it to arbitrage.
+
+**And the taker was a wallet that cost nothing to create.** `0x9D597dDf…6E85` is a Privy embedded
+wallet made from an email address minutes earlier — no extension, no seed phrase, no funding step.
+It was given 0.002 HYPE by `api/faucet.mjs` and spent 0.000073 of it on the three transactions.
 
 | | |
 |---|---|
