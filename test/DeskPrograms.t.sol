@@ -5,6 +5,7 @@ import { ISwapVM } from "@1inch/swap-vm/src/interfaces/ISwapVM.sol";
 import { XYCSwap } from "@1inch/swap-vm/src/instructions/XYCSwap.sol";
 import { Extruction } from "@1inch/swap-vm/src/instructions/Extruction.sol";
 import { Controls } from "@1inch/swap-vm/src/instructions/Controls.sol";
+import { Fee, FeeArgsBuilder } from "@1inch/swap-vm/src/instructions/Fee.sol";
 import { Program, ProgramBuilder } from "@1inch/swap-vm/test/utils/ProgramBuilder.sol";
 import { IAqua } from "@1inch/aqua/src/interfaces/IAqua.sol";
 
@@ -34,6 +35,28 @@ contract DeskProgramsTest is DeskTest {
         assertEq(table.findOpcode(XYCSwap._xycSwapXD), DeskPrograms.OP_XYC_SWAP, "XYCSwap");
         assertEq(table.findOpcode(Controls._salt), DeskPrograms.OP_SALT, "Salt");
         assertEq(table.findOpcode(Extruction._extruction), DeskPrograms.OP_EXTRUCTION, "Extruction");
+        assertEq(table.findOpcode(Fee._flatFeeAmountInXD), DeskPrograms.OP_FLAT_FEE_IN, "FlatFeeIn");
+    }
+
+    /// @dev The hardened control exists so that "compared to what?" has an answer a judge cannot
+    ///      call a strawman, and it is built out of 1inch's own instruction rather than an AMM we
+    ///      wrote — a control you write yourself is a foil. Two ways it could be silently wrong,
+    ///      both asserted here: the fee has to precede the curve, because it drives the rest of the
+    ///      program through `runLoop` and reverts if a leg is already written; and its `feeBps` is
+    ///      in 1e9, so a number that reads like basis points charges nothing.
+    function test_hardControlProgramBytes() public view {
+        Program memory table = ProgramBuilder.init(_opcodes());
+        uint32 feeBps = 3_000_000; // 30 bps, at BPS = 1e9
+
+        assertEq(
+            DeskPrograms.hardControl(feeBps, SALT),
+            bytes.concat(
+                table.build(Fee._flatFeeAmountInXD, FeeArgsBuilder.buildFlatFee(feeBps)),
+                table.build(XYCSwap._xycSwapXD),
+                table.build(Controls._salt, abi.encodePacked(SALT))
+            ),
+            "the fee wraps the curve; it does not follow it"
+        );
     }
 
     /// @dev And the bytes around those opcodes are 1inch's own instruction layout, built by their

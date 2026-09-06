@@ -16,8 +16,8 @@ does not carry it verbatim, `app/src/types.ts` mirrors it field for field, and
 |---|---|
 | prices (`spot`, `bid`, `ask`, `mark`, `oracle`, `deskBid`, `deskAsk`) | raw HyperCore. `price = raw / 10^(6 − szDecimals)`; BTC has szDecimals 5, so raw ÷ 10 is USD |
 | notionals (`*Ntl`) | whole USD |
-| `baseDesk`, `baseControl` | UBTC units, 8 decimals |
-| `quoteDesk`, `quoteControl` | USDT0 units, 6 decimals |
+| `base*` | UBTC units, 8 decimals |
+| `quote*` | USDT0 units, 6 decimals |
 | `*Bps` | signed integer basis points |
 | `t` | unix seconds, minute open |
 
@@ -40,6 +40,30 @@ does not carry it verbatim, `app/src/types.ts` mirrors it field for field, and
 | 23–24 | `arbDeskNtl` `arbControlNtl` | notional the arbitrage taker extracted from each maker |
 | 25–27 | `markoutDesk5mBps` `markoutDesk15mBps` `markoutDesk60mBps` | this minute's desk fills against spot 5, 15 and 60 minutes later; positive is the maker being right |
 | 28–30 | `markoutControl5mBps` `markoutControl15mBps` `markoutControl60mBps` | the same for the control |
+| 31–32 | `baseHard` `quoteHard` | hardened-control inventory after the minute |
+| 33 | `pnlHardBps` | the same mark as `pnlDeskBps`, for the hardened control |
+| 34–35 | `absorbedHardNtl` `arbHardNtl` | flow it took, and notional the arbitrageur traded against it |
+| 36–38 | `markoutHard5mBps` `markoutHard15mBps` `markoutHard60mBps` | the same for the hardened control |
+| 39 | `absorbedTouchNtl` | the whole minute's pot, as if it had gone to L1's touch instead of to a maker |
+| 40–42 | `markoutTouch5mBps` `markoutTouch15mBps` `markoutTouch60mBps` | that pot marked out from L1's own bid (forced selling) or ask (forced buying) |
+| 43–45 | `lvrDeskNtl` `lvrControlNtl` `lvrHardNtl` | **what the arbitrageur actually took out of each maker**, in USD, closed at L1's touch |
+
+## The four lines
+
+| line | program | what it is for |
+|---|---|---|
+| desk | `XYCSwap ‖ Extruction(CoreQuote, params) ‖ Salt` | the thing being measured |
+| control | `XYCSwap ‖ Salt` | the **ablation**: `desk` with one instruction removed, so a difference between the two is that instruction and nothing else |
+| hardened control | `FlatFeeIn(3 000 000) ‖ XYCSwap ‖ Salt` | the **competitor**: the same curve charging 30 bps, which is what people deploy. Built out of 1inch's own `Fee` instruction rather than an AMM written here, because a control you wrote yourself is a foil |
+| L1 touch | not a maker | the **benchmark**: the same flow at Hyperliquid's own bid and ask. No inventory, never arbitraged, takes the whole pot rather than competing for it |
+
+The fee is in the router's unit, not in basis points: the deployed revision's `Fee` uses
+`BPS = 1e9`, so a basis point is 100 000 and 30 bps is 3 000 000. `FlatFeeIn` also comes **before**
+the curve — it drives the rest of the program through `runLoop` and reverts if a leg is already
+written — so `XYCSwap ‖ FlatFeeIn` builds a revert, not a fee'd AMM.
+
+Both AMM lines are in the same race, which means they take flow from each other as well as from
+the desk. Read `absorbedDeskNtl` against the **sum** of the two, not against either alone.
 
 A markout is zero rather than missing when the minute had no fill, or when the tape does not reach
 5, 15 or 60 rows past it. The second case is only allowed to happen inside the tail: the tape runs
@@ -60,13 +84,19 @@ The number the whole comparison rests on is not in the file, because it does not
 absorbed edge = Σ  markoutDesk60mBps / 10 000 × absorbedDeskNtl
 ```
 
-and the same against the control. A markout in basis points is a *rate*, and the desk is supposed
+and the same against each of the other lines. A markout in basis points is a *rate*, and the desk is supposed
 to lose on that rate — leaning inside the spread means paying up, on every fill, by construction.
 What it buys is size at a price that reverts, so the quantity that carries the argument is the
 rate applied to the notional actually absorbed. Both terms are already columns, so the page and
 `test_gate_absorbedEdgeBeatsControl` each compute it and the schema did not have to move.
 
-`oct10_replay.source` records the two totals for whatever run produced the file.
+`oct10_replay.source` records, for whatever run produced the file, each line's absorbed notional,
+its absorbed edge, the LVR it paid and the notional the arbitrageur traded against it.
+
+The number that does not degenerate is the LVR column. A ratio of absorbed edges stops existing
+the moment the control's edge goes negative — which is what a maker priced before the trade does
+in a cascade — so the file carries the pair, and the gate is a signed margin rather than a
+multiple. See `test_gate_deskKeepsMoreThanTheControls`.
 
 ## Provenance
 

@@ -82,6 +82,21 @@ export interface ReplayRow {
   markoutControl5mBps: number;
   markoutControl15mBps: number;
   markoutControl60mBps: number;
+  baseHard: bigint;
+  quoteHard: bigint;
+  pnlHardBps: number;
+  absorbedHardNtl: bigint;
+  arbHardNtl: bigint;
+  markoutHard5mBps: number;
+  markoutHard15mBps: number;
+  markoutHard60mBps: number;
+  absorbedTouchNtl: bigint;
+  markoutTouch5mBps: number;
+  markoutTouch15mBps: number;
+  markoutTouch60mBps: number;
+  lvrDeskNtl: bigint;
+  lvrControlNtl: bigint;
+  lvrHardNtl: bigint;
 }
 
 /// The CSV header, verbatim. `test_replay_writesResults` pins the same string on the Solidity
@@ -92,6 +107,10 @@ export const REPLAY_COLUMNS = [
   "baseControl", "quoteControl", "pnlDeskBps", "pnlControlBps", "absorbedDeskNtl",
   "absorbedControlNtl", "arbDeskNtl", "arbControlNtl", "markoutDesk5mBps", "markoutDesk15mBps",
   "markoutDesk60mBps", "markoutControl5mBps", "markoutControl15mBps", "markoutControl60mBps",
+  "baseHard", "quoteHard", "pnlHardBps", "absorbedHardNtl", "arbHardNtl",
+  "markoutHard5mBps", "markoutHard15mBps", "markoutHard60mBps",
+  "absorbedTouchNtl", "markoutTouch5mBps", "markoutTouch15mBps", "markoutTouch60mBps",
+  "lvrDeskNtl", "lvrControlNtl", "lvrHardNtl",
 ] as const;
 
 /// 0 none, 1 bid, 2 ask — how `lean` is written in the CSV.

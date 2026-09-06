@@ -73,13 +73,32 @@ contract Oct10ReplayTest is BlindTakers {
         int256 markoutControl5mBps;
         int256 markoutControl15mBps;
         int256 markoutControl60mBps;
+        uint256 baseHard;
+        uint256 quoteHard;
+        int256 pnlHardBps;
+        uint256 absorbedHardNtl;
+        uint256 arbHardNtl;
+        int256 markoutHard5mBps;
+        int256 markoutHard15mBps;
+        int256 markoutHard60mBps;
+        uint256 absorbedTouchNtl;
+        int256 markoutTouch5mBps;
+        int256 markoutTouch15mBps;
+        int256 markoutTouch60mBps;
+        uint256 lvrDeskNtl;
+        uint256 lvrControlNtl;
+        uint256 lvrHardNtl;
     }
 
     string internal constant HEADER = "t,spot,bid,ask,mark,oracle,deskBid,deskAsk,lean,dislocationBps,"
         "mapBelowNtl,mapAboveNtl,forcedSellNtl,forcedBuyNtl,baseDesk,quoteDesk,baseControl,quoteControl,"
         "pnlDeskBps,pnlControlBps,absorbedDeskNtl,absorbedControlNtl,arbDeskNtl,arbControlNtl,"
         "markoutDesk5mBps,markoutDesk15mBps,markoutDesk60mBps,"
-        "markoutControl5mBps,markoutControl15mBps,markoutControl60mBps";
+        "markoutControl5mBps,markoutControl15mBps,markoutControl60mBps,"
+        "baseHard,quoteHard,pnlHardBps,absorbedHardNtl,arbHardNtl,"
+        "markoutHard5mBps,markoutHard15mBps,markoutHard60mBps,"
+        "absorbedTouchNtl,markoutTouch5mBps,markoutTouch15mBps,markoutTouch60mBps,"
+        "lvrDeskNtl,lvrControlNtl,lvrHardNtl";
 
     string internal constant TAPE = "tape/oct10_btc_1m.json";
     string internal constant STUB_TAPE = "tape/oct10_btc_1m.stub.json";
@@ -115,7 +134,7 @@ contract Oct10ReplayTest is BlindTakers {
     ///      assumptions about queue position. This one asserts only that the arb gets *a* look
     ///      inside the minute, which is what a latency-optimised searcher does and a liquidated
     ///      account does not.
-    uint256 internal constant FLOW_CLIPS = 20;
+    uint256 internal constant FLOW_CLIPS = 30;
     uint256 internal constant FLOW_SLICES = 1;
 
     /// @dev 40 UBTC each. The quote leg is **not** a constant: it is set from the tape's first spot
@@ -124,6 +143,22 @@ contract Oct10ReplayTest is BlindTakers {
 
     uint256 internal constant DESK = 0;
     uint256 internal constant CONTROL = 1;
+    uint256 internal constant HARD = 2;
+
+    /// @notice The maker fee on the third line, in the router's own unit: `Fee` uses `BPS = 1e9`,
+    ///         so this is **30 bps**, near what a real BTC/USDT pool charges.
+    ///
+    /// @dev The plain control is the right ablation and the wrong competitor — it is `desk()` minus
+    ///      one instruction, which isolates that instruction perfectly, and it is also a zero-fee
+    ///      constant product on a BTC pair, which nobody ships. This line is the competitor, built
+    ///      out of 1inch's own `Fee` instruction rather than an AMM written here, because a control
+    ///      you wrote yourself is a foil and the first question about it is whether you tuned it to
+    ///      lose.
+    ///
+    ///      The point is not that the fee is the right fee. It is that **it does not matter**: the
+    ///      control's problem is that its price was set before the trade, and a fee schedule does
+    ///      not touch that. `results/oct10_replay.source` carries the numbers at other settings.
+    uint32 internal constant HARD_FEE_BPS = 3_000_000;
 
     uint256 internal startValue;
     DeskParams internal params;
@@ -155,27 +190,35 @@ contract Oct10ReplayTest is BlindTakers {
     ///         index, breaks a tie by position, or reads anything off a maker beyond the number that
     ///         came back from `quote` separates these two lines and fails here.
     ///
-    /// @dev Deliberately not a strict equality. Two identical curves quoted one clip at a time do
-    ///      not tie forever: the first fill moves the winner's curve, so the next clip goes to the
-    ///      other one, and the pair oscillates around the split rather than sitting on it. What
-    ///      would be a leak is a *systematic* lean, so the tolerance is on the share.
+    /// @dev It is an exact equality, and it can be, because identical curves quoted one clip at a
+    ///      time do not tie forever — the first fill moves the winner's curve and the next clip goes
+    ///      to the next maker, so the makers take strict turns. The one thing that breaks that is
+    ///      arithmetic rather than blindness: a minute's clips have to divide evenly among the
+    ///      makers or the remainder lands somewhere, which is a granularity floor and not a leak.
+    ///      So the divisibility is asserted first and the shares are then required to be equal to
+    ///      the dollar, which is a far sharper instrument than a tolerance that would wave a real
+    ///      two-percent leak through.
     function test_takers_areBlind() public {
         (Tick[] memory tape,) = loadTape();
         Line[] memory lines = shipLines(tape[0].spot, true);
         drive(tape, lines);
 
-        (uint256 a, uint256 b) = (absorbedBy(DESK), absorbedBy(CONTROL));
-        (uint256 x, uint256 y) = (arbNotionalBy(DESK), arbNotionalBy(CONTROL));
+        uint256 absorbed;
+        uint256 arbed;
+        for (uint256 i = 0; i < lines.length; ++i) {
+            emit log_named_uint("absorbed, slot (USD)", absorbedBy(i));
+            emit log_named_uint("arb notional, slot (USD)", arbNotionalBy(i));
+            absorbed += absorbedBy(i);
+            arbed += arbNotionalBy(i);
+        }
+        assertGt(absorbed, 0, "identical makers absorbed nothing: the harness is not routing");
+        assertGt(arbed, 0, "identical AMMs were never arbitraged: the arb is not searching");
 
-        emit log_named_uint("absorbed, slot 0 (USD)", a);
-        emit log_named_uint("absorbed, slot 1 (USD)", b);
-        emit log_named_uint("arb notional, slot 0 (USD)", x);
-        emit log_named_uint("arb notional, slot 1 (USD)", y);
-
-        assertGt(a + b, 0, "two identical makers absorbed nothing: the harness is not routing");
-        assertApproxEqRel(a, b, 0.02e18, "identical programs took different flow: a taker can see the maker");
-        assertGt(x + y, 0, "two identical AMMs were never arbitraged: the arb is not searching");
-        assertApproxEqRel(x, y, 0.02e18, "identical programs were arbitraged differently: same leak");
+        assertEq(FLOW_CLIPS % lines.length, 0, "the clips have to divide among the makers or the remainder is noise");
+        for (uint256 i = 1; i < lines.length; ++i) {
+            assertEq(absorbedBy(i), absorbedBy(0), "identical programs took different flow: a taker can see the maker");
+            assertEq(arbNotionalBy(i), arbNotionalBy(0), "identical programs were arbitraged differently: same leak");
+        }
     }
 
     // ---- the run ----
@@ -312,6 +355,50 @@ contract Oct10ReplayTest is BlindTakers {
         assertGt(desk, 0, "the desk lost money on what it absorbed: the lean is not paying for itself");
     }
 
+    function absorbedOf(Row[] memory rows, uint256 line) internal pure returns (uint256 n) {
+        for (uint256 i = 0; i < rows.length; ++i) {
+            n += line == DESK
+                ? rows[i].absorbedDeskNtl
+                : line == CONTROL ? rows[i].absorbedControlNtl : rows[i].absorbedHardNtl;
+        }
+    }
+
+    function arbOf(Row[] memory rows, uint256 line) internal pure returns (uint256 n) {
+        for (uint256 i = 0; i < rows.length; ++i) {
+            n += line == DESK ? rows[i].arbDeskNtl : line == CONTROL ? rows[i].arbControlNtl : rows[i].arbHardNtl;
+        }
+    }
+
+    function lvrOf(Row[] memory rows, uint256 line) internal pure returns (uint256 n) {
+        for (uint256 i = 0; i < rows.length; ++i) {
+            n += line == DESK ? rows[i].lvrDeskNtl : line == CONTROL ? rows[i].lvrControlNtl : rows[i].lvrHardNtl;
+        }
+    }
+
+    function edgeOf(Row[] memory rows, uint256 line) internal pure returns (int256 n) {
+        for (uint256 i = 0; i < rows.length; ++i) {
+            (uint256 ntl, int256 bps) = line == DESK
+                ? (rows[i].absorbedDeskNtl, rows[i].markoutDesk60mBps)
+                : line == CONTROL
+                    ? (rows[i].absorbedControlNtl, rows[i].markoutControl60mBps)
+                    : (rows[i].absorbedHardNtl, rows[i].markoutHard60mBps);
+            n += int256(ntl) * bps / 10_000;
+        }
+    }
+
+    /// @notice The venue itself: the same forced flow, filled at L1's touch, marked out the same way.
+    function touchEdge(Row[] memory rows) internal pure returns (int256 n) {
+        for (uint256 i = 0; i < rows.length; ++i) {
+            n += int256(rows[i].absorbedTouchNtl) * rows[i].markoutTouch60mBps / 10_000;
+        }
+    }
+
+    function touchAbsorbed(Row[] memory rows) internal pure returns (uint256 n) {
+        for (uint256 i = 0; i < rows.length; ++i) {
+            n += rows[i].absorbedTouchNtl;
+        }
+    }
+
     /// @notice Each maker's markout weighted by what it actually absorbed, summed over the
     ///         session, in USD. `markoutBps` is a rate; this is the quantity the rate is a rate *of*.
     function absorbedEdge(Row[] memory rows) internal pure returns (int256 desk, int256 control) {
@@ -391,14 +478,22 @@ contract Oct10ReplayTest is BlindTakers {
         uint256 quote_ = openingQuote(spot0);
         startValue = valueAtSpot(START_BASE, quote_, spot0);
 
-        lines = new Line[](2);
-        ISwapVM.Order memory a =
-            twins ? controlOrder(params, keccak256("twin-a")) : deskOrder(params, keccak256("desk"));
-        ISwapVM.Order memory b =
-            twins ? controlOrder(params, keccak256("twin-b")) : controlOrder(params, keccak256("control"));
+        lines = new Line[](3);
+        ISwapVM.Order[3] memory os = twins
+            ? [
+                controlOrder(params, keccak256("twin-a")),
+                controlOrder(params, keccak256("twin-b")),
+                controlOrder(params, keccak256("twin-c"))
+            ]
+            : [
+                deskOrder(params, keccak256("desk")),
+                controlOrder(params, keccak256("control")),
+                hardControlOrder(params, HARD_FEE_BPS, keccak256("hard"))
+            ];
 
-        lines[0] = Line({ order: a, hash: shipFunded(a, params, START_BASE, quote_) });
-        lines[1] = Line({ order: b, hash: shipFunded(b, params, START_BASE, quote_) });
+        for (uint256 i = 0; i < 3; ++i) {
+            lines[i] = Line({ order: os[i], hash: shipFunded(os[i], params, START_BASE, quote_) });
+        }
     }
 
     /// @notice The quote leg that puts XYCSwap's marginal price on the tape's opening spot.
@@ -456,12 +551,21 @@ contract Oct10ReplayTest is BlindTakers {
         (row.baseDesk, row.quoteDesk) = (held[i][DESK].base, held[i][DESK].quote);
         (row.baseControl, row.quoteControl) = (held[i][CONTROL].base, held[i][CONTROL].quote);
 
+        (row.baseHard, row.quoteHard) = (held[i][HARD].base, held[i][HARD].quote);
+
         row.pnlDeskBps = pnlBps(row.baseDesk, row.quoteDesk, tick.spot);
         row.pnlControlBps = pnlBps(row.baseControl, row.quoteControl, tick.spot);
+        row.pnlHardBps = pnlBps(row.baseHard, row.quoteHard, tick.spot);
         row.absorbedDeskNtl = absorbedAt(i, DESK);
         row.absorbedControlNtl = absorbedAt(i, CONTROL);
+        row.absorbedHardNtl = absorbedAt(i, HARD);
         row.arbDeskNtl = bleeds[i][DESK].notional;
         row.arbControlNtl = bleeds[i][CONTROL].notional;
+        row.arbHardNtl = bleeds[i][HARD].notional;
+        row.lvrDeskNtl = bleeds[i][DESK].profit;
+        row.lvrControlNtl = bleeds[i][CONTROL].profit;
+        row.lvrHardNtl = bleeds[i][HARD].profit;
+        row.absorbedTouchNtl = (tick.forcedSellNtl + tick.forcedBuyNtl) * FLOW_CAPTURE_BPS / BPS_DEN;
         // The markout columns are a second pass: they need minutes this one has not seen yet.
     }
 
@@ -477,7 +581,38 @@ contract Oct10ReplayTest is BlindTakers {
             rows[i].markoutControl5mBps = markoutAt(tape, i, CONTROL, MARKOUT_5M);
             rows[i].markoutControl15mBps = markoutAt(tape, i, CONTROL, MARKOUT_15M);
             rows[i].markoutControl60mBps = markoutAt(tape, i, CONTROL, MARKOUT_60M);
+            rows[i].markoutHard5mBps = markoutAt(tape, i, HARD, MARKOUT_5M);
+            rows[i].markoutHard15mBps = markoutAt(tape, i, HARD, MARKOUT_15M);
+            rows[i].markoutHard60mBps = markoutAt(tape, i, HARD, MARKOUT_60M);
+            rows[i].markoutTouch5mBps = touchMarkout(tape, i, MARKOUT_5M);
+            rows[i].markoutTouch15mBps = touchMarkout(tape, i, MARKOUT_15M);
+            rows[i].markoutTouch60mBps = touchMarkout(tape, i, MARKOUT_60M);
         }
+    }
+
+    /// @notice The fourth line, and the only one nobody can call rigged: the same forced flow,
+    ///         filled at Hyperliquid's own touch.
+    ///
+    /// @dev It is not a maker. It holds no inventory, it is never arbitraged, and it takes the whole
+    ///      pot rather than competing for it — it is the answer to "compared to what?" when the
+    ///      answer "compared to an AMM" is not good enough, because the benchmark is the venue the
+    ///      desk quotes against and the price is a column of the tape rather than anything computed
+    ///      here. A maker that cannot beat it per dollar absorbed has no business existing.
+    function touchMarkout(Tick[] memory tape, uint256 i, uint256 horizon) internal pure returns (int256) {
+        if (i + horizon >= tape.length) return 0;
+        Tick memory tick = tape[i];
+        int256 later = int256(tape[i + horizon].spot);
+
+        // Forced selling is taken on L1's bid; forced buying is filled on L1's ask.
+        if (tick.forcedSellNtl != 0) {
+            int256 px = int256(uint256(tick.bid));
+            return (later - px) * 10_000 / px;
+        }
+        if (tick.forcedBuyNtl != 0) {
+            int256 px = int256(uint256(tick.ask));
+            return -((later - px) * 10_000 / px);
+        }
+        return 0;
     }
 
     function markoutAt(Tick[] memory tape, uint256 i, uint256 line, uint256 horizon)
@@ -540,7 +675,6 @@ contract Oct10ReplayTest is BlindTakers {
             vm.writeLine(OUT, csv(rows[i]));
         }
 
-        (int256 deskEdge, int256 controlEdge) = absorbedEdge(rows);
         string memory path = isRealTape ? TAPE : STUB_TAPE;
         vm.writeFile(
             SOURCE,
@@ -548,14 +682,37 @@ contract Oct10ReplayTest is BlindTakers {
                 "tape: ", path, "\n",
                 "keccak256: ", vm.toString(keccak256(bytes(vm.readFile(path)))), "\n",
                 "ticks: ", vm.toString(tape.length), "\n",
-                "takers: blind (router quotes, arb closed at L1's touch)\n",
-                "absorbed edge, desk (USD): ", vm.toString(deskEdge), "\n",
-                "absorbed edge, control (USD): ", vm.toString(controlEdge), "\n",
-                "lvr paid, desk (USD): ", vm.toString(arbProfitBy(DESK)), "\n",
-                "lvr paid, control (USD): ", vm.toString(arbProfitBy(CONTROL)), "\n",
-                "arb notional, desk (USD): ", vm.toString(arbNotionalBy(DESK)), "\n",
-                "arb notional, control (USD): ", vm.toString(arbNotionalBy(CONTROL)), "\n"
+                "takers: blind (router quotes; arb closed at L1's touch, then the forced flow)\n",
+                "hard control fee: ", vm.toString(HARD_FEE_BPS), " of 1e9\n\n",
+                _lineStamp("desk", rows, DESK),
+                _lineStamp("control (XYCSwap)", rows, CONTROL),
+                _lineStamp("control (XYCSwap, fee)", rows, HARD),
+                "L1 touch (benchmark)  absorbed ", vm.toString(touchAbsorbed(rows)),
+                "  edge60 ", vm.toString(touchEdge(rows)),
+                "  lvr 0  arb notional 0\n"
             )
+        );
+    }
+
+    /// @dev One line's session totals, in whole USD. `absorbed` is what the forced seller gave it,
+    ///      `edge60` is that notional times its own 60 minute markout, `lvr` is what the
+    ///      arbitrageur took out of it at L1's touch, and `net` is the only one of the four that a
+    ///      maker would recognise as the answer.
+    function _lineStamp(string memory name, Row[] memory rows, uint256 line)
+        private
+        pure
+        returns (string memory)
+    {
+        int256 edge = edgeOf(rows, line);
+        int256 lvr = int256(lvrOf(rows, line));
+        return string.concat(
+            name,
+            "  absorbed ", vm.toString(absorbedOf(rows, line)),
+            "  edge60 ", vm.toString(edge),
+            "  lvr ", vm.toString(lvr),
+            "  arb notional ", vm.toString(arbOf(rows, line)),
+            "  net ", vm.toString(edge - lvr),
+            "\n"
         );
     }
 
@@ -568,7 +725,21 @@ contract Oct10ReplayTest is BlindTakers {
             ",", _i(r.pnlDeskBps), ",", _i(r.pnlControlBps),
             ",", _u(r.absorbedDeskNtl), ",", _u(r.absorbedControlNtl), ",", _u(r.arbDeskNtl), ",", _u(r.arbControlNtl),
             ",", _i(r.markoutDesk5mBps), ",", _i(r.markoutDesk15mBps), ",", _i(r.markoutDesk60mBps),
-            ",", _i(r.markoutControl5mBps), ",", _i(r.markoutControl15mBps), ",", _i(r.markoutControl60mBps)
+            ",", _i(r.markoutControl5mBps), ",", _i(r.markoutControl15mBps), ",", _i(r.markoutControl60mBps),
+            ",", _csvTail(r)
+        );
+    }
+
+    /// @dev The three lines added after the schema was first frozen, split out so `csv` stays
+    ///      inside the stack.
+    function _csvTail(Row memory r) private pure returns (string memory) {
+        return string.concat(
+            _u(r.baseHard), ",", _u(r.quoteHard), ",", _i(r.pnlHardBps),
+            ",", _u(r.absorbedHardNtl), ",", _u(r.arbHardNtl),
+            ",", _i(r.markoutHard5mBps), ",", _i(r.markoutHard15mBps), ",", _i(r.markoutHard60mBps),
+            ",", _u(r.absorbedTouchNtl),
+            ",", _i(r.markoutTouch5mBps), ",", _i(r.markoutTouch15mBps), ",", _i(r.markoutTouch60mBps),
+            ",", _u(r.lvrDeskNtl), ",", _u(r.lvrControlNtl), ",", _u(r.lvrHardNtl)
         );
     }
 

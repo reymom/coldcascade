@@ -26,6 +26,7 @@ library DeskPrograms {
     uint8 internal constant OP_SALT = 20;
     uint8 internal constant OP_XYC_SWAP = 17;
     uint8 internal constant OP_EXTRUCTION = 32;
+    uint8 internal constant OP_FLAT_FEE_IN = 21;
 
     /// @dev `[opcode][uint8 length][args]`. The length byte is why one instruction carries at most
     ///      255 bytes of args, which is the constraint `DeskParamsLib`'s packed encoding exists for.
@@ -56,6 +57,34 @@ library DeskPrograms {
     /// @return XYCSwap || Salt(salt) — the other line on the screen
     function control(bytes32 salt) internal pure returns (bytes memory) {
         return bytes.concat(instruction(OP_XYC_SWAP, ""), instruction(OP_SALT, abi.encodePacked(salt)));
+    }
+
+    /// @return FlatFeeIn(feeBps) || XYCSwap || Salt(salt) — the third line, and the honest one.
+    ///
+    /// @notice The plain control is the right *ablation* — it is `desk()` with one instruction
+    ///         removed, so a difference between the two is that instruction and nothing else. It is
+    ///         not a fair *competitor*: nobody ships a zero-fee constant product on a BTC pair. This
+    ///         is the same curve charging for the privilege, which is what people actually deploy.
+    ///
+    /// @dev Two things about the ordering and the unit, both of which are the router's and not
+    ///      ours, and both of which bite:
+    ///
+    ///      **The fee comes before the curve.** `Fee._flatFeeAmountInXD` reverts
+    ///      `FeeShouldBeAppliedBeforeSwapAmountsComputation` if either leg is already written, and
+    ///      it drives the rest of the program itself through `ctx.runLoop()`. So it wraps the
+    ///      curve rather than following it; `XYCSwap || FlatFee` does not build a fee'd AMM, it
+    ///      builds a revert. Upstream's own `Fee.t.sol` and `XYCSwap.t.sol` order it this way.
+    ///
+    ///      **`feeBps` is in 1e9, not 1e4.** The deployed revision's `Fee` uses `BPS = 1e9`, so a
+    ///      basis point is 100 000 and 30 bps — roughly what a real BTC/USDT pool charges — is
+    ///      3 000 000. A number that looks like basis points here is off by five orders of
+    ///      magnitude and the control silently becomes free again.
+    function hardControl(uint32 feeBps, bytes32 salt) internal pure returns (bytes memory) {
+        return bytes.concat(
+            instruction(OP_FLAT_FEE_IN, abi.encodePacked(feeBps)),
+            instruction(OP_XYC_SWAP, ""),
+            instruction(OP_SALT, abi.encodePacked(salt))
+        );
     }
 
     /// @notice An Aqua order (useAquaInsteadOfSignature) with the desk hook on post-transfer-out.

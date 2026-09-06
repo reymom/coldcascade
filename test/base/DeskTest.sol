@@ -128,6 +128,16 @@ abstract contract DeskTest is AquaSwapVMTest {
         return DeskPrograms.order(maker, address(0), DeskPrograms.control(salt), p);
     }
 
+    /// @notice The third line: the same curve charging a maker fee, which is what people deploy.
+    /// @dev `feeBps` is in 1e9 — see `DeskPrograms.hardControl`, and do not read it as basis points.
+    function hardControlOrder(DeskParams memory p, uint32 feeBps, bytes32 salt)
+        internal
+        view
+        returns (ISwapVM.Order memory)
+    {
+        return DeskPrograms.order(maker, address(0), DeskPrograms.hardControl(feeBps, salt), p);
+    }
+
     // ---- the ship harness ----
     //
     // 1inch's own `shipStrategy` is typed to their TokenMock; the desk trades a pair with real

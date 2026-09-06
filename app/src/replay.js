@@ -1,6 +1,11 @@
-// Loads results/oct10_replay.csv. The column list is the frozen schema: the same 30 names are
+// Loads results/oct10_replay.csv. The column list is the frozen schema: the same 45 names are
 // pinned in test/Oct10Replay.t.sol's HEADER, in results/oct10_replay.schema.md and in types.ts.
 // If a column moves, this throws here rather than drawing a wrong picture quietly.
+//
+// Four lines, not two. The desk, the plain XYCSwap control it is an ablation of, the same curve
+// charging a maker fee — which is what people actually deploy — and Hyperliquid's own touch, which
+// is not a maker at all and is there so that "compared to what?" has an answer nobody can call a
+// strawman.
 
 export const REPLAY_COLUMNS = [
   "t", "spot", "bid", "ask", "mark", "oracle", "deskBid", "deskAsk", "lean", "dislocationBps",
@@ -8,6 +13,10 @@ export const REPLAY_COLUMNS = [
   "baseControl", "quoteControl", "pnlDeskBps", "pnlControlBps", "absorbedDeskNtl",
   "absorbedControlNtl", "arbDeskNtl", "arbControlNtl", "markoutDesk5mBps", "markoutDesk15mBps",
   "markoutDesk60mBps", "markoutControl5mBps", "markoutControl15mBps", "markoutControl60mBps",
+  "baseHard", "quoteHard", "pnlHardBps", "absorbedHardNtl", "arbHardNtl",
+  "markoutHard5mBps", "markoutHard15mBps", "markoutHard60mBps",
+  "absorbedTouchNtl", "markoutTouch5mBps", "markoutTouch15mBps", "markoutTouch60mBps",
+  "lvrDeskNtl", "lvrControlNtl", "lvrHardNtl",
 ];
 
 export const LEAN = ["none", "bid", "ask"];
