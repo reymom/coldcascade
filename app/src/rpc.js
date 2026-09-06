@@ -1,21 +1,10 @@
 // JSON-RPC against a HyperEVM node, and the state override that lets the page run contracts the
 // chain has never seen.
 
+// The default the page reads when `?rpc=` says nothing. It is a URL and not a chain id: what chain
+// this is gets asked of the node with `eth_chainId`, and every address and every signer follows
+// that answer. There is no chain constant in this file.
 export const DEFAULT_RPC = "https://rpc.hyperliquid.xyz/evm";
-export const CHAIN_ID = 999;
-
-/**
- * What a wallet needs to be told about a chain it has never seen. Only 999 is a real one; anything
- * else the page is pointed at is a local fork, and a wallet is happy to be handed the generic
- * shape for those.
- */
-const CHAIN_METADATA = {
-  [CHAIN_ID]: {
-    chainName: "HyperEVM",
-    nativeCurrency: { name: "HYPE", symbol: "HYPE", decimals: 18 },
-    blockExplorerUrls: ["https://hyperevmscan.io"],
-  },
-};
 
 /** A read-only client. `overrides` is geth's third eth_call parameter. */
 export class Rpc {
@@ -83,53 +72,6 @@ export async function plant(rpc, bytecode, addresses) {
 }
 
 const word = (address) => address.replace(/^0x/, "").toLowerCase().padStart(64, "0");
-
-/** The injected wallet, or null. Everything the page writes goes through this and nothing else. */
-export function wallet() {
-  const provider = globalThis.ethereum;
-  if (!provider) return null;
-  return {
-    provider,
-    async accounts() {
-      return provider.request({ method: "eth_accounts" });
-    },
-    async connect() {
-      return provider.request({ method: "eth_requestAccounts" });
-    },
-    async chainId() {
-      return Number(BigInt(await provider.request({ method: "eth_chainId" })));
-    },
-    /**
-     * Move the wallet to the chain the page is reading, adding it if the wallet has never seen it.
-     *
-     * The chain is an argument and not the constant. Everywhere else the page is already
-     * chain-agnostic — it takes its addresses from `deployments/<chainid>.json` — and 999 wired
-     * into the write path alone meant the Take button was disabled against a local fork of 999,
-     * which is the one place the whole taker flow can be rehearsed before there is a mainnet desk.
-     */
-    async switchTo(chainId, rpcUrl) {
-      const hex = "0x" + chainId.toString(16);
-      try {
-        await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: hex }] });
-      } catch (err) {
-        if (err?.code !== 4902) throw err;
-        await provider.request({
-          method: "wallet_addEthereumChain",
-          params: [{
-            chainId: hex,
-            chainName: `chain ${chainId}`,
-            nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-            ...CHAIN_METADATA[chainId],
-            rpcUrls: [rpcUrl],
-          }],
-        });
-      }
-    },
-    async send(tx) {
-      return provider.request({ method: "eth_sendTransaction", params: [tx] });
-    },
-  };
-}
 
 /** Poll for a receipt. Blocks are about a second here, so this is short and not clever. */
 export async function waitForReceipt(rpc, hash, timeoutMs = 60_000) {

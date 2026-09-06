@@ -183,7 +183,16 @@ button.go { background: #17324f; color: #cfe4ff; border: 1px solid #2d5480; font
 button.go:disabled { opacity: 0.45; cursor: default; }
 .out { color: var(--muted); font-size: 12px; min-height: 1.4em; margin: 0; word-break: break-word; }
 .out-error { color: #e5b4b4; }
-#floor-connect { margin-left: auto; }
+.signin { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  justify-content: flex-end; }
+.signin input { background: #0d1219; color: var(--text); font: inherit; width: 15em;
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+.signin input#signin-code { width: 9em; letter-spacing: 0.18em; }
+.signin .who { color: var(--desk); font-weight: 600; }
+button.go.ghost { background: transparent; color: var(--muted); border-color: var(--line); }
+button.go.ghost:hover { color: var(--text); }
+.signin-note { text-align: right; margin: 0 0 12px; }
+.signin-note a { color: var(--desk); }
 #floor-error { color: #e5b4b4; font-size: 12px; margin: 0 0 12px; }
 .label-hard { color: var(--bid); font-weight: 600; }
 
@@ -207,10 +216,20 @@ button.go:disabled { opacity: 0.45; cursor: default; }
     <pre id="floor-status" class="status">connecting to HyperEVM…</pre>
 
     <div id="floor-page" hidden>
-      <div class="topbar" style="margin-bottom:14px">
+      <div class="topbar" style="margin-bottom:4px">
         <span id="floor-mode" class="chip">—</span>
-        <button class="go" id="floor-connect">connect a wallet</button>
+        <div class="signin">
+          <span class="who" id="floor-who" hidden></span>
+          <input id="signin-email" type="email" autocomplete="email" placeholder="you@example.com"
+                 aria-label="email address">
+          <input id="signin-code" type="text" inputmode="numeric" autocomplete="one-time-code"
+                 placeholder="6-digit code" aria-label="the code from the email" hidden>
+          <button class="go" id="signin-go">email me a code</button>
+          <button class="go ghost" id="floor-connect">or a browser wallet</button>
+          <button class="go ghost" id="signin-out" hidden>sign out</button>
+        </div>
       </div>
+      <p class="out signin-note" id="signin-note"></p>
       <p id="floor-error" hidden></p>
 
       <div class="lede">
