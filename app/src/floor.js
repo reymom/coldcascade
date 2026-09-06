@@ -385,7 +385,18 @@ function wireTake(view) {
         receipt.status !== "0x1",
         link);
     } catch (err) {
-      say(ui.takeOut, err.message ?? String(err), true);
+      // A transaction the page stopped waiting for has not failed, and saying so as an error is how
+      // somebody reloads in the middle of a working flow. Every step here is resumable — the mint
+      // is skipped once the balance is there, the approve once the allowance is — so the honest
+      // message is what is true and what to do about it.
+      if (err.pending) {
+        say(ui.takeOut,
+          `${short(err.hash)} was sent and is still pending — this page stopped waiting, it did not `
+          + `fail. Check the explorer, then press the button again: whatever landed is skipped.`,
+          false, explorerTx(state.chain, err.hash));
+      } else {
+        say(ui.takeOut, err.message ?? String(err), true);
+      }
     } finally {
       ui.takeGo.disabled = false;
     }
@@ -446,7 +457,14 @@ function wireMap(view) {
       say(ui.mapOut, `posted ${short(hash)} — the lean shows on the next tick and expires in ${desk.params.mapMaxAge}s`);
       await waitForReceipt(view.rpc, hash);
     } catch (err) {
-      say(ui.mapOut, err.message ?? String(err), true);
+      // Same rule as Take: giving up on a receipt is not the write failing, and the map is visible
+      // on the next tick either way.
+      if (err.pending) {
+        say(ui.mapOut, `${short(err.hash)} is still pending — watch the lean column, it shows when it lands.`,
+          false, explorerTx(view.state.chain, err.hash));
+      } else {
+        say(ui.mapOut, err.message ?? String(err), true);
+      }
     } finally {
       ui.mapGo.disabled = false;
     }

@@ -73,13 +73,26 @@ export async function plant(rpc, bytecode, addresses) {
 
 const word = (address) => address.replace(/^0x/, "").toLowerCase().padStart(64, "0");
 
-/** Poll for a receipt. Blocks are about a second here, so this is short and not clever. */
-export async function waitForReceipt(rpc, hash, timeoutMs = 60_000) {
+/**
+ * Poll for a receipt, and treat running out of patience as what it is.
+ *
+ * Sixty seconds was not enough: a mint sent through an embedded wallet was mined and this gave up
+ * before the public RPC served the receipt, which surfaced on screen as "no receipt … after 60s" —
+ * indistinguishable from a failure, on a transaction that had in fact succeeded. Three minutes now,
+ * with a backoff so a slow node is not hammered, and the thrown error carries the hash so the caller
+ * can say *pending* rather than *failed* and offer the explorer.
+ */
+export async function waitForReceipt(rpc, hash, timeoutMs = 180_000) {
   const deadline = Date.now() + timeoutMs;
+  let wait = 1000;
   while (Date.now() < deadline) {
     const receipt = await rpc.send("eth_getTransactionReceipt", [hash]);
     if (receipt) return receipt;
-    await new Promise((r) => setTimeout(r, 1000));
+    await new Promise((r) => setTimeout(r, wait));
+    wait = Math.min(wait * 1.4, 5000);
   }
-  throw new Error(`no receipt for ${hash} after ${timeoutMs / 1000}s`);
+  throw Object.assign(
+    new Error(`still no receipt after ${Math.round(timeoutMs / 1000)}s — the transaction may yet land`),
+    { hash, pending: true },
+  );
 }
