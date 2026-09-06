@@ -134,6 +134,28 @@ CoreWriter action. A transfer of 2 USDC to a fresh contract address, followed by
 by the transfer, the fee was charged to the sender on the way in, both actions were executed, and
 the fill came back with the `cloid` the contract had put on it.
 
+**Getting the collateral back out is the other half of that, and it is exercised too.** A margin
+account a contract can fund and trade from is worth nothing if the exit is a diagram, so the whole
+path was run on 999 with $2 and the effect checked on HyperCore after each leg — never against the
+EVM receipt, which succeeds either way. Three actions, because there is no action that moves USDC
+out of a perp balance in one step:
+
+| # | action | what it did | tx |
+|---|---|---|---|
+| 1 | limit order, IOC | closed the short, `0x0800` → `szi 0` | [`0x68af344c…98e1`](https://hyperevmscan.io/tx/0x68af344c48bfebe7d2cab7733ad679753e8ff520efadb579e6c54b4479ec98e1) |
+| 2 | `usdClassTransfer(980150, false)` | perps → spot, `withdrawable` → `0.0` | [`0x93d8a100…88be`](https://hyperevmscan.io/tx/0x93d8a100796e831dfefd46209336f527497f7c276d8407e5c594f54a25a488be) |
+| 3 | `spotSend(dest, 0, 198015000)` | 1.98015 USDC out, `fee 0.0` in the destination's ledger | [`0x9071ae38…e295`](https://hyperevmscan.io/tx/0x9071ae3845fc168b588ada16888e0c8ce6cd3600c5043138c9955395e34de295) |
+
+Going in was two actions the same way: [`0x2c912656…d283`](https://hyperevmscan.io/tx/0x2c9126567bb4ac96bf02c2c2a389da4e19790df531257b2cbf3dfdb57f41d283)
+moved the deposit to the perp balance and [`0x638d295d…ec02`](https://hyperevmscan.io/tx/0x638d295d9ec7e47fdf0d8c2f1eec86cf510083ccec0b41e0debfeda44693ec02)
+opened the short. 2.00 USDC in, 1.98015 out: two taker fees of 0.010049 and 0.00994 of adverse
+mark on an $11.17 position, which sum to 0.01999 against the 0.01985 observed — the 0.00014 gap is
+rounding in the exchange's own figures. Each action cost between 53 947 and 57 267 gas.
+
+Two scales are worth writing down because getting one wrong is silent and credible: `0x0801`
+reports spot in **8** decimals while `0x0803` and `0x080f` report perps in **6**, and action 7's
+`ntl` is `1e6` while the order fields are `1e8`.
+
 What the split costs: the contract no longer knows whether a fill was on the absorbing side, so
 *when* to cover is the operator's decision under the owner's ceiling, not a rule in the code. The
 contract still takes no view on the sign — long base sells the perp, short base buys it.
