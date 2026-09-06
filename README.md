@@ -170,7 +170,22 @@ canonical desk holds real UBTC and USD₮0. The taker path is live end to end fr
 The subgraph and the CoreWriter cover leg come next; the markout numbers arrive when the replay runs
 on a real tape.
 
-**The first swap through the router on mainnet:** `[UNVERIFIED — 2026-09-06]`.
+**The first swap through the router on mainnet.**
+[`0x9407579f…537c`](https://hyperevmscan.io/tx/0x9407579f28988f85c0655637d5437476bf5371b59de63602b13936b10993537c),
+block 45 193 088, 2026-09-06T15:28:32Z, 194 007 gas. 1 000 demo quote units into the demo desk
+through `swap()` on `0x111111338c5091E8440b67B168bAe16a668AC0De`, and `DeskHooks` emitted `Fill`
+with the book it was filled against in it: bid 796 140, ask 796 150, mark 796 060, oracle 796 300,
+map empty. The strategy hash in the log is the one `quote()` returned before it was sent.
+
+**That fill was priced by the curve, not by the bound, and the arithmetic says so.** 1 000 units is
+0.6% of the demo desk's quote reserve, and constant product alone on its 2 base / 160 000 quote
+gives `2e8 · 1e9 / (1.6e11 + 1e9)` = **1 242 236**, which is the fill to the last unit. The bound
+only ever cuts a quote *down* to L1's crossing price; here `XYCSwap` was already asking more than
+L1 plus the band, so there was nothing to cut. A size the desk is actually built for rides the
+band instead — `./script/probe999.sh` prices the same parameters at ±20 bps around L1 — and
+`test_deathMetric_amountOutMovesWithBook` is where the bound binds. Read this transaction as proof
+that the program dispatches and settles on 1inch's deployed router, not as a demonstration of the
+clamp.
 
 | | |
 |---|---|
