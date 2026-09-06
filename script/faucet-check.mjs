@@ -49,16 +49,27 @@ async function attempt(what, body, { sign = true } = {}) {
   });
   const out = await res.json().catch(() => ({}));
   const code = out.code ?? (res.ok ? "ok" : `http_${res.status}`);
-  // The wallet holds only drip money, so anything the policy lets through dies at the node for
-  // funds instead. That is the tell: `transaction_broadcast_failure` means the policy allowed it.
+  // Anything the policy lets through dies at the node on the nonce instead of landing. That is the
+  // tell, and it is the reason this is safe to run: `policy_violation` means the policy refused,
+  // `transaction_broadcast_failure` means it allowed the request and the node declined to broadcast.
   const allowed = res.ok || code === "transaction_broadcast_failure";
   console.log(`${allowed ? "ALLOWED" : "refused"}  ${what}\n          ${code}: ${(out.error ?? "").slice(0, 92)}`);
   return allowed;
 }
 
-/** The shape the faucet actually sends. Populated, because a partial one is not policed. */
+/**
+ * The shape the faucet actually sends. Populated, because a partial one is not policed.
+ *
+ * The nonce is deliberately far ahead of the wallet's, so that a request the policy *allows* still
+ * cannot land: HyperEVM's RPC rejects any nonce ahead of the account's current state rather than
+ * queueing it (the same behaviour that forced `--slow` on the deploy). The policy has already
+ * decided by the time the node sees it, which is the only thing this script is asking about — and a
+ * check that costs 0.002 HYPE every time it runs is a check nobody runs. An earlier version of this
+ * file did spend, once.
+ */
+const STALE_NONCE = 900_000_000;
 const full = (over = {}) => ({
-  to: TO, value: DRIP, chain_id: 999, nonce: 0, gas_limit: "0x5208",
+  to: TO, value: DRIP, chain_id: 999, nonce: STALE_NONCE, gas_limit: "0x5208",
   max_fee_per_gas: "0x5f5e100", max_priority_fee_per_gas: "0x0", type: 2, ...over,
 });
 const send = (tx, caip2 = "eip155:999") =>
