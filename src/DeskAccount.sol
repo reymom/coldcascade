@@ -2,25 +2,23 @@
 pragma solidity 0.8.30;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import { IAqua } from "@1inch/aqua/src/interfaces/IAqua.sol";
 import { ISwapVM } from "@1inch/swap-vm/src/interfaces/ISwapVM.sol";
 
-import { CoreQuote } from "./CoreQuote.sol";
-import { Book } from "./interfaces/ICoreReader.sol";
 import { ICoreWriter } from "./interfaces/ICoreWriter.sol";
 import { DeskParams } from "./libs/DeskParams.sol";
 import { DeskPrograms } from "./libs/DeskPrograms.sol";
-import { HyperCore } from "./libs/HyperCore.sol";
+import { HedgeOrder, Plan, PlanInputs, SkipReason } from "./libs/HedgeOrder.sol";
 
 /// @title DeskAccount
 /// @notice One desk, owned by one address. A minimal clone deployed by `DeskFactory.open`, which is
 ///         the Aqua maker: it holds the two tokens, approves Aqua once, ships
 ///         `XYCSwap || Extruction(CoreQuote, params)` from itself, and gives its owner four typed
-///         calls — `reopen`, `close`, `withdraw`, `armHedge`.
+///         calls — `reopen`, `close`, `withdraw`, `armHedge` — plus the two that move its margin
+///         on HyperCore, `marginTransfer` and `marginHome`.
 ///
 /// @dev **This is not a vault.** No pooling, no shares, no third party, no fee, no upgrade, no
 ///      admin: an account has exactly one owner and `close()` is one call that docks the strategy
@@ -47,20 +45,15 @@ contract DeskAccount {
     ICoreWriter internal constant CORE_WRITER = ICoreWriter(0x3333333333333333333333333333333333333333);
     uint8 private constant ACTION_VERSION = 0x01;
     uint24 private constant ACTION_LIMIT_ORDER = 1;
+    uint24 private constant ACTION_SPOT_SEND = 6;
+    uint24 private constant ACTION_USD_CLASS_TRANSFER = 7;
+    /// @dev The Core spot token index of USDC, which is the only asset a perp account is margined
+    ///      in and therefore the only one this contract needs to name.
+    uint64 private constant CORE_USDC = 0;
     /// @dev Time-in-force 3. The desk wants the hedge on now or not at all: a resting order would
     ///      leave the account believing it is covered while the book walks away from it.
     uint8 private constant TIF_IOC = 3;
 
-    /// @dev `limitPx` and `sz` are `1e8 * the human readable value`, which is the exchange's scale
-    ///      and not the token's. Every conversion in `_plan` starts here.
-    uint256 private constant ORDER_SCALE = 1e8;
-    /// @dev *"Order must have minimum value of $10."* Not a policy of ours — an exchange rule, and
-    ///      the reason `cover` can decline to send something it has already sized.
-    uint256 private constant MIN_ORDER_USD = 10;
-    /// @dev A raw L1 price is `USD * 10 ** (MAX_PRICE_DECIMALS - szDecimals)`.
-    uint256 private constant MAX_PRICE_DECIMALS = 6;
-    /// @dev *"Prices can have up to 5 significant figures."*
-    uint256 private constant PRICE_SIG_FIGS = 100_000;
 
     /// @dev Shared by every clone: immutables live in the implementation's runtime code, which is
     ///      the code a clone delegates into.
@@ -139,48 +132,21 @@ contract DeskAccount {
     ///      carries `coverId` so an order on L1 can be matched to the `cover` that decided it.
     event HedgeSent(uint64 indexed coverId, uint32 perpIndex, bool isBuy, uint64 limitPx, uint64 sz);
 
+    /// @dev As with `HedgeSent`, a receipt is not an effect: what HyperCore did with either action
+    ///      is read at `0x0801` and `0x0803`, which report the same balance in different scales.
+    event MarginMoved(uint64 ntl, bool toPerp);
+    event MarginSentHome(address indexed destination, uint64 amount);
+
     /// @notice A cover that decided to do nothing. Emitted rather than reverted, because a keeper on
     ///         a cadence hits the square case constantly and that is not an error.
     event HedgeSkipped(uint64 indexed coverId, SkipReason reason);
-
-    /// @dev `BelowLot` and `BelowExchangeMinimum` are the two rejections the desk can predict, and
-    ///      predicting them is the point: HyperCore drops a bad order without failing the EVM
-    ///      transaction that carried it, so an order sent into either of those walls would leave
-    ///      an order sent into either would be dropped and nothing would come of it. Skipping is
-    ///      free of consequence now that no counter moves, but the reason is still worth logging.
-    enum SkipReason {
-        Flat,
-        NoNotional,
-        BelowLot,
-        BelowExchangeMinimum
-    }
-
-    /// @dev One cover's whole decision. `cover` and `coverPreview` compute it the same way and
-    ///      differ only in what they do with it, which is the point: a preview that could disagree
-    ///      with the order is a preview worth nothing. `ok` false carries `reason`; the default is
-    ///      `Flat`, which is also what an empty plan means.
-    struct Plan {
-        bool ok;
-        SkipReason reason;
-        bool isBuy;
-        uint256 baseAmount;
-        uint256 notional;
-        uint64 limitPx;
-        uint64 sz;
-        uint64 mark;
-    }
 
     error OnlyOwner(address caller);
     error OnlyCoverCaller(address caller);
     error AlreadyInitialized();
     error NotOpen();
     error HedgeDisarmed();
-    error NoMark(uint32 perpIndex);
     error SlippageOutOfRange(uint16 bps);
-    /// @dev Every perp on HyperCore today has `szDecimals <= 5`, so both exponents below are
-    ///      positive. An asset that broke that would silently underflow into an enormous scale, so
-    ///      it is named and rejected instead.
-    error PerpScaleUnsupported(uint32 perpIndex, uint8 szDecimals);
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert OnlyOwner(msg.sender);
@@ -289,6 +255,43 @@ contract DeskAccount {
         emit HedgeArmed(armed, maxNotional, operator, maxSlippageBps);
     }
 
+    /// @notice Move the desk's USDC between its HyperCore spot and perp balances.
+    /// @param ntl The amount, in `1e6` — the action's own scale, which is not the `1e8` the order
+    ///        fields use and not the `1e8` `0x0801` reports spot in. Verified on 999 on 2026-09-06
+    ///        by moving 1 USDC each way and reading both sides.
+    /// @param toPerp True to margin the desk, false to take the margin back.
+    ///
+    /// @dev **Margin has to be able to arrive and to leave, and neither happens by itself.** A
+    ///      transfer into this address from HyperCore lands in *spot*, and a perp order is
+    ///      margined from *perps*, so without this call a funded desk cannot trade and a desk that
+    ///      can trade cannot be emptied. `cover` sends orders and nothing else.
+    ///
+    ///      Owner only, and deliberately not the operator's: the operator spends margin within the
+    ///      owner's ceiling and can never move it.
+    function marginTransfer(uint64 ntl, bool toPerp) external onlyOwner {
+        _action(ACTION_USD_CLASS_TRANSFER, abi.encode(ntl, toPerp));
+        emit MarginMoved(ntl, toPerp);
+    }
+
+    /// @notice Send the desk's HyperCore spot USDC to its owner.
+    /// @param amount In USDC's Core `weiDecimals`, which is **8** — the scale `0x0801` reports and
+    ///        not the `1e6` `marginTransfer` takes.
+    ///
+    /// @dev The last leg of the way out, and the reason `close()` is still one call that returns
+    ///      everything: `close` sends the *tokens* home, an open perp comes home through `cover`,
+    ///      and the margin behind it through `marginTransfer(n, false)` and then this. Three calls
+    ///      because HyperCore has no action that does it in one, not because it is staged here.
+    ///
+    ///      The destination is the owner and is not a parameter. Funds leaving this contract go to
+    ///      exactly one place, the same as `withdraw` and `close`, so there is no address on the
+    ///      device screen that could be wrong. If the owner has no HyperCore account yet, the
+    ///      protocol charges its 1 USDC activation on this transfer — the owner's cost, and worth
+    ///      knowing before sending a balance smaller than that.
+    function marginHome(uint64 amount) external onlyOwner {
+        _action(ACTION_SPOT_SEND, abi.encode(owner, CORE_USDC, amount));
+        emit MarginSentHome(owner, amount);
+    }
+
     // ---- cover, in the desk's own transaction ----
 
     /// @notice Bring the desk's perp position in line with the base it is actually holding.
@@ -337,7 +340,7 @@ contract DeskAccount {
         uint64 id = coverCount + 1;
         coverCount = id;
 
-        Plan memory plan = _plan(p);
+        Plan memory plan = HedgeOrder.plan(p, _inputs());
         if (!plan.ok) {
             emit HedgeSkipped(id, plan.reason);
             return (false, 0, 0);
@@ -347,12 +350,8 @@ contract DeskAccount {
 
         // `id` is the client order id. It is why `coverCount` is a counter and not a bool: the
         // order that lands on L1 carries the number of the decision that made it.
-        CORE_WRITER.sendRawAction(
-            abi.encodePacked(
-                ACTION_VERSION,
-                ACTION_LIMIT_ORDER,
-                abi.encode(p.perpIndex, plan.isBuy, plan.limitPx, plan.sz, false, TIF_IOC, uint128(id))
-            )
+        _action(
+            ACTION_LIMIT_ORDER, abi.encode(p.perpIndex, plan.isBuy, plan.limitPx, plan.sz, false, TIF_IOC, uint128(id))
         );
         emit HedgeSent(id, p.perpIndex, plan.isBuy, plan.limitPx, plan.sz);
         return (true, plan.baseAmount, plan.notional);
@@ -364,7 +363,7 @@ contract DeskAccount {
     ///      asked for — including the cases where `cover` would decline to send anything.
     function coverPreview() external view returns (bool wouldCover, bool isBuy, uint256 baseAmount, uint256 notional) {
         if (!hedgeArmed) return (false, false, 0, 0);
-        Plan memory plan = _plan(_params);
+        Plan memory plan = HedgeOrder.plan(_params, _inputs());
         // Zeroed when nothing would be sent, including the two walls where `_plan` has already
         // sized an amount it then declined. A caller should not have to know which fields of a
         // refusal are still meaningful; the refusal itself is what `HedgeSkipped` carries.
@@ -391,116 +390,22 @@ contract DeskAccount {
 
     // ---- internals ----
 
-    /// @notice Everything one cover would do, decided from live reads and nothing remembered.
-    ///
-    /// @dev **The whole raw → 1e8 conversion, in one place, all of it read and none of it assumed.**
-    ///      Four scales meet here and no two are the same:
-    ///
-    ///      - the desk's, where a balance is in the base token's own `decimals()` (UBTC: 8);
-    ///      - HyperCore's position, where `szi` counts lots of `10 ** -szDecimals` (BTC: 1e-5);
-    ///      - the precompiles' prices, `USD * 10 ** (6 - szDecimals)` (BTC: 10);
-    ///      - the exchange's order fields, where `limitPx` and `sz` are `1e8 *` the human value.
-    ///
-    ///      Both legs are converted into the third of those — the order scale — before they are
-    ///      added, because that is the only one the answer has to be expressed in.
-    ///
-    ///      `szDecimals` comes from `0x080a` rather than from `DeskParams`, because it is the
-    ///      exchange's property and not the maker's: a desk configured against a stale one would
-    ///      round its size onto the wrong grid and never know.
-    ///
-    ///      Two exchange rules are enforced here rather than discovered as silence, because a
-    ///      rejected action still returns a successful EVM receipt:
-    ///
-    ///      - *"Sizes are rounded to the szDecimals of that asset"* — so `sz` is floored onto that
-    ///        grid, and a size under one lot is not sent at all.
-    ///      - *"Order must have minimum value of $10"* — checked in the exchange's own terms,
-    ///        `sz * mark`, which needs no view on what the quote token is worth.
-    ///
-    ///      And one is satisfied by construction: *"prices can have up to 5 significant figures,
-    ///      but no more than 6 - szDecimals decimal places."* The limit is computed in raw units,
-    ///      which already carry exactly that many decimals, and truncated to five significant
-    ///      figures before it is scaled up — so no price this builds can be rejected for its shape.
-    ///
-    ///      Skipping is not failing. A cover that hits the lot grid or the minimum returns `ok`
-    ///      false and sends nothing, and because there is no counter to advance, the exposure it
-    ///      declined to cover is still there to be found on the next call.
-    function _plan(DeskParams memory p) private view returns (Plan memory plan) {
-        // The same book the quote was priced from, by construction: CoreQuote's reader, not one
-        // this account was configured with separately and could drift from.
-        Book memory book = CoreQuote(CORE_QUOTE).READER().read(p.perpIndex);
-        if (book.mark == 0) revert NoMark(p.perpIndex);
-        plan.mark = book.mark;
-
-        uint8 szDecimals = HyperCore.szDecimals(p.perpIndex);
-        if (szDecimals > MAX_PRICE_DECIMALS) revert PerpScaleUnsupported(p.perpIndex, szDecimals);
-        uint256 lot = 10 ** (8 - szDecimals);
-        uint256 baseUnit = 10 ** IERC20Metadata(p.base).decimals();
-
-        // Spot inventory against the level the owner declared square, and the perp position
-        // HyperCore says this account holds. Their sum is what is uncovered; its sign is the side.
-        int256 spot = (int256(IERC20(p.base).balanceOf(address(this))) - int256(squareBase))
-            * int256(ORDER_SCALE) / int256(baseUnit);
-        int256 hedged = int256(HyperCore.positionSzi(address(this), p.perpIndex)) * int256(lot);
-        int256 net = spot + hedged;
-        if (net == 0) return plan;
-
-        plan.isBuy = net < 0;
-        uint256 sz = uint256(plan.isBuy ? -net : net);
-
-        plan.baseAmount = sz * baseUnit / ORDER_SCALE;
-        plan.notional = plan.baseAmount * uint256(book.mark) * p.pxNum / p.pxDen;
-        if (plan.notional == 0) {
-            plan.reason = SkipReason.NoNotional;
-            return plan;
-        }
-        // Over the ceiling, cover up to it. The remainder is not dropped and not remembered: it is
-        // simply still uncovered, and the next call reads it again.
-        if (plan.notional > hedgeMaxNotional) sz = Math.mulDiv(sz, hedgeMaxNotional, plan.notional);
-
-        sz = sz / lot * lot;
-        if (sz == 0) {
-            plan.reason = SkipReason.BelowLot;
-            return plan;
-        }
-        // `sz` is size * 1e8 and `mark` is USD * 10 ** (6 - szDecimals), so their product is the
-        // order's dollar value in a scale that cancels without ever naming the quote token.
-        if (sz * uint256(book.mark) < MIN_ORDER_USD * ORDER_SCALE * 10 ** (MAX_PRICE_DECIMALS - szDecimals)) {
-            plan.reason = SkipReason.BelowExchangeMinimum;
-            return plan;
-        }
-
-        // Recomputed off the size that survived the grid, so the event is the order and not the
-        // request. `sz` is floored, never rounded up: the desk under-covers rather than over-sells.
-        plan.sz = uint64(sz);
-        plan.baseAmount = sz * baseUnit / ORDER_SCALE;
-        plan.notional = plan.baseAmount * uint256(book.mark) * p.pxNum / p.pxDen;
-
-        // A buy lifts the ask, a sell hits the bid. An IOC that does not cross rests for an instant
-        // and dies, which HyperCore reports to nobody — hence the owner's bound is applied
-        // *through* the touch, not away from it.
-        uint256 touch = plan.isBuy ? uint256(book.ask) : uint256(book.bid);
-        uint256 slip = hedgeMaxSlippageBps;
-        uint256 raw = plan.isBuy ? touch * (BPS + slip) / BPS : touch * (BPS - slip) / BPS;
-        plan.limitPx = uint64(_fiveSigFigs(raw, plan.isBuy) * 10 ** (2 + szDecimals));
-
-        plan.ok = true;
+    /// @dev What the desk tells `HedgeOrder` about itself. The library is delegatecalled and could
+    ///      read these slots, and deliberately does not — see `PlanInputs`.
+    function _inputs() private view returns (PlanInputs memory) {
+        return PlanInputs({
+            desk: address(this),
+            coreQuote: CORE_QUOTE,
+            squareBase: squareBase,
+            maxNotional: hedgeMaxNotional,
+            maxSlippageBps: hedgeMaxSlippageBps
+        });
     }
 
-    /// @dev Truncate to five significant figures, rounding toward whichever side still crosses.
-    ///      The limit is a backstop on an order that fills at the book, so at most one step of the
-    ///      fifth digit — 0.001% at BTC's price — can sit outside `hedgeMaxSlippageBps`. Rounding
-    ///      the other way would keep the bound exact and cost the fill, which is the worse trade:
-    ///      an unfilled hedge is an uncovered position that believes it is covered.
-    function _fiveSigFigs(uint256 raw, bool roundUp) private pure returns (uint256) {
-        uint256 unit = 1;
-        uint256 head = raw;
-        while (head >= PRICE_SIG_FIGS) {
-            head /= 10;
-            unit *= 10;
-        }
-        uint256 truncated = head * unit;
-        if (roundUp && truncated != raw) truncated += unit;
-        return truncated;
+    /// @dev One version byte, the action id big-endian in three, then the payload. Every action
+    ///      this contract sends goes through here, so the header exists once.
+    function _action(uint24 actionId, bytes memory payload) private {
+        CORE_WRITER.sendRawAction(abi.encodePacked(ACTION_VERSION, actionId, payload));
     }
 
     function _ship(DeskParams calldata p, uint256 amountBase, uint256 amountQuote) private returns (bytes32 shipped) {

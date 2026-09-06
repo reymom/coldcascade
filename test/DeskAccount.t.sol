@@ -9,6 +9,7 @@ import { Vm } from "forge-std/Vm.sol";
 import { DeskTest } from "./base/DeskTest.sol";
 import { CoreWriterMock } from "./mocks/CoreWriterMock.sol";
 import { DeskAccount } from "../src/DeskAccount.sol";
+import { SkipReason } from "../src/libs/HedgeOrder.sol";
 import { DeskFactory } from "../src/DeskFactory.sol";
 import { DeskParams } from "../src/libs/DeskParams.sol";
 
@@ -280,7 +281,7 @@ contract DeskAccountTest is DeskTest {
         assertEq(desk.squareBase(), START_BASE, "the opening balance is the square mark");
 
         vm.expectEmit(true, true, true, true, address(desk));
-        emit DeskAccount.HedgeSkipped(1, DeskAccount.SkipReason.Flat);
+        emit DeskAccount.HedgeSkipped(1, SkipReason.Flat);
         vm.prank(keeper);
         (bool covered,,) = desk.cover();
         assertFalse(covered);
@@ -340,7 +341,7 @@ contract DeskAccountTest is DeskTest {
 
         setPosition(address(desk), -100_000);
         vm.expectEmit(true, true, true, true, address(desk));
-        emit DeskAccount.HedgeSkipped(3, DeskAccount.SkipReason.Flat);
+        emit DeskAccount.HedgeSkipped(3, SkipReason.Flat);
         vm.prank(keeper);
         (bool third,,) = desk.cover();
         assertFalse(third, "once it lands, there is nothing left to cover");
@@ -413,7 +414,7 @@ contract DeskAccountTest is DeskTest {
         ubtc.transfer(bob, ONE_UBTC);
 
         vm.expectEmit(true, true, true, true, address(desk));
-        emit DeskAccount.HedgeSkipped(1, DeskAccount.SkipReason.Flat);
+        emit DeskAccount.HedgeSkipped(1, SkipReason.Flat);
         vm.prank(keeper);
         (bool covered,,) = desk.cover();
         assertFalse(covered, "bought and sold back is not a position");
@@ -519,8 +520,10 @@ contract DeskAccountTest is DeskTest {
     }
 
     /// @dev What cover costs, in the desk's own transaction, paid by the desk. 42 138 gas before
-    ///      the order leg, measured 2026-09-05; 75 510 with it and with both legs of the position
-    ///      read live, measured here against the etched mocks.
+    ///      the order leg, measured 2026-09-05; 81 760 with it, with both legs of the position read
+    ///      live, and with the arithmetic delegatecalled into `HedgeOrder` — measured here against
+    ///      the etched mocks. The library costs about 6 250 of that, which is what fitting in a
+    ///      small block is worth paying.
     ///
     ///      The leg was `[UNVERIFIED]` against chain 999 until the probe ran on 2026-09-06. Two
     ///      real transactions from a contract that had never signed anything: a `usdClassTransfer`
@@ -601,7 +604,7 @@ contract DeskAccountTest is DeskTest {
         ubtc.mint(address(desk), 999);
 
         vm.expectEmit(true, true, true, true, address(desk));
-        emit DeskAccount.HedgeSkipped(1, DeskAccount.SkipReason.BelowLot);
+        emit DeskAccount.HedgeSkipped(1, SkipReason.BelowLot);
         vm.prank(keeper);
         (bool covered,,) = desk.cover();
 
@@ -636,7 +639,7 @@ contract DeskAccountTest is DeskTest {
         ubtc.mint(address(desk), 12_000);
 
         vm.expectEmit(true, true, true, true, address(desk));
-        emit DeskAccount.HedgeSkipped(1, DeskAccount.SkipReason.BelowExchangeMinimum);
+        emit DeskAccount.HedgeSkipped(1, SkipReason.BelowExchangeMinimum);
         vm.prank(keeper);
         (bool covered,,) = desk.cover();
 
@@ -713,14 +716,15 @@ contract DeskAccountTest is DeskTest {
     ///      constraint before it is a taker cost — this is why `optimizer_runs` is 200 and not
     ///      1 000 000, and the reasoning is in foundry.toml and results/999_deploy_budget.md.
     ///
-    ///      **89 916 gas of headroom**, about 450 bytes. It was 654 — three bytes — when the order
-    ///      leg first landed, and two changes bought the room back. `HyperCore.szDecimals` stopped
-    ///      decoding `PerpAssetInfo` through `abi.decode` and read the field at its offset instead,
-    ///      which was worth 43 713 gas on its own: a dynamic ABI decoder is expensive to carry.
-    ///      Then deriving the exposure from `0x0800` deleted a storage write and let `cover` and
-    ///      `coverPreview` collapse into one `_plan`, and the contract came out 227 bytes *smaller*
-    ///      than it was with the counter in it. When this does run out, the way through is a
-    ///      deployed library for the order arithmetic, not a higher bound: the bound is the chain\'s.
+    ///      **280 431 gas of headroom**, about 1 400 bytes. Getting there took three passes, and
+    ///      the bound is the chain's so none of them was allowed to be raising it.
+    ///      `HyperCore.szDecimals` stopped decoding `PerpAssetInfo` through `abi.decode` and reads
+    ///      the field at its offset: 43 713 gas, because a dynamic ABI decoder is expensive to
+    ///      carry. Deriving the exposure from `0x0800` deleted a storage write and collapsed
+    ///      `cover` and `coverPreview` into one plan: 227 bytes. Then `marginTransfer` and
+    ///      `marginHome` cost 846 bytes and put the implementation at 3 057 556 — over — so the
+    ///      order arithmetic moved into `HedgeOrder`, a deployed library, which is what the
+    ///      previous version of this comment said the way out would be.
     function test_implementation_fitsOneSmallBlock() public {
         uint256 before = gasleft();
         new DeskAccount(aqua, address(swapVM), address(coreQuote), address(hooks));
