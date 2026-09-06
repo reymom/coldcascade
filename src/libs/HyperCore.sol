@@ -71,9 +71,34 @@ library HyperCore {
         return uint64(word);
     }
 
+    /// @notice The lot grid an order size is rounded onto, and the exponent every price scale on
+    ///         this asset is built from.
+    /// @dev Read at a fixed offset rather than through `abi.decode`, and the reason is size, not
+    ///      speed: `PerpAssetInfo` leads with a `string`, so decoding it pulls the whole dynamic
+    ///      ABI decoder into every contract that calls this. Measured on 2026-09-06, that decoder
+    ///      cost `DeskAccount` 43 713 gas of code deposit and left it **654 gas** under HyperEVM's
+    ///      3 000 000 small-block ceiling — three bytes from undeployable. The raw read is the
+    ///      difference between deployable and not, which is why a fixed offset is worth its risk
+    ///      here and nowhere else.
+    ///
+    ///      The layout is the ABI encoding of the struct, verified against 0x080a on 999 for BTC
+    ///      on 2026-09-06 — `[0x00] 0x20` the offset to the tuple, then the tuple's head:
+    ///      `[0x20]` the offset of `coin`, `[0x40]` marginTableId, `[0x60]` **szDecimals**,
+    ///      `[0x80]` maxLeverage, `[0xa0]` onlyIsolated, `[0xc0]` the string's length. Both the
+    ///      leading offset and the minimum length are checked, so a record that is not this shape
+    ///      is an error and never a plausible-looking wrong number.
     function szDecimals(uint32 perpIndex) internal view returns (uint8) {
         bytes memory ret = _call(PERP_ASSET_INFO, abi.encode(perpIndex), 0, perpIndex);
-        return abi.decode(ret, (PerpAssetInfo)).szDecimals;
+        uint256 head;
+        uint256 value;
+        assembly ("memory-safe") {
+            head := mload(add(ret, 0x20))
+            value := mload(add(ret, 0x80))
+        }
+        if (ret.length < 0xe0 || head != 0x20 || value > type(uint8).max) {
+            revert PrecompileCallFailed(PERP_ASSET_INFO, perpIndex);
+        }
+        return uint8(value);
     }
 
     /// @notice All four words, or EmptyBook if any is zero.

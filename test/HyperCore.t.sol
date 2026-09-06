@@ -26,8 +26,10 @@ contract HyperCoreTest is Test {
         vm.etch(HyperCore.ORACLE_PX, code);
         vm.etch(HyperCore.L1_BLOCK_NUMBER, code);
         vm.etch(HyperCore.BBO, code);
+        vm.etch(HyperCore.PERP_ASSET_INFO, code);
 
         _bbo().setBbo(BTC, QUIET_BID, QUIET_ASK);
+        _info().setAssetInfo(BTC, "BTC", 56, 5, 40, false);
         _mark().setPx(BTC, QUIET_MARK);
         _oracle().setPx(BTC, QUIET_ORACLE);
     }
@@ -96,6 +98,37 @@ contract HyperCoreTest is Test {
         assertLt(spent, HyperCore.PRECOMPILE_GAS_CAP * 2, "the burn escaped the cap");
     }
 
+    /// @dev `szDecimals` is read at a fixed offset instead of through `abi.decode`, because the
+    ///      dynamic decoder for `PerpAssetInfo` costs `DeskAccount` more code deposit than it has
+    ///      room for in a 3 000 000 gas small block. That trade only holds if the offset is right,
+    ///      so it is checked against the record 0x080a really returned for BTC on 999: coin "BTC",
+    ///      margin table 56, szDecimals 5, 40x, cross.
+    function test_szDecimals_readsTheFieldNotTheStruct() public view {
+        assertEq(HyperCore.szDecimals(BTC), 5, "BTC on 999");
+    }
+
+    /// @dev The record moves and the read follows it. A second asset with different values in
+    ///      every field is what catches an offset that happens to be right for one of them —
+    ///      SOL on 998: margin table 10, szDecimals 2, 10x.
+    function test_szDecimals_followsTheAsset() public {
+        _info().setAssetInfo(7, "SOL", 10, 2, 10, false);
+        assertEq(HyperCore.szDecimals(7), 2, "SOL on 998");
+        assertEq(HyperCore.szDecimals(BTC), 5, "and BTC is unchanged");
+    }
+
+    /// @dev A record that is not the shape the offset assumes has to be an error. The alternative
+    ///      is a plausible-looking wrong `szDecimals`, which would round every hedge onto the
+    ///      wrong lot grid and price it off the wrong exponent without anything reverting. The
+    ///      mock answers here with three words whose leading offset is 0x40 — non-empty, decodable
+    ///      as *something*, and not this record.
+    function test_szDecimals_rejectsAMalformedRecord() public {
+        _info().setMalformAssetInfo(true);
+        vm.expectRevert(
+            abi.encodeWithSelector(HyperCore.PrecompileCallFailed.selector, HyperCore.PERP_ASSET_INFO, BTC)
+        );
+        this.callSzDecimals(BTC);
+    }
+
     function test_priceScale_btcOnUbtcUsdt0_is1Over1000() public pure {
         (uint64 num, uint64 den) = DeskParamsLib.priceScale(5, 8, 6);
         assertEq(num, 1, "pxNum");
@@ -109,8 +142,16 @@ contract HyperCoreTest is Test {
         assertEq(den, 1e16, "pxDen, 18-decimal base");
     }
 
+    function callSzDecimals(uint32 perpIndex) external view returns (uint8) {
+        return HyperCore.szDecimals(perpIndex);
+    }
+
     function callBook(uint32 perpIndex) external view returns (Book memory) {
         return HyperCore.book(perpIndex);
+    }
+
+    function _info() private pure returns (HyperCoreMock) {
+        return HyperCoreMock(payable(HyperCore.PERP_ASSET_INFO));
     }
 
     function _bbo() private pure returns (HyperCoreMock) {

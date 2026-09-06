@@ -89,16 +89,46 @@ whose every entry point reverts is still filled — and, more to the point, a ma
 taker cost. A swap against a contract maker costs 97 966 gas and one against an EOA maker 97 993:
 the contract is the cheaper of the two, because there is no callback in the bill.
 
-Cover happens in the desk's own transaction. `DeskAccount.cover()` — owner, or an operator the
-owner names in `armHedge` — reads how much base the desk has accumulated since it was last square,
-values it at mark, caps it at the armed ceiling and emits the intent. 42 138 gas, paid by the
-desk. Exposure is `balanceOf(base) - coveredBase` rather than a fill, because the account cannot
-verify a fill: logs are not readable from the EVM, and a watcher that handed it fill amounts would
-be a watcher that could size a real L1 order. The delta also nets — a desk that bought and sold
-back covers once.
+Cover happens in the desk's own transaction, and it is a real order. `DeskAccount.cover()` —
+owner, or an operator the owner names in `armHedge` — reads how much base the desk has accumulated
+since it was last square, values it at mark, caps it at the armed ceiling, and sends an IOC to
+HyperCore through CoreWriter from the desk's own margin account. 66 725 gas, paid by the desk; a
+taker pays none of it. Exposure is `balanceOf(base) - coveredBase` rather than a fill, because the
+account cannot verify a fill: logs are not readable from the EVM, and a watcher that handed it
+fill amounts would be a watcher that could size a real L1 order. The delta also nets — a desk that
+bought and sold back covers once.
 
-What that costs: the contract no longer knows whether a fill was on the absorbing side, so *when*
-to cover is the operator's decision under the owner's ceiling, not a rule in the code. The
+The desk's HyperCore account is its own, and it was never signed for. That is not obvious and the
+two published sources disagree about it, so it was measured on chain 999 rather than argued:
+Hyperliquid's docs say the 1 USDC activation fee is charged on *"the first transaction which has
+the new account as destination address"*; Circle's say it is *"earmarked … and charged on the
+user's first outbound action"*, and that until then the account *"cannot perform CoreWriter
+actions"* — which for a contract is a dead end, because a contract's only outbound action **is** a
+CoreWriter action. A transfer of 2 USDC to a fresh contract address, followed by a
+`usdClassTransfer` and a one-lot IOC sent from that contract, settles it: the account was created
+by the transfer, the fee was charged to the sender on the way in, both actions were executed, and
+the fill came back with the `cloid` the contract had put on it.
+
+`armHedge` carries the whole authorisation in one signature — armed, a ceiling per call, an
+operator, and how far through the book a cover may reach. Three things are enforced against the
+exchange's own rules before an order is sent, because **HyperCore rejects an action without
+failing the EVM transaction that carried it**: sizes are floored onto the asset's `szDecimals`
+grid, an order under $10 is not sent at all, and the limit price is built in raw precompile units
+and truncated to five significant figures so it cannot be rejected for its shape. A cover that
+hits one of those walls emits `HedgeSkipped` and leaves `coveredBase` where it was, so the
+exposure stays visible instead of being marked covered against an order that never existed.
+`szDecimals` is read from `0x080a` each time rather than configured, because it is the exchange's
+property and not the maker's.
+
+**What the contract still cannot do is confirm a fill.** The action is applied a few seconds after
+the block, and nothing comes back. `cover` advances `coveredBase` when it sends, so an order
+rejected for a reason the desk cannot predict — margin, or no liquidity across the touch — leaves
+the desk believing it is covered until someone reconciles. The desk's real position is readable at
+`0x0800`, which is where the console and the keeper check, and reconciling from it inside `cover`
+is the obvious next move rather than a limitation we are defending.
+
+What the split costs: the contract no longer knows whether a fill was on the absorbing side, so
+*when* to cover is the operator's decision under the owner's ceiling, not a rule in the code. The
 contract still takes no view on the sign — long base sells the perp, short base buys it.
 
 ## The console

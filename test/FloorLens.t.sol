@@ -92,7 +92,7 @@ contract FloorLensTest is DeskTest {
         DeskAccount desk = openDesk(maker, "canonical", p, BASE_IN, QUOTE_IN);
 
         vm.prank(maker);
-        desk.armHedge(true, type(uint64).max, address(0));
+        desk.armHedge(true, type(uint64).max, address(0), HEDGE_SLIP_BPS);
         ubtc.mint(address(desk), 0.05e8);
 
         FloorLens.DeskView memory d = lens.floor(coreQuote, BTC, one(address(desk)), new DeskParams[](0)).desks[0];

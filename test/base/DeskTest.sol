@@ -22,6 +22,7 @@ import { DeskPrograms } from "../../src/libs/DeskPrograms.sol";
 import { HyperCore } from "../../src/libs/HyperCore.sol";
 import { MockCoreReader } from "../mocks/MockCoreReader.sol";
 import { HyperCoreMock } from "../mocks/HyperCoreMock.sol";
+import { CoreWriterMock } from "../mocks/CoreWriterMock.sol";
 
 /// @notice Every desk test extends 1inch's own Aqua harness: their Aqua, their router, their
 ///         MockTaker. What is added is the pair with real decimals, the reader, the hook and the
@@ -32,6 +33,9 @@ import { HyperCoreMock } from "../mocks/HyperCoreMock.sol";
 ///      from; `setBook` writes both so they never disagree.
 abstract contract DeskTest is AquaSwapVMTest {
     uint32 internal constant BTC = 0;
+
+    /// @dev Hyperliquid's system contract, verified to hold code on 999.
+    address internal constant CORE_WRITER = 0x3333333333333333333333333333333333333333;
 
     /// @dev Quiet book on 999 at block 45 021 360, 2026-09-04. Raw units, szDecimals 5.
     uint64 internal constant QUIET_BID = 795_510;
@@ -47,6 +51,11 @@ abstract contract DeskTest is AquaSwapVMTest {
     /// @dev Provisional band. ARCHITECTURE §2.3 sets the real one off the Oct-10 run; until that
     ///      run exists these are round numbers chosen to sit either side of the 4 bps the quiet
     ///      999 book showed, and nothing outside the test suite quotes them.
+    /// @dev What the owner authorises a cover to pay through the book. 30 bps is wide against a
+    ///      4 bps quiet spread, which is the point: the bound exists to stop a cover crossing a
+    ///      dislocated book, not to shave the touch.
+    uint16 internal constant HEDGE_SLIP_BPS = 30;
+
     uint16 internal constant QUIET_BPS = 20;
     uint16 internal constant LEAN_BPS = 15;
     uint16 internal constant STRESS_BPS = 25;
@@ -259,14 +268,28 @@ abstract contract DeskTest is AquaSwapVMTest {
         }
     }
 
-    /// @notice Plants HyperCoreMock at 0x0806, 0x0807, 0x0809 and 0x080e.
-    /// @dev One bytecode at four addresses. Storage is per-address and vm.etch copies neither, so
-    ///      every instance starts blank and each is set through its own setter.
+    /// @notice Plants HyperCoreMock at the five read precompiles and CoreWriterMock at 0x3333.
+    /// @dev One bytecode at five addresses. Storage is per-address and vm.etch copies neither, so
+    ///      every instance starts blank and each is set through its own setter — which is why
+    ///      `0x080a` is given BTC's real record here and not left as a zero `szDecimals`.
+    ///
+    ///      The writer is etched too, because `cover` now sends. Nothing in the suite forks a real
+    ///      node, and on a fork none of these addresses would work anyway: the read precompiles
+    ///      carry no bytecode and are served by the node itself.
     function etchHyperCore() internal {
         bytes memory code = address(new HyperCoreMock()).code;
         vm.etch(HyperCore.MARK_PX, code);
         vm.etch(HyperCore.ORACLE_PX, code);
         vm.etch(HyperCore.L1_BLOCK_NUMBER, code);
+        vm.etch(HyperCore.PERP_ASSET_INFO, code);
         vm.etch(HyperCore.BBO, code);
+        HyperCoreMock(payable(HyperCore.PERP_ASSET_INFO)).setAssetInfo(BTC, "BTC", 56, BTC_SZ_DECIMALS, 40, false);
+
+        vm.etch(CORE_WRITER, address(new CoreWriterMock()).code);
+    }
+
+    /// @notice The etched writer, for building the payload a test expects to see emitted.
+    function writer() internal pure returns (CoreWriterMock) {
+        return CoreWriterMock(CORE_WRITER);
     }
 }

@@ -4,7 +4,10 @@ pragma solidity 0.8.30;
 import { ISwapVM } from "@1inch/swap-vm/src/interfaces/ISwapVM.sol";
 import { IAqua } from "@1inch/aqua/src/interfaces/IAqua.sol";
 
+import { Vm } from "forge-std/Vm.sol";
+
 import { DeskTest } from "./base/DeskTest.sol";
+import { CoreWriterMock } from "./mocks/CoreWriterMock.sol";
 import { DeskAccount } from "../src/DeskAccount.sol";
 import { DeskFactory } from "../src/DeskFactory.sol";
 import { DeskParams } from "../src/libs/DeskParams.sol";
@@ -206,7 +209,7 @@ contract DeskAccountTest is DeskTest {
         vm.expectRevert(abi.encodeWithSelector(DeskAccount.OnlyOwner.selector, bob));
         desk.withdraw(address(ubtc), 1);
         vm.expectRevert(abi.encodeWithSelector(DeskAccount.OnlyOwner.selector, bob));
-        desk.armHedge(true, 1, bob);
+        desk.armHedge(true, 1, bob, HEDGE_SLIP_BPS);
         vm.stopPrank();
 
         vm.expectRevert(DeskAccount.AlreadyInitialized.selector);
@@ -237,13 +240,14 @@ contract DeskAccountTest is DeskTest {
         assertFalse(desk.hedgeArmed(), "a desk opens disarmed");
 
         vm.prank(alice);
-        desk.armHedge(true, 5_000e6, keeper);
+        desk.armHedge(true, 5_000e6, keeper, HEDGE_SLIP_BPS);
         assertTrue(desk.hedgeArmed());
         assertEq(desk.hedgeMaxNotional(), 5_000e6);
         assertEq(desk.hedgeOperator(), keeper);
+        assertEq(desk.hedgeMaxSlippageBps(), HEDGE_SLIP_BPS);
 
         vm.prank(alice);
-        desk.armHedge(false, 0, address(0));
+        desk.armHedge(false, 0, address(0), 0);
         assertFalse(desk.hedgeArmed());
         assertEq(desk.hedgeOperator(), address(0));
     }
@@ -435,11 +439,18 @@ contract DeskAccountTest is DeskTest {
         assertEq(previewNotional, notional);
     }
 
-    /// @dev What cover costs, in the desk's own transaction, paid by the desk. 42 138 gas measured
-    ///      2026-09-05.
-    ///      The CoreWriter leg it grows into is ~47 000 gas with 25 000 burned by HyperCore's docs,
-    ///      `[UNVERIFIED]` against chain 999 until the 2026-09-07 probe. Whatever it turns out to
-    ///      be, it is charged here and not to a taker.
+    /// @dev What cover costs, in the desk's own transaction, paid by the desk. 42 138 gas before
+    ///      the order leg, measured 2026-09-05; 66 725 with it, measured here.
+    ///
+    ///      The leg was `[UNVERIFIED]` against chain 999 until the probe ran on 2026-09-06. Two
+    ///      real transactions from a contract that had never signed anything: a `usdClassTransfer`
+    ///      cost 53 959 gas and a limit order 57 255, both including the 21 000 of an EVM
+    ///      transaction and the contract's own dispatch. So HyperCore's *"~47 000 with 25 000
+    ///      burned"* is a ceiling and not an estimate — the action itself lands nearer 32 000.
+    ///
+    ///      The number here is higher than either because the reads come first: `0x080a` for
+    ///      `szDecimals` and three more for the book. All of it is charged to the desk. **A taker
+    ///      pays none of it, which is the claim this test exists to keep true.**
     function test_cover_costsTheDeskNotTheTaker() public {
         DeskAccount desk = armed(500_000e6);
         ubtc.mint(address(desk), ONE_UBTC);
@@ -453,12 +464,210 @@ contract DeskAccountTest is DeskTest {
         assertLt(spent, 100_000, "one transaction, and no taker is in it");
     }
 
+    // ---- the order that comes out of a cover ----
+
+    /// @dev The payload, whole. Built independently by the mock from the exchange's own layout and
+    ///      compared byte for byte, so this fails if the header, the field order, the scale or the
+    ///      time-in-force move — not just if a number is off.
+    ///
+    ///      UBTC has 8 decimals and BTC's `sz` field is `1e8 *` human, so one UBTC is `sz` 1e8.
+    ///      The desk is long base and sells, so the limit sits `HEDGE_SLIP_BPS` under the bid:
+    ///      795 510 * 0.997 = 793 123.47, truncated toward the aggressive side at five significant
+    ///      figures gives 793 120 raw, and `* 10 ** (2 + szDecimals)` puts it in the 1e8 scale.
+    function test_cover_sendsTheOrderItDecided() public {
+        DeskAccount desk = armed(500_000e6);
+        ubtc.mint(address(desk), ONE_UBTC);
+
+        uint64 limitPx = uint64(uint256(793_120) * 10 ** (2 + BTC_SZ_DECIMALS));
+
+        vm.expectEmit(address(CORE_WRITER));
+        emit CoreWriterMock.RawAction(writer().limitOrder(BTC, false, limitPx, uint64(ONE_UBTC), 3, 1));
+        vm.expectEmit(true, true, true, true, address(desk));
+        emit DeskAccount.HedgeSent(1, BTC, false, limitPx, uint64(ONE_UBTC));
+
+        vm.prank(keeper);
+        desk.cover();
+    }
+
+    /// @dev The cloid is the cover id, which is the whole reason `coverCount` is a counter: an
+    ///      order sitting in HyperCore's book can be matched back to the decision that made it.
+    function test_cover_cloidIsTheCoverId() public {
+        DeskAccount desk = armed(500_000e6);
+
+        ubtc.mint(address(desk), ONE_UBTC);
+        vm.prank(keeper);
+        desk.cover();
+        assertEq(desk.coverCount(), 1);
+
+        ubtc.mint(address(desk), ONE_UBTC);
+        vm.expectEmit(address(CORE_WRITER));
+        emit CoreWriterMock.RawAction(
+            writer().limitOrder(BTC, false, uint64(uint256(793_120) * 10 ** (2 + BTC_SZ_DECIMALS)), uint64(ONE_UBTC), 3, 2)
+        );
+        vm.prank(keeper);
+        desk.cover();
+        assertEq(desk.coverCount(), 2, "and the second order carries the second id");
+    }
+
+    /// @dev *"Sizes are rounded to the szDecimals of that asset."* BTC's grid is 1e-5, which on a
+    ///      1e8 field is a lot of 1 000 — so a sub-lot exposure has no order that can express it.
+    ///      The desk must not send one and must not mark itself covered: HyperCore would drop the
+    ///      order and return a successful receipt, and the position would be uncovered and silent.
+    function test_cover_belowOneLot_isNotSentAndNotMarked() public {
+        DeskAccount desk = armed(500_000e6);
+        ubtc.mint(address(desk), 999);
+
+        vm.expectEmit(true, true, true, true, address(desk));
+        emit DeskAccount.HedgeSkipped(1, DeskAccount.SkipReason.BelowLot);
+        vm.prank(keeper);
+        (bool covered,,) = desk.cover();
+
+        assertFalse(covered);
+        assertEq(desk.coveredBase(), START_BASE, "the square mark did not move");
+    }
+
+    /// @dev The remainder under the lot survives to be covered later, rather than being rounded
+    ///      into an order the desk cannot place or silently marked as done. 123 456 of UBTC is
+    ///      1.23456e-3 BTC, about $98 at the quiet mark, so the minimum is not what bites here.
+    function test_cover_floorsToTheLotAndKeepsTheRemainder() public {
+        DeskAccount desk = armed(500_000e6);
+        ubtc.mint(address(desk), 123_456);
+
+        vm.prank(keeper);
+        (bool covered, uint256 baseAmount,) = desk.cover();
+
+        assertTrue(covered);
+        assertEq(baseAmount, 123_000, "floored onto the grid, never rounded up");
+        assertEq(desk.coveredBase(), START_BASE + 123_000, "and only what was sent is marked");
+
+        (,, uint256 stillOpen,) = desk.coverPreview();
+        assertEq(stillOpen, 0, "456 is under a lot, so it stays uncovered and unclaimed");
+    }
+
+    /// @dev *"Order must have minimum value of $10."* Checked in the exchange's own terms, so it
+    ///      holds whatever the quote token is. 13 000 of UBTC is 1.3e-4 BTC — about $10.34 at the
+    ///      quiet mark, just over — and 12 000 is $9.55, just under.
+    function test_cover_belowTenDollars_isNotSent() public {
+        DeskAccount desk = armed(500_000e6);
+        ubtc.mint(address(desk), 12_000);
+
+        vm.expectEmit(true, true, true, true, address(desk));
+        emit DeskAccount.HedgeSkipped(1, DeskAccount.SkipReason.BelowExchangeMinimum);
+        vm.prank(keeper);
+        (bool covered,,) = desk.cover();
+
+        assertFalse(covered);
+        assertEq(desk.coveredBase(), START_BASE, "and nothing was marked covered");
+
+        ubtc.mint(address(desk), 1_000);
+        vm.prank(keeper);
+        (covered,,) = desk.cover();
+        assertTrue(covered, "one lot more clears the minimum");
+    }
+
+    /// @dev A short desk lifts the ask, and the limit rounds the other way. 795 520 * 1.003 =
+    ///      797 906.56, and rounding up at five significant figures gives 797 910.
+    function test_cover_shortLiftsTheAsk() public {
+        DeskAccount desk = armed(500_000e6);
+        vm.prank(alice);
+        desk.withdraw(address(ubtc), 0);
+        vm.prank(address(desk));
+        ubtc.transfer(alice, ONE_UBTC);
+
+        uint64 limitPx = uint64(uint256(797_910) * 10 ** (2 + BTC_SZ_DECIMALS));
+        vm.expectEmit(address(CORE_WRITER));
+        emit CoreWriterMock.RawAction(writer().limitOrder(BTC, true, limitPx, uint64(ONE_UBTC), 3, 1));
+        vm.prank(keeper);
+        desk.cover();
+    }
+
+    /// @dev *"Prices can have up to 5 significant figures."* A limit that carries more is rejected
+    ///      by the exchange and the EVM transaction still succeeds, so the shape is a correctness
+    ///      property and not a nicety. The bound is swept because the arithmetic that produces it
+    ///      is a multiply and a truncate, and those disagree at the edges.
+    function testFuzz_cover_limitPriceIsAlwaysAcceptable(uint16 slipBps, uint64 bid) public {
+        slipBps = uint16(bound(slipBps, 0, 9_999));
+        bid = uint64(bound(bid, 1_000, 100_000_000));
+        setBook(bid, bid + 10, bid, bid);
+
+        DeskAccount desk = openDesk(alice, "ramon", btcParams(), START_BASE, START_QUOTE);
+        vm.prank(alice);
+        desk.armHedge(true, type(uint64).max, keeper, slipBps);
+        ubtc.mint(address(desk), ONE_UBTC);
+
+        vm.recordLogs();
+        vm.prank(keeper);
+        (bool covered,,) = desk.cover();
+        if (!covered) return;
+
+        uint64 limitPx = _sentLimitPx();
+        uint256 unit = 10 ** (2 + uint256(BTC_SZ_DECIMALS));
+        assertEq(limitPx % unit, 0, "no more than 6 - szDecimals decimal places");
+
+        uint256 head = limitPx / unit;
+        uint256 digits;
+        for (uint256 v = head; v != 0; v /= 10) digits++;
+        uint256 significant = head;
+        while (digits > 5) {
+            assertEq(significant % 10, 0, "the digits past the fifth are zero");
+            significant /= 10;
+            digits--;
+        }
+    }
+
+    /// @dev The bound is an authorisation, so it has to be one the contract can enforce. 100% and
+    ///      above would underflow a sell limit into an enormous number.
+    function test_armHedge_rejectsAnUnenforceableBound() public {
+        DeskAccount desk = openDesk(alice, "ramon", btcParams(), START_BASE, START_QUOTE);
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(DeskAccount.SlippageOutOfRange.selector, uint16(10_000)));
+        desk.armHedge(true, 1, keeper, 10_000);
+    }
+
+    /// @dev **The implementation has to fit in one HyperEVM small block.** Blocks cap at 3 000 000
+    ///      gas and code deposit is 200 gas a byte, so a contract's runtime size is a deployment
+    ///      constraint before it is a taker cost — this is why `optimizer_runs` is 200 and not
+    ///      1 000 000, and the reasoning is in foundry.toml and results/999_deploy_budget.md.
+    ///
+    ///      The order leg cost 1 293 bytes and leaves **44 367 gas of headroom**, about 220 bytes
+    ///      of runtime code. It was 654 gas — three bytes — until `HyperCore.szDecimals` stopped
+    ///      decoding `PerpAssetInfo` through `abi.decode` and started reading the field at its
+    ///      offset; the dynamic ABI decoder alone was 43 713 gas of code deposit. When this does
+    ///      run out, the way through is a deployed library for the order arithmetic, not a higher
+    ///      bound: the bound is the chain's.
+    function test_implementation_fitsOneSmallBlock() public {
+        uint256 before = gasleft();
+        new DeskAccount(aqua, address(swapVM), address(coreQuote), address(hooks));
+        uint256 spent = before - gasleft();
+
+        emit log_named_uint("DeskAccount implementation deploy gas", spent);
+        emit log_named_uint("headroom under a 3M small block", 3_000_000 - (spent + 21_000));
+        assertLt(spent + 21_000, 3_000_000, "HyperEVM small blocks cap at 3 000 000 gas");
+    }
+
     // ---- helpers ----
+
+    /// @dev The `limitPx` out of the last recorded CoreWriter action.
+    function _sentLimitPx() internal returns (uint64 limitPx) {
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i = logs.length; i > 0; i--) {
+            if (logs[i - 1].emitter != CORE_WRITER) continue;
+            bytes memory data = abi.decode(logs[i - 1].data, (bytes));
+            bytes memory payload = new bytes(data.length - 4);
+            for (uint256 j = 4; j < data.length; j++) {
+                payload[j - 4] = data[j];
+            }
+            (,, limitPx,,,,) = abi.decode(payload, (uint32, bool, uint64, uint64, bool, uint8, uint128));
+            return limitPx;
+        }
+        revert("no action");
+    }
+
 
     function armed(uint64 maxNotional) internal returns (DeskAccount desk) {
         desk = openDesk(alice, "ramon", btcParams(), START_BASE, START_QUOTE);
         vm.prank(alice);
-        desk.armHedge(true, maxNotional, keeper);
+        desk.armHedge(true, maxNotional, keeper, HEDGE_SLIP_BPS);
     }
 
 }
