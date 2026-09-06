@@ -47,7 +47,10 @@ const reset = (over = {}) => {
 globalThis.fetch = async (url, init = {}) => {
   calls.push(`${init.method ?? "GET"} ${url}`);
   const ok = (body) => ({ ok: true, json: async () => body });
-  if (url.endsWith("/jwks.json")) return ok({ keys: [jwk] });
+  if (url.endsWith("/jwks.json")) {
+    if (state.jwksFails) return { ok: false, json: async () => ({ error: "Invalid Privy app id" }) };
+    return ok({ keys: [jwk] });
+  }
   if (url.includes("/custom_metadata")) {
     state.metadata = JSON.parse(init.body).custom_metadata;
     return ok({ id: USER, custom_metadata: state.metadata });
@@ -90,6 +93,20 @@ check("token for another app", (await run(post(mint({ sub: USER, aud: "someone-e
 check("expired token", (await run(post(mint({ sub: USER, exp: 1 })))).status, 401);
 check("tampered signature", (await run(post(mint({ sub: USER }).slice(0, -3) + "AAA"))).status, 401);
 check("junk that is not a token", (await run(post("aaa.bbb.ccc"))).status, 401);
+// A wrong app id in the host's environment must not read as the visitor's token being bad. It did
+// once, and cost a session of looking at the token.
+// A wrong id is a *different* id, which is also what exercises the per-app JWKS cache.
+process.env.PRIVY_APP_ID = "cmtpwj7fs00az0bl4xd6w31z";
+reset({ jwksFails: true });
+const misconfigured = await run(post(mint({ sub: USER, aud: "cmtpwj7fs00az0bl4xd6w31z" })));
+check("a bad app id is a 503, not a 401", misconfigured.status, 503);
+check("and it names the variable", (misconfigured.body.error ?? "").includes("PRIVY_APP_ID"), true);
+// Padding and quotes survive a paste into a dashboard.
+process.env.PRIVY_APP_ID = `  "${APP}" `;
+reset();
+check("a padded, quoted app id still works", (await run(post(mint({ sub: USER })))).status, 200);
+process.env.PRIVY_APP_ID = APP;
+reset();
 check("and it says so without leaking a parser error",
   (await run(post("aaa.bbb.ccc"))).body.error, "that access token did not verify: malformed");
 

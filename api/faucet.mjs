@@ -49,12 +49,14 @@ const MARK = "gasFundedAt";
 export default async function handler(req, res) {
   if (req.method !== "POST") return fail(res, 405, "POST only");
 
-  const appId = process.env.PRIVY_APP_ID;
-  const appSecret = process.env.PRIVY_APP_SECRET;
-  const walletId = process.env.PRIVY_FAUCET_WALLET_ID;
+  // Trimmed, and quotes stripped: these are pasted into a hosting dashboard by hand, and a value
+  // that arrives wrapped or padded fails somewhere far from the paste.
+  const appId = env("PRIVY_APP_ID");
+  const appSecret = env("PRIVY_APP_SECRET");
+  const walletId = env("PRIVY_FAUCET_WALLET_ID");
   // The authorization key is checked here rather than at the send: without it the policy is not
   // enforced, and a faucet whose policy is not enforced should not run at all.
-  if (!appId || !appSecret || !walletId || !process.env.PRIVY_AUTHORIZATION_KEY) {
+  if (!appId || !appSecret || !walletId || !env("PRIVY_AUTHORIZATION_KEY")) {
     return fail(res, 503, "the faucet is not configured on this deployment");
   }
 
@@ -72,6 +74,10 @@ export default async function handler(req, res) {
   try {
     userId = await verify(token, appId);
   } catch (err) {
+    // A configuration fault is not the visitor's token being wrong, and saying so sends whoever is
+    // debugging to the wrong place. A one-character truncation of PRIVY_APP_ID in the host's
+    // environment once surfaced here as "that access token did not verify".
+    if (err.cause === "config") return fail(res, 503, `the faucet is misconfigured: ${err.message}`);
     return fail(res, 401, `that access token did not verify: ${err.message}`);
   }
 
@@ -175,7 +181,7 @@ async function transaction(to, walletId, auth) {
  * and `JSON.stringify` for the leaves — there are no floats and no arrays in it.
  */
 export function authorize(url, body, appId) {
-  const pem = (process.env.PRIVY_AUTHORIZATION_KEY ?? "").replace(/^wallet-auth:/, "");
+  const pem = env("PRIVY_AUTHORIZATION_KEY").replace(/^wallet-auth:/, "");
   if (!pem) throw new Error("PRIVY_AUTHORIZATION_KEY is unset, so the policy would not be enforced");
   const payload = { version: 1, method: "POST", url, body, headers: { "privy-app-id": appId } };
   const key = crypto.createPrivateKey({
@@ -201,19 +207,32 @@ function canonical(v) {
  * dependency here is one more thing that can re-resolve that graph. A JWT signature is raw r‖s,
  * which is what `ieee-p1363` means below; the DER default would reject every valid token.
  */
-let jwks = null;
+// Keyed by app id, not a bare cache: a warm function that has already fetched one app's keys must
+// not keep serving them after the environment is pointed at a different app.
+let jwks = { appId: null, doc: null };
 async function verify(token, appId) {
   const [h, p, s] = token.split(".");
   if (!h || !p || !s) throw new Error("not a JWT");
   const header = decode(h);
   if (header.alg !== "ES256") throw new Error(`unexpected alg ${header.alg}`);
 
-  jwks ??= await json(`${AUTH}/apps/${appId}/jwks.json`);
-  let jwk = jwks.keys.find((k) => k.kid === header.kid);
+  // Failing to fetch the app's own keys says nothing about the token: it means this deployment is
+  // pointed at an app id that is not ours.
+  const keys = async () => {
+    try {
+      return await json(`${AUTH}/apps/${appId}/jwks.json`);
+    } catch (err) {
+      throw Object.assign(new Error(`PRIVY_APP_ID is not an app Privy knows (${err.message})`),
+        { cause: "config" });
+    }
+  };
+
+  if (jwks.appId !== appId || !jwks.doc) jwks = { appId, doc: await keys() };
+  let jwk = jwks.doc.keys.find((k) => k.kid === header.kid);
   if (!jwk) {
     // Privy rotates keys. One re-fetch, then it is a real failure.
-    jwks = await json(`${AUTH}/apps/${appId}/jwks.json`);
-    jwk = jwks.keys.find((k) => k.kid === header.kid);
+    jwks = { appId, doc: await keys() };
+    jwk = jwks.doc.keys.find((k) => k.kid === header.kid);
   }
   if (!jwk) throw new Error("no signing key for this token");
 
@@ -260,5 +279,7 @@ async function rpc(method, params) {
   if (body.error) throw new Error(body.error.message);
   return body.result;
 }
+
+const env = (name) => (process.env[name] ?? "").trim().replace(/^["']|["']$/g, "");
 
 const fail = (res, status, error) => res.status(status).json({ error });
