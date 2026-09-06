@@ -279,15 +279,22 @@ function renderTable(view, desks, book) {
 
 function renderPanels(view, desks) {
   const takeable = desks.filter((d) => d.account !== ZERO && d.open);
-  fillSelect(view.ui.takeDesk, takeable);
+  // Default to a desk whose tokens a visitor can actually get. The canonical desk trades the real
+  // pair, so a taker arriving with an empty wallet cannot fill against it — and it was first in the
+  // list, which made "press the button" revert for exactly the person the page is built for.
+  fillSelect(view.ui.takeDesk, takeable, takeable.find((d) => isDemoToken(view.state, d.params.base)));
   fillSelect(view.ui.mapDesk, desks.filter((d) => d.params.mapOracle !== ZERO && d.account !== ZERO));
 
   const none = takeable.length === 0;
+  const chosen = takeable.find((d) => d.account === view.ui.takeDesk.value);
+  const mintable = chosen && isDemoToken(view.state, chosen.params.base);
   view.ui.takeNote.textContent = none
     ? "No desk is deployed yet. The Floor is quoting the canonical parameters against the live book; Take turns on when the desks are on chain."
     : !view.signer
       ? `One swap through the official SwapVM router on chain ${view.state.chainId}. Sign in above — an email address is enough, and the wallet that appears is the one that signs it.`
-      : `Three transactions on chain ${view.state.chainId}: mint the demo token, approve the router, swap. The last one goes through the official SwapVM router, and the page reads the order back from the account rather than rebuilding it.`;
+      : mintable
+        ? `Three transactions on chain ${view.state.chainId}: mint the demo token, approve the router, swap. The last goes through the official SwapVM router, and the page reads the order back from the account rather than rebuilding it. Selling base is where the bound bites — the desk's bid is clamped to L1's own.`
+        : `This desk trades the real pair, so the page cannot mint your side of it: bring your own ${chosen ? short(chosen.params.base) : "tokens"} and approve the router. The demo desk above takes mintable tokens and costs nothing.`;
   view.ui.takeGo.disabled = none || !view.signer;
 
   const mapNone = view.ui.mapDesk.options.length === 0;
@@ -296,7 +303,7 @@ function renderPanels(view, desks) {
     : "";
 }
 
-function fillSelect(select, desks) {
+function fillSelect(select, desks, preferred) {
   const previous = select.value;
   select.replaceChildren(...desks.map((d) => {
     const option = document.createElement("option");
@@ -305,6 +312,7 @@ function fillSelect(select, desks) {
     return option;
   }));
   if (desks.some((d) => d.account === previous)) select.value = previous;
+  else if (preferred) select.value = preferred.account;
 }
 
 function wireTake(view) {
