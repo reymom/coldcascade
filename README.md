@@ -120,6 +120,16 @@ up to that amount and nothing else, so the worst case if every line of that file
 drip. The policy is `keeper/policy.json`, as Privy returns it, and `test/api/faucet.test.mjs`
 asserts what the endpoint refuses.
 
+**A Privy policy is only enforced once the wallet has an owner**, which is worth writing down
+because it is not in the documentation and it was measured rather than assumed: with `owner_id`
+null, a rule denying *every* method was attached to this wallet and a send still reached the node —
+the app secret alone was full authority over it. So the wallet has a P-256 owner and every write
+carries a `privy-authorization-signature` from that key. The two secrets are independent: the app
+secret authenticates the app, the owner key authorizes the request, and neither moves the faucet
+alone. `node script/faucet-check.mjs` re-runs the four denials — wrong chain, over the cap,
+unsigned, and a method the policy never allows — against the live wallet, and reports which of them
+the policy let through.
+
 The read path has no third party in it. `app/src/abi.js` is a hand-written codec so that nothing
 sits between a browser and the calldata going to 1inch's router, and Privy's SDK is vendored rather
 than pulled from a CDN and imported only when a visitor asks for a wallet — the book, the desks and
@@ -178,6 +188,7 @@ yarn install --frozen-lockfile --ignore-scripts
 forge build
 forge test
 node test/api/faucet.test.mjs # the one server-side endpoint, and what it refuses
+node script/faucet-check.mjs  # the same denials against the live wallet, so the policy is a fact
 ./script/probe999.sh          # the live book and the desk's two prices, no key, nothing deployed
 ./script/localnet.sh          # fork 999, deploy, ship, swap, against the real router
 ./script/mainnet.sh           # every read that can fail a mainnet deploy, before it costs anything

@@ -20,6 +20,12 @@ const { publicKey, privateKey } = crypto.generateKeyPairSync("ec", { namedCurve:
 const jwk = publicKey.export({ format: "jwk" });
 jwk.kid = "test-kid"; jwk.alg = "ES256"; jwk.use = "sig";
 
+// The faucet's owner key. The point of it is that the send below carries a signature the policy
+// engine can check, so the test verifies that signature the way Privy would.
+const owner = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+process.env.PRIVY_AUTHORIZATION_KEY = "wallet-auth:" +
+  owner.privateKey.export({ type: "pkcs8", format: "der" }).toString("base64");
+
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
 function mint(claims) {
   const head = b64({ alg: "ES256", typ: "JWT", kid: "test-kid" });
@@ -49,6 +55,7 @@ globalThis.fetch = async (url, init = {}) => {
     return ok({ id: USER, linked_accounts: state.linked, custom_metadata: state.metadata });
   }
   if (url.includes("/rpc") && url.includes("wallets")) {
+    state.sent = { url, headers: init.headers, body: JSON.parse(init.body) };
     if (state.sendFails) return { ok: false, json: async () => ({ error: "policy denied" }) };
     return ok({ data: { hash: "0xdeadbeef" } });
   }
@@ -89,7 +96,34 @@ reset();
 const good = await run(post(mint({ sub: USER })));
 check("a signed-in user is funded", good, { status: 200, body: { hash: "0xdeadbeef", value: "2000000000000000" } });
 check("and the drip is marked on the user", Boolean(state.metadata.gasFundedAt), true);
+check("the drip is 0.002 HYPE to the caller", state.sent.body.params.transaction,
+  { to: ADDR, value: "0x71afd498d0000" });
+check("on the chain the policy pins", state.sent.body.caip2, "eip155:999");
+
+// The signature the policy engine checks, verified here the way Privy verifies it: RFC 8785 over
+// {version, method, url, body, headers}, SHA-256, P-256. A canonicalizer that drifts would still
+// produce a plausible-looking base64 string and every send would be denied in production.
+const canonical = (v) =>
+  v === null || typeof v !== "object" ? JSON.stringify(v)
+  : Array.isArray(v) ? `[${v.map(canonical).join(",")}]`
+  : `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canonical(v[k])}`).join(",")}}`;
+check("and it is signed by the faucet's owner key", crypto.verify(
+  "sha256",
+  Buffer.from(canonical({
+    version: 1, method: "POST", url: state.sent.url, body: state.sent.body,
+    headers: { "privy-app-id": APP },
+  })),
+  owner.publicKey,
+  Buffer.from(state.sent.headers["privy-authorization-signature"], "base64"),
+), true);
+
 check("a second request is refused", (await run(post(mint({ sub: USER })))).status, 429);
+
+const key = process.env.PRIVY_AUTHORIZATION_KEY;
+delete process.env.PRIVY_AUTHORIZATION_KEY;
+reset();
+check("no owner key means the faucet refuses to run", (await run(post(mint({ sub: USER })))).status, 503);
+process.env.PRIVY_AUTHORIZATION_KEY = key;
 
 reset({ sendFails: true });
 check("a failed send is a 502", (await run(post(mint({ sub: USER })))).status, 502);

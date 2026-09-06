@@ -13,11 +13,18 @@
 // **The signer is a Privy server wallet under a policy**, not a private key in an environment
 // variable. The policy allows `eth_sendTransaction` and nothing else, only on this chain, and only
 // up to the drip — so the worst case if everything in this file is wrong is one drip per request,
-// on one chain, to somewhere. `keeper/policy.json` in this repo is that policy, and it is enforced
-// by Privy rather than by the code below.
+// on one chain, to somewhere. `keeper/policy.json` in this repo is that policy.
 //
-// The app secret is a Vercel environment variable. It is not in this repository, it is not in the
-// browser bundle, and `.vercelignore` keeps `.env` off the host.
+// **A policy is only enforced once the wallet has an owner**, and that is worth stating plainly
+// because it was measured rather than assumed: with `owner_id: null` a rule denying *everything*
+// was attached to this wallet and a send still reached the node. The app secret alone was full
+// authority. So the wallet has a P-256 owner (`script/faucet-owner.sh`), every write below carries
+// a `privy-authorization-signature` from that key, and the two secrets are independent — a leak of
+// the Vercel environment does not move the faucet without the key, and the policy caps what the key
+// itself can do. `script/faucet-check.mjs` re-runs the denials that prove it.
+//
+// Both secrets are Vercel environment variables. Neither is in this repository or in the browser
+// bundle, and `.vercelignore` keeps `.env` off the host.
 
 import crypto from "node:crypto";
 
@@ -38,7 +45,9 @@ export default async function handler(req, res) {
   const appId = process.env.PRIVY_APP_ID;
   const appSecret = process.env.PRIVY_APP_SECRET;
   const walletId = process.env.PRIVY_FAUCET_WALLET_ID;
-  if (!appId || !appSecret || !walletId) {
+  // The authorization key is checked here rather than at the send: without it the policy is not
+  // enforced, and a faucet whose policy is not enforced should not run at all.
+  if (!appId || !appSecret || !walletId || !process.env.PRIVY_AUTHORIZATION_KEY) {
     return fail(res, 503, "the faucet is not configured on this deployment");
   }
 
@@ -93,20 +102,51 @@ export default async function handler(req, res) {
   await claim(new Date().toISOString());
 
   try {
-    const sent = await json(`${API}/wallets/${walletId}/rpc`, {
+    const url = `${API}/wallets/${walletId}/rpc`;
+    const payload = {
+      method: "eth_sendTransaction",
+      caip2: `eip155:${CHAIN_ID}`,
+      params: { transaction: { to: address, value: "0x" + DRIP_WEI.toString(16) } },
+    };
+    const sent = await json(url, {
       method: "POST",
-      headers: auth,
-      body: JSON.stringify({
-        method: "eth_sendTransaction",
-        caip2: `eip155:${CHAIN_ID}`,
-        params: { transaction: { to: address, value: "0x" + DRIP_WEI.toString(16) } },
-      }),
+      headers: { ...auth, "privy-authorization-signature": authorize(url, payload, appId) },
+      body: JSON.stringify(payload),
     });
     return res.status(200).json({ hash: sent.data?.hash ?? null, value: DRIP_WEI.toString() });
   } catch (err) {
     await claim("").catch(() => {});
     return fail(res, 502, `the faucet could not send: ${err.message}`);
   }
+}
+
+// ---- the owner's signature over the request ----
+
+/**
+ * Sign a wallet write with the faucet's owner key, which is what makes the policy binding.
+ *
+ * Privy's scheme: build `{version, method, url, body, headers}`, canonicalize it per RFC 8785, and
+ * sign the SHA-256 of that with the P-256 owner key, base64. The canonicalizer is nine lines here
+ * rather than a package for the same reason the JWT verifier is: this endpoint is deployed out of a
+ * repository whose `package.json` pins 1inch's Solidity graph, and one runtime dependency is one
+ * more thing that can re-resolve it. RFC 8785 over this payload is object keys sorted by code unit
+ * and `JSON.stringify` for the leaves — there are no floats and no arrays in it.
+ */
+export function authorize(url, body, appId) {
+  const pem = (process.env.PRIVY_AUTHORIZATION_KEY ?? "").replace(/^wallet-auth:/, "");
+  if (!pem) throw new Error("PRIVY_AUTHORIZATION_KEY is unset, so the policy would not be enforced");
+  const payload = { version: 1, method: "POST", url, body, headers: { "privy-app-id": appId } };
+  const key = crypto.createPrivateKey({
+    key: `-----BEGIN PRIVATE KEY-----\n${pem}\n-----END PRIVATE KEY-----`,
+    format: "pem",
+  });
+  return crypto.sign("sha256", Buffer.from(canonical(payload)), key).toString("base64");
+}
+
+function canonical(v) {
+  if (v === null || typeof v !== "object") return JSON.stringify(v);
+  if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
+  return `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canonical(v[k])}`).join(",")}}`;
 }
 
 // ---- the access token ----
