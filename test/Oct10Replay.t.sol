@@ -160,6 +160,11 @@ contract Oct10ReplayTest is BlindTakers {
     ///      not touch that. `results/oct10_replay.source` carries the numbers at other settings.
     uint32 internal constant HARD_FEE_BPS = 3_000_000;
 
+    /// @dev How far ahead of the better control the desk has to come out, in basis points of the
+    ///      capital it deployed, after the arbitrageur has been paid. Two, against roughly five
+    ///      observed — a threshold that would survive the tape being half as kind.
+    uint16 internal constant MIN_MARGIN_BPS = 2;
+
     uint256 internal startValue;
     DeskParams internal params;
 
@@ -333,26 +338,100 @@ contract Oct10ReplayTest is BlindTakers {
         assertTrue(anyFill, "the tape produced no fills at all");
     }
 
-    /// @notice The second gate, and it is not the death metric.
+    /// @notice The first gate, and the only one that is a hard number rather than a comparison.
     ///
-    ///         §2.5 asks whether one swap's amountOut responds to the book. A desk can pass that
-    ///         and still draw two flat lines, because responding to the regime is not the same
-    ///         claim as coming out ahead of the maker that ignores it.
+    ///         A maker is arbitraged when someone can trade against it and unwind at the reference
+    ///         venue for more than they paid. `Inarbitrable.t.sol` proves that is impossible for
+    ///         this quote one call at a time, over a fuzzed book. This is the same claim at session
+    ///         scale, against an adversary that chooses its own size: 123 minutes, a 640 bps
+    ///         drawdown, both directions every minute, and the search comes back with nothing.
     ///
-    ///         This asks the other question: over the session, does what the desk absorbed
-    ///         actually revert in its favour, by a multiple of what the control got?
-    ///
-    /// @dev When this fails, suspect the taker model before the quote — but only after
-    ///      `test_takers_areBlind` has passed, because a taker that can see the maker will pass
-    ///      this one for the wrong reason.
-    function test_gate_absorbedEdgeBeatsControl() public {
-        (Tick[] memory tape,) = loadTape();
-        (int256 desk, int256 control) = absorbedEdge(run(tape));
+    /// @dev Zero, not "small". The two lines that are priced before the trade are there to show
+    ///      what the alternative costs, so this also fails if *they* are never arbitraged — that
+    ///      would mean the arbitrageur is not searching and the zero above is worth nothing.
+    function test_gate_deskIsNeverArbitraged() public {
+        Row[] memory rows = run(loadTapeOnly());
 
-        emit log_named_int("absorbed edge, desk (USD)", desk);
-        emit log_named_int("absorbed edge, control (USD)", control);
+        emit log_named_uint("arb notional, desk (USD)", arbOf(rows, DESK));
+        emit log_named_uint("arb notional, control (USD)", arbOf(rows, CONTROL));
+        emit log_named_uint("arb notional, hardened control (USD)", arbOf(rows, HARD));
+        emit log_named_uint("lvr paid, control (USD)", lvrOf(rows, CONTROL));
+        emit log_named_uint("lvr paid, hardened control (USD)", lvrOf(rows, HARD));
 
-        assertGt(desk, 0, "the desk lost money on what it absorbed: the lean is not paying for itself");
+        assertGt(arbOf(rows, CONTROL), 0, "the arbitrageur found nothing anywhere: it is not searching");
+        assertEq(arbOf(rows, DESK), 0, "an arbitrageur got size out of the desk: the clamp is not holding");
+        assertEq(lvrOf(rows, DESK), 0, "the desk paid LVR: the clamp is not holding");
+    }
+
+    /// @notice The second gate, and the one that replaced a multiple.
+    ///
+    ///         The old gate asked for the desk's absorbed edge to be at least twice the control's.
+    ///         That is the wrong shape for the claim and it fails in both directions. It
+    ///         **degenerates**: a maker whose price was set before the trade loses money on what it
+    ///         absorbs in a cascade, and once the control's edge is negative the ratio branch
+    ///         collapses to `desk >= 0` and passes for no reason while reporting infinity. And it
+    ///         **inverts**: under a queue order that lets the forced seller reach a stale maker
+    ///         first, the desk correctly declines to bid above L1's ask, absorbs nothing, and the
+    ///         ratio fails while the desk is thousands of dollars ahead.
+    ///
+    ///         So the gate is a signed margin in basis points of the capital each maker deployed,
+    ///         net of what the arbitrageur took. It cannot be undefined, it has the right sign
+    ///         under either queue order, and it is the number a maker would recognise as the
+    ///         answer: what the strategy kept.
+    ///
+    /// @dev Against the **better** of the two controls, not the weaker one. The hardened control is
+    ///      there precisely so this cannot be won against a strawman.
+    function test_gate_deskKeepsMoreThanTheControls() public {
+        Row[] memory rows = run(loadTapeOnly());
+
+        int256 desk = keptBy(rows, DESK);
+        int256 control = keptBy(rows, CONTROL);
+        int256 hard = keptBy(rows, HARD);
+        int256 best = control > hard ? control : hard;
+
+        int256 capital = int256(startValue / 1e6);
+        int256 marginBps = (desk - best) * 10_000 / capital;
+
+        emit log_named_int("kept, desk (USD)", desk);
+        emit log_named_int("kept, control (USD)", control);
+        emit log_named_int("kept, hardened control (USD)", hard);
+        emit log_named_int("capital deployed per maker (USD)", capital);
+        emit log_named_int("margin over the better control (bps of capital)", marginBps);
+
+        assertGe(
+            marginBps,
+            int256(uint256(MIN_MARGIN_BPS)),
+            "the desk does not keep enough more than the maker that ignores the book"
+        );
+    }
+
+    /// @notice What each line kept: its absorbed edge less the LVR it paid, in USD.
+    function keptBy(Row[] memory rows, uint256 line) internal pure returns (int256) {
+        return edgeOf(rows, line) - int256(lvrOf(rows, line));
+    }
+
+    /// @notice The absorbed edge, reported as a pair and never as a quotient.
+    ///
+    /// @dev It is the quantity the markout rate is a rate *of* — leaning inside the spread means
+    ///      paying up on every fill, by construction, so what the lean buys is size at a price that
+    ///      reverts. It is still worth asserting that the desk is on the right side of it, because
+    ///      a desk that absorbs a great deal and loses on all of it is not a desk.
+    ///
+    ///      What is *not* asserted is a multiple of the control's, because there is no reliable
+    ///      denominator: the control's absorbed edge is negative on this tape, which is the point
+    ///      rather than a defect. `test_gate_deskKeepsMoreThanTheControls` carries the comparison.
+    function test_absorbedEdge_isReportedAsAPair() public {
+        Row[] memory rows = run(loadTapeOnly());
+
+        emit log_named_int("absorbed edge, desk (USD)", edgeOf(rows, DESK));
+        emit log_named_int("absorbed edge, control (USD)", edgeOf(rows, CONTROL));
+        emit log_named_int("absorbed edge, hardened control (USD)", edgeOf(rows, HARD));
+        emit log_named_int("absorbed edge, L1's own touch (USD)", touchEdge(rows));
+        emit log_named_uint("absorbed notional, desk (USD)", absorbedOf(rows, DESK));
+        emit log_named_uint("absorbed notional, both AMMs (USD)", absorbedOf(rows, CONTROL) + absorbedOf(rows, HARD));
+        emit log_named_uint("absorbed notional, L1's own touch (USD)", touchAbsorbed(rows));
+
+        assertGt(edgeOf(rows, DESK), 0, "the desk lost money on what it absorbed: the lean is not paying for itself");
     }
 
     function absorbedOf(Row[] memory rows, uint256 line) internal pure returns (uint256 n) {
@@ -396,15 +475,6 @@ contract Oct10ReplayTest is BlindTakers {
     function touchAbsorbed(Row[] memory rows) internal pure returns (uint256 n) {
         for (uint256 i = 0; i < rows.length; ++i) {
             n += rows[i].absorbedTouchNtl;
-        }
-    }
-
-    /// @notice Each maker's markout weighted by what it actually absorbed, summed over the
-    ///         session, in USD. `markoutBps` is a rate; this is the quantity the rate is a rate *of*.
-    function absorbedEdge(Row[] memory rows) internal pure returns (int256 desk, int256 control) {
-        for (uint256 i = 0; i < rows.length; ++i) {
-            desk += int256(rows[i].absorbedDeskNtl) * rows[i].markoutDesk60mBps / 10_000;
-            control += int256(rows[i].absorbedControlNtl) * rows[i].markoutControl60mBps / 10_000;
         }
     }
 
@@ -513,6 +583,10 @@ contract Oct10ReplayTest is BlindTakers {
             ask: tick.ask,
             spot: tick.spot
         });
+    }
+
+    function loadTapeOnly() internal view returns (Tick[] memory tape) {
+        (tape,) = loadTape();
     }
 
     function loadTape() internal view returns (Tick[] memory tape, bool isRealTape) {
