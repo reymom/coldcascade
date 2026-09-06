@@ -4,10 +4,19 @@
 # the scripts, the keeper — is the edge, and it goes public on our schedule, not
 # because a static host happened to serve it.
 #
-# Every pattern is ROOT-ANCHORED with a leading slash. Without it these are
-# gitignore patterns that match at any depth, and `src/` silently deletes
-# `app/src/` too — which is exactly what happened on the first deploy: the page
-# shipped, every module 404'd, and it hung on "connecting to HyperEVM…".
+# TWO TRAPS, both already hit once:
+#
+# 1. Every pattern must be ROOT-ANCHORED with a leading slash. Without it these are
+#    gitignore patterns matching at any depth, and a bare "src/" silently deletes
+#    app/src/ as well — which is what happened on the first deploy: the page shipped,
+#    every module 404'd, and it hung on "connecting to HyperEVM…".
+#
+# 2. This file does NOT inherit .gitignore, and `vercel --prod` uploads the working
+#    directory rather than the git tree. So a secret git never sees still reaches a
+#    public host unless it is named here.
+/.env*
+/.vercel
+/deployments/31337.json
 /src/
 /test/
 /script/
