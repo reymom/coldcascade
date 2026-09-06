@@ -233,7 +233,14 @@ async function verify(token, appId) {
   return claims.sub;
 }
 
-const decode = (part) => JSON.parse(Buffer.from(part, "base64url").toString("utf8"));
+/** A malformed segment is a malformed token, and should say so rather than surface a parse error. */
+function decode(part) {
+  try {
+    return JSON.parse(Buffer.from(part, "base64url").toString("utf8"));
+  } catch {
+    throw new Error("malformed");
+  }
+}
 
 // ---- plumbing ----
 

@@ -89,6 +89,9 @@ check("wrong chain", (await run(post(mint({ sub: USER }), { chainId: 1 }))).stat
 check("token for another app", (await run(post(mint({ sub: USER, aud: "someone-else" })))).status, 401);
 check("expired token", (await run(post(mint({ sub: USER, exp: 1 })))).status, 401);
 check("tampered signature", (await run(post(mint({ sub: USER }).slice(0, -3) + "AAA"))).status, 401);
+check("junk that is not a token", (await run(post("aaa.bbb.ccc"))).status, 401);
+check("and it says so without leaking a parser error",
+  (await run(post("aaa.bbb.ccc"))).body.error, "that access token did not verify: malformed");
 
 reset({ linked: [{ type: "wallet", address: "0x2222222222222222222222222222222222222222" }] });
 check("address is not the user's", (await run(post(mint({ sub: USER })))).status, 403);
