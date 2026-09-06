@@ -1,0 +1,30 @@
+{
+    "id": "pebgq66wif8hjr199r1wvz8l",
+    "name": "coldcascade gas faucet",
+    "chain_type": "ethereum",
+    "rules": [
+        {
+            "id": "f3vzswqhofife557j5l6vugo",
+            "name": "drip at most 0.002 HYPE on chain 999",
+            "method": "eth_sendTransaction",
+            "conditions": [
+                {
+                    "field_source": "ethereum_transaction",
+                    "field": "chain_id",
+                    "operator": "eq",
+                    "value": "999"
+                },
+                {
+                    "field_source": "ethereum_transaction",
+                    "field": "value",
+                    "operator": "lte",
+                    "value": "2000000000000000"
+                }
+            ],
+            "action": "ALLOW"
+        }
+    ],
+    "version": "1.0",
+    "created_at": 1788705786019,
+    "owner_id": null
+}
