@@ -277,7 +277,7 @@ contract DeskAccountTest is DeskTest {
     /// @dev A desk opens square: what it was funded with is inventory its owner chose.
     function test_cover_aFreshDeskIsFlat() public {
         DeskAccount desk = armed(500_000e6);
-        assertEq(desk.coveredBase(), START_BASE, "the opening balance is the square mark");
+        assertEq(desk.squareBase(), START_BASE, "the opening balance is the square mark");
 
         vm.expectEmit(true, true, true, true, address(desk));
         emit DeskAccount.HedgeSkipped(1, DeskAccount.SkipReason.Flat);
@@ -289,6 +289,9 @@ contract DeskAccountTest is DeskTest {
     /// @dev The move, end to end: a taker absorbs into the desk, the swap settles with the hook
     ///      emitting nothing but `Fill`, and cover happens afterwards in a transaction the desk
     ///      pays for. The two are not in the same block by construction and do not need to be.
+    ///
+    ///      What makes the desk square again is the *position*, not a counter it moved when it
+    ///      sent. Until HyperCore reports the fill, the desk is still uncovered and still says so.
     function test_cover_afterAFill_isASeparateTransaction() public {
         DeskParams memory p = btcParams();
         DeskAccount desk = armed(500_000e6);
@@ -306,7 +309,76 @@ contract DeskAccountTest is DeskTest {
         assertTrue(covered);
         assertEq(baseAmount, ONE_UBTC);
         assertEq(notional, expected);
-        assertEq(desk.coveredBase(), START_BASE + ONE_UBTC, "and the desk is square again");
+        assertEq(desk.squareBase(), START_BASE, "the square level is the owner's, and cover did not move it");
+
+        (bool stillOpen,,,) = desk.coverPreview();
+        assertTrue(stillOpen, "sent is not filled: until L1 says so the desk is still uncovered");
+
+        setPosition(address(desk), -100_000);
+        (stillOpen,,,) = desk.coverPreview();
+        assertFalse(stillOpen, "and the fill is what squares it");
+    }
+
+    /// @dev **The reason the counter is gone.** HyperCore drops an order it does not like and the
+    ///      EVM transaction that carried it still succeeds, so a desk that marked itself covered on
+    ///      send would be short a hedge and believe otherwise — forever, and compounding. Deriving
+    ///      the exposure makes the failure self-correcting: the position did not move, so the next
+    ///      cover sizes itself against the same gap and sends the same order again.
+    function test_cover_anOrderCoreDropped_isSentAgain() public {
+        DeskAccount desk = armed(500_000e6);
+        ubtc.mint(address(desk), ONE_UBTC);
+
+        vm.prank(keeper);
+        (bool covered, uint256 first,) = desk.cover();
+        assertTrue(covered);
+
+        // Nothing landed: 0x0800 still reports no position.
+        vm.prank(keeper);
+        (bool again, uint256 second,) = desk.cover();
+        assertTrue(again, "the desk did not talk itself out of an uncovered position");
+        assertEq(second, first, "and it asks for exactly the same size");
+
+        setPosition(address(desk), -100_000);
+        vm.expectEmit(true, true, true, true, address(desk));
+        emit DeskAccount.HedgeSkipped(3, DeskAccount.SkipReason.Flat);
+        vm.prank(keeper);
+        (bool third,,) = desk.cover();
+        assertFalse(third, "once it lands, there is nothing left to cover");
+    }
+
+    /// @dev A hedge already in place is not re-sent, and a hedge larger than the inventory is
+    ///      unwound. The desk takes no view on which of the two it is in: it reads both legs and
+    ///      sends the difference.
+    function test_cover_unwindsAHedgeBiggerThanTheInventory() public {
+        DeskAccount desk = armed(500_000e6);
+        setPosition(address(desk), -100_000);
+
+        vm.prank(keeper);
+        (bool covered, uint256 baseAmount,) = desk.cover();
+
+        assertTrue(covered, "short a perp against no inventory is an exposure like any other");
+        assertEq(baseAmount, ONE_UBTC);
+        (, bool isBuy,,) = desk.coverPreview();
+        assertTrue(isBuy, "and it is closed by buying it back");
+    }
+
+    /// @dev `close()` docks the strategy and sends the tokens home; it does not touch HyperCore,
+    ///      because unwinding a perp is an order and orders are what `cover` does. Balance and
+    ///      square level both go to zero, so the whole uncovered amount is the hedge itself — which
+    ///      falls out of the arithmetic rather than being a case anybody wrote.
+    function test_cover_afterClose_unwindsWhatIsLeftOnL1() public {
+        DeskAccount desk = armed(500_000e6);
+        setPosition(address(desk), -100_000);
+
+        vm.prank(alice);
+        desk.close();
+        assertEq(desk.squareBase(), 0);
+        assertEq(ubtc.balanceOf(address(desk)), 0, "the tokens went home");
+
+        (bool wouldCover, bool isBuy, uint256 baseAmount,) = desk.coverPreview();
+        assertTrue(wouldCover, "the perp is still open and the desk still says so");
+        assertTrue(isBuy, "buying closes a short");
+        assertEq(baseAmount, ONE_UBTC);
     }
 
     /// @dev Long base sells the perp. No sign is hard-coded anywhere else.
@@ -348,7 +420,8 @@ contract DeskAccountTest is DeskTest {
     }
 
     /// @dev The ceiling caps a call, it does not drop the remainder: the next call picks it up.
-    ///      That is the difference between a ceiling and a switch.
+    ///      That is the difference between a ceiling and a switch. The remainder is not written
+    ///      down anywhere — it is simply still uncovered, and the second call reads it again.
     function test_cover_capLeavesTheRemainderForNextTime() public {
         uint256 full = ONE_UBTC * uint256(QUIET_MARK) / 1000;
         DeskAccount desk = armed(uint64(full / 4));
@@ -358,12 +431,18 @@ contract DeskAccountTest is DeskTest {
         emit DeskAccount.HedgeIntent(1, BTC, false, ONE_UBTC / 4, full / 4, QUIET_MARK);
         vm.prank(keeper);
         desk.cover();
-        assertEq(desk.coveredBase(), START_BASE + ONE_UBTC / 4, "only what was covered is marked");
+        assertEq(desk.squareBase(), START_BASE, "nothing was written down");
+
+        setPosition(address(desk), -25_000);
 
         vm.expectEmit(true, true, true, true, address(desk));
         emit DeskAccount.HedgeIntent(2, BTC, false, ONE_UBTC / 4, full / 4, QUIET_MARK);
         vm.prank(keeper);
         desk.cover();
+
+        setPosition(address(desk), -50_000);
+        (,, uint256 left,) = desk.coverPreview();
+        assertEq(left, ONE_UBTC / 4, "half covered, and the rest is still there to find");
     }
 
     /// @dev In its own transaction there is no fill to protect, so a book that cannot be read is an
@@ -386,7 +465,7 @@ contract DeskAccountTest is DeskTest {
 
         vm.prank(alice);
         desk.withdraw(address(ubtc), 2e8);
-        assertEq(desk.coveredBase(), START_BASE - 2e8, "the square level dropped by what left");
+        assertEq(desk.squareBase(), START_BASE - 2e8, "the square level dropped by what left");
 
         vm.expectEmit(true, true, true, true, address(desk));
         emit DeskAccount.HedgeIntent(1, BTC, false, ONE_UBTC, ONE_UBTC * QUIET_MARK / 1000, QUIET_MARK);
@@ -405,7 +484,7 @@ contract DeskAccountTest is DeskTest {
         vm.prank(alice);
         desk.reopen(wider, START_BASE, START_QUOTE);
 
-        assertEq(desk.coveredBase(), START_BASE, "reopening did not silently mark the desk square");
+        assertEq(desk.squareBase(), START_BASE, "reopening did not silently mark the desk square");
         (bool wouldCover,, uint256 baseAmount,) = desk.coverPreview();
         assertTrue(wouldCover);
         assertEq(baseAmount, ONE_UBTC, "the uncovered fill survived the parameter change");
@@ -417,7 +496,7 @@ contract DeskAccountTest is DeskTest {
 
         vm.prank(alice);
         desk.close();
-        assertEq(desk.coveredBase(), 0);
+        assertEq(desk.squareBase(), 0);
         assertEq(ubtc.balanceOf(address(desk)), 0);
 
         (bool wouldCover,,,) = desk.coverPreview();
@@ -440,7 +519,8 @@ contract DeskAccountTest is DeskTest {
     }
 
     /// @dev What cover costs, in the desk's own transaction, paid by the desk. 42 138 gas before
-    ///      the order leg, measured 2026-09-05; 66 725 with it, measured here.
+    ///      the order leg, measured 2026-09-05; 75 510 with it and with both legs of the position
+    ///      read live, measured here against the etched mocks.
     ///
     ///      The leg was `[UNVERIFIED]` against chain 999 until the probe ran on 2026-09-06. Two
     ///      real transactions from a contract that had never signed anything: a `usdClassTransfer`
@@ -448,9 +528,11 @@ contract DeskAccountTest is DeskTest {
     ///      transaction and the contract's own dispatch. So HyperCore's *"~47 000 with 25 000
     ///      burned"* is a ceiling and not an estimate — the action itself lands nearer 32 000.
     ///
-    ///      The number here is higher than either because the reads come first: `0x080a` for
-    ///      `szDecimals` and three more for the book. All of it is charged to the desk. **A taker
-    ///      pays none of it, which is the claim this test exists to keep true.**
+    ///      The number here is higher than either because the reads come first: the book, `0x080a`
+    ///      for `szDecimals`, and `0x0800` for the position the desk no longer remembers. That last
+    ///      one costs 8 515 gas on a real node, measured on 999 on 2026-09-06, and it is the price
+    ///      of having no state that can drift. All of it is charged to the desk. **A taker pays
+    ///      none of it, which is the claim this test exists to keep true.**
     function test_cover_costsTheDeskNotTheTaker() public {
         DeskAccount desk = armed(500_000e6);
         ubtc.mint(address(desk), ONE_UBTC);
@@ -499,6 +581,7 @@ contract DeskAccountTest is DeskTest {
         desk.cover();
         assertEq(desk.coverCount(), 1);
 
+        setPosition(address(desk), -100_000);
         ubtc.mint(address(desk), ONE_UBTC);
         vm.expectEmit(address(CORE_WRITER));
         emit CoreWriterMock.RawAction(
@@ -523,7 +606,7 @@ contract DeskAccountTest is DeskTest {
         (bool covered,,) = desk.cover();
 
         assertFalse(covered);
-        assertEq(desk.coveredBase(), START_BASE, "the square mark did not move");
+        assertEq(desk.squareBase(), START_BASE, "the square mark did not move");
     }
 
     /// @dev The remainder under the lot survives to be covered later, rather than being rounded
@@ -538,10 +621,11 @@ contract DeskAccountTest is DeskTest {
 
         assertTrue(covered);
         assertEq(baseAmount, 123_000, "floored onto the grid, never rounded up");
-        assertEq(desk.coveredBase(), START_BASE + 123_000, "and only what was sent is marked");
 
-        (,, uint256 stillOpen,) = desk.coverPreview();
-        assertEq(stillOpen, 0, "456 is under a lot, so it stays uncovered and unclaimed");
+        setPosition(address(desk), -123);
+        (bool wouldCover,, uint256 stillOpen,) = desk.coverPreview();
+        assertFalse(wouldCover, "456 is under a lot, so no order can express it");
+        assertEq(stillOpen, 0);
     }
 
     /// @dev *"Order must have minimum value of $10."* Checked in the exchange's own terms, so it
@@ -557,7 +641,7 @@ contract DeskAccountTest is DeskTest {
         (bool covered,,) = desk.cover();
 
         assertFalse(covered);
-        assertEq(desk.coveredBase(), START_BASE, "and nothing was marked covered");
+        assertEq(desk.squareBase(), START_BASE, "and nothing was marked covered");
 
         ubtc.mint(address(desk), 1_000);
         vm.prank(keeper);
@@ -629,12 +713,14 @@ contract DeskAccountTest is DeskTest {
     ///      constraint before it is a taker cost — this is why `optimizer_runs` is 200 and not
     ///      1 000 000, and the reasoning is in foundry.toml and results/999_deploy_budget.md.
     ///
-    ///      The order leg cost 1 293 bytes and leaves **44 367 gas of headroom**, about 220 bytes
-    ///      of runtime code. It was 654 gas — three bytes — until `HyperCore.szDecimals` stopped
-    ///      decoding `PerpAssetInfo` through `abi.decode` and started reading the field at its
-    ///      offset; the dynamic ABI decoder alone was 43 713 gas of code deposit. When this does
-    ///      run out, the way through is a deployed library for the order arithmetic, not a higher
-    ///      bound: the bound is the chain's.
+    ///      **89 916 gas of headroom**, about 450 bytes. It was 654 — three bytes — when the order
+    ///      leg first landed, and two changes bought the room back. `HyperCore.szDecimals` stopped
+    ///      decoding `PerpAssetInfo` through `abi.decode` and read the field at its offset instead,
+    ///      which was worth 43 713 gas on its own: a dynamic ABI decoder is expensive to carry.
+    ///      Then deriving the exposure from `0x0800` deleted a storage write and let `cover` and
+    ///      `coverPreview` collapse into one `_plan`, and the contract came out 227 bytes *smaller*
+    ///      than it was with the counter in it. When this does run out, the way through is a
+    ///      deployed library for the order arithmetic, not a higher bound: the bound is the chain\'s.
     function test_implementation_fitsOneSmallBlock() public {
         uint256 before = gasleft();
         new DeskAccount(aqua, address(swapVM), address(coreQuote), address(hooks));

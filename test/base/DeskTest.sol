@@ -282,10 +282,18 @@ abstract contract DeskTest is AquaSwapVMTest {
         vm.etch(HyperCore.ORACLE_PX, code);
         vm.etch(HyperCore.L1_BLOCK_NUMBER, code);
         vm.etch(HyperCore.PERP_ASSET_INFO, code);
+        vm.etch(HyperCore.POSITION, code);
         vm.etch(HyperCore.BBO, code);
         HyperCoreMock(payable(HyperCore.PERP_ASSET_INFO)).setAssetInfo(BTC, "BTC", 56, BTC_SZ_DECIMALS, 40, false);
 
         vm.etch(CORE_WRITER, address(new CoreWriterMock()).code);
+    }
+
+    /// @notice Put a perp position on a desk, in lots — what a fill on HyperCore leaves behind.
+    /// @dev The desk reads its hedge rather than remembering it, so this is how a test says "the
+    ///      order landed". Not calling it is how a test says the exchange dropped the order.
+    function setPosition(address desk, int64 lots) internal {
+        HyperCoreMock(payable(HyperCore.POSITION)).setPosition(desk, BTC, lots);
     }
 
     /// @notice The etched writer, for building the payload a test expects to see emitted.

@@ -19,6 +19,7 @@ struct PerpAssetInfo {
 ///      node, which means a forge fork cannot reach them: tests etch HyperCoreMock at these
 ///      addresses instead, and the live behaviour is probed on testnet 998.
 library HyperCore {
+    address internal constant POSITION = 0x0000000000000000000000000000000000000800;
     address internal constant MARK_PX = 0x0000000000000000000000000000000000000806;
     address internal constant ORACLE_PX = 0x0000000000000000000000000000000000000807;
     address internal constant L1_BLOCK_NUMBER = 0x0000000000000000000000000000000000000809;
@@ -30,7 +31,10 @@ library HyperCore {
     ///
     ///      Measured on chain 998 at block 63 394 536, 2026-09-04, with src/Probe.sol: a good read
     ///      costs 3 235 (mark), 3 235 (oracle), 2 179 (L1 block), 4 291 (BBO) and 10 627
-    ///      (asset info) gas, and both a wrong-length input and an out-of-range perp index consume
+    ///      (asset info) gas. `0x0800` was measured separately on 999 on 2026-09-06 at **8 515**,
+    ///      the same whether the account holds a position or has never existed — the 4 291 and
+    ///      10 627 above reproduced exactly in that run, which is what makes the new number
+    ///      comparable. Both a wrong-length input and an out-of-range perp index consume
     ///      every gas unit forwarded and return nothing. The cap is set at ~2.8x the most
     ///      expensive read, so a node-side cost increase does not turn a good read into a revert,
     ///      and a bad input costs the caller 30 000 gas instead of 63/64 of the frame.
@@ -99,6 +103,32 @@ library HyperCore {
             revert PrecompileCallFailed(PERP_ASSET_INFO, perpIndex);
         }
         return uint8(value);
+    }
+
+    /// @notice The account's own perp position, in lots — signed, negative for a short.
+    /// @dev **The reason a desk does not need to remember what it hedged.** HyperCore holds the
+    ///      position; the desk reads it in the same call it prices from, the way `CoreQuote` reads
+    ///      the book instead of trusting a stored quote. An order HyperCore rejected leaves this
+    ///      unchanged, so the next cover sizes itself against the same gap and sends again.
+    ///
+    ///      160 bytes: `[0x00]` szi, `[0x20]` entryNtl, `[0x40]` isolatedRawUsd, `[0x60]` leverage,
+    ///      `[0x80]` isIsolated. Layout read off 999 on 2026-09-06, where a desk holding
+    ///      `-0.00014` BTC answered `szi -14` with `20` in the fourth word — the leverage landing
+    ///      where it does is what pins the other four.
+    ///
+    ///      `szi` is in units of `10 ** -szDecimals`, so it is the exchange's lot and not the base
+    ///      token's unit. The caller scales it; this returns what the node said.
+    ///
+    ///      The second argument encodes identically as `uint16` or `uint32` — both are one padded
+    ///      word — so the perp index is passed through unnarrowed.
+    function positionSzi(address user, uint32 perpIndex) internal view returns (int64) {
+        bytes memory ret = _call(POSITION, abi.encode(user, perpIndex), 0xa0, perpIndex);
+        int256 szi;
+        assembly ("memory-safe") {
+            szi := mload(add(ret, 0x20))
+        }
+        if (szi < type(int64).min || szi > type(int64).max) revert PrecompileCallFailed(POSITION, perpIndex);
+        return int64(szi);
     }
 
     /// @notice All four words, or EmptyBook if any is zero.

@@ -14,6 +14,7 @@ contract HyperCoreMock {
     address internal constant MARK_PX = 0x0000000000000000000000000000000000000806;
     address internal constant ORACLE_PX = 0x0000000000000000000000000000000000000807;
     address internal constant L1_BLOCK_NUMBER = 0x0000000000000000000000000000000000000809;
+    address internal constant POSITION = 0x0000000000000000000000000000000000000800;
     address internal constant PERP_ASSET_INFO = 0x000000000000000000000000000000000000080a;
     address internal constant BBO = 0x000000000000000000000000000000000000080e;
 
@@ -22,6 +23,9 @@ contract HyperCoreMock {
     mapping(uint32 perpIndex => uint64) public ask;  // 0x080e
     uint64 public l1Block;                           // 0x0809
     mapping(uint32 perpIndex => PerpAssetInfo) private _assetInfo;  // 0x080a
+    /// @dev 0x0800, keyed by account and perp. This is what makes a desk's hedge state readable
+    ///      rather than remembered, so a test drives it exactly the way a fill would.
+    mapping(address user => mapping(uint32 perpIndex => int64)) public szi;
 
     /// @dev Words 0x080e answers with. Two is the truth; anything else exercises the length check.
     ///      Held as an explicit override rather than an initialised field, because vm.etch copies
@@ -78,6 +82,11 @@ contract HyperCoreMock {
         malformAssetInfo = value;
     }
 
+    /// @notice Put a position on an account, in lots — what a fill on HyperCore would leave behind.
+    function setPosition(address user, uint32 perpIndex, int64 lots) external {
+        szi[user][perpIndex] = lots;
+    }
+
     /// @dev Decodes the uint32 the precompile expects and answers in the precompile's own layout,
     ///      picked by address(this).
     fallback(bytes calldata input) external returns (bytes memory) {
@@ -85,6 +94,13 @@ contract HyperCoreMock {
 
         address self = address(this);
         if (self == L1_BLOCK_NUMBER) return abi.encode(uint256(l1Block));
+
+        // 0x0800 is the one read keyed by an account, so it is the one that takes two words.
+        if (self == POSITION) {
+            if (input.length != 64) _burnEverything();
+            (address user, uint32 perp) = abi.decode(input, (address, uint32));
+            return abi.encode(szi[user][perp], uint64(0), int64(0), uint32(20), false);
+        }
 
         if (input.length != 32) _burnEverything();
         uint32 perpIndex = uint32(uint256(bytes32(input)));
