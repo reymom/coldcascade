@@ -109,6 +109,22 @@ Hyperliquid's BTC book as `CoreQuote` reads it, the desks quoting against it, a 
 puts a desk into a lean so the other half is on the screen on demand, and a Take button that swaps
 through the official router.
 
+**Taking a desk needs an email address and nothing else.** Type one, receive a six-digit code, and a
+Privy embedded wallet appears on the chain the page is reading — then mint the demo token, approve
+the router, swap. Three transactions, no extension, no seed phrase, no funding step. A wallet minted
+this way holds no HYPE and Privy's gas sponsorship does not cover chain 999, so `api/faucet.mjs`
+drips 0.002 HYPE once per Privy user — keyed on the identity in the access token rather than on the
+address, because an address is free to mint and a faucet keyed on one is empty within the hour. It
+signs with a Privy server wallet held under a policy that allows `eth_sendTransaction` on chain 999
+up to that amount and nothing else, so the worst case if every line of that file is wrong is one
+drip. The policy is `keeper/policy.json`, as Privy returns it, and `test/api/faucet.test.mjs`
+asserts what the endpoint refuses.
+
+The read path has no third party in it. `app/src/abi.js` is a hand-written codec so that nothing
+sits between a browser and the calldata going to 1inch's router, and Privy's SDK is vendored rather
+than pulled from a CDN and imported only when a visitor asks for a wallet — the book, the desks and
+the round trip above are this repository's own code against a node.
+
 It is live before the contracts are: where nothing is deployed, `CorePrecompiles`, `CoreQuote` and
 `FloorLens` are planted at throwaway addresses by an `eth_call` state override and the canonical
 parameters are priced against the real book. The bytecode is what `forge build` produced and the
@@ -132,8 +148,11 @@ points at the open one, and the console says which oracle each desk names.
 The quote, the program encoder, the desk account and the console are built and tested against
 1inch's own Aqua and the SwapVM router deployed on 999. The HyperCore reader has been run against a
 live node, and the round trip above is the live book answering today. **It is deployed.** Twelve contracts on chain 999 since 6 September, three desks shipped, and the
-canonical desk holds real UBTC and USD₮0. The subgraph and the CoreWriter cover leg come next; the
-markout numbers arrive when the replay runs on a real tape.
+canonical desk holds real UBTC and USD₮0. The taker path is live end to end from an email address.
+The subgraph and the CoreWriter cover leg come next; the markout numbers arrive when the replay runs
+on a real tape.
+
+**The first swap through the router on mainnet:** `[UNVERIFIED — 2026-09-06]`.
 
 | | |
 |---|---|
@@ -158,9 +177,12 @@ settled through `swap()` and emitted `Fill` with the four L1 words in it. Reprod
 yarn install --frozen-lockfile --ignore-scripts
 forge build
 forge test
+node test/api/faucet.test.mjs # the one server-side endpoint, and what it refuses
 ./script/probe999.sh          # the live book and the desk's two prices, no key, nothing deployed
 ./script/localnet.sh          # fork 999, deploy, ship, swap, against the real router
 ./script/mainnet.sh           # every read that can fail a mainnet deploy, before it costs anything
+./script/firstswap.sh         # send the four calls Swap.s.sol prints, against a deployed chain
+./script/appvendor.sh         # rebuild app/vendor/privy.js and app/privy.json
 python3 -m http.server 8000   # then http://localhost:8000/app/
 ```
 
@@ -169,6 +191,13 @@ python3 -m http.server 8000   # then http://localhost:8000/app/
   different arguments. `results/999_router_abi.md` has the selectors and how the difference
   surfaced. `@1inch/solidity-utils` is held at 6.9.10 through `resolutions`, because Aqua's 6.9.7
   is missing `TransientLockUnsafe.sol`.
+- **That dependency graph is fragile and nothing else may share it.** A single `yarn add` at the
+  root re-resolved it: it rewrote `@1inch/swap-vm`'s own dependency edges, installed a different
+  swap-vm tree from cache, and `forge build` stopped finding `ProgramBuilder.sol` — a broken
+  contract build caused by adding a JavaScript bundler. So the console's toolchain lives in
+  `script/vendor/` with its own `package.json` and lockfile and cannot reach this one. If the
+  contracts ever stop compiling right after an install, compare `node_modules/@1inch/swap-vm/test/utils/`
+  against the tag: yarn will happily serve a cached tree that does not match the lockfile's hash.
 - A SwapVM opcode is **a position in the router's own instruction table**, so `XYCSwap` is 17,
   `Salt` 20 and `Extruction` 32. `test_opcodes_matchTheRoutersOwnTable` derives all three from
   `AquaOpcodes._opcodes()` rather than trusting the constants.

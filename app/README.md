@@ -3,6 +3,30 @@
 The console. Two tabs, no framework and no build step: ES modules and one stylesheet, served as
 static files.
 
+## Signing in
+
+A visitor types an email address, receives a six-digit code, and has a wallet on the chain this page
+is reading. No extension, no seed phrase, no funding step — which is the taker path the console is
+meant to be judged on, because a maker program nobody can take is a paper.
+
+- **The wallet is a Privy embedded wallet.** `src/signer.js` reduces it and the browser's injected
+  wallet to the same five members, so Take and the map poke are written once and neither knows which
+  key it is holding.
+- **The chain is a constructor argument.** The Privy client is built with `supportedChains` of
+  length one, and that one is `chainFor(chainId, rpcUrl)` where `chainId` is the `eth_chainId` the
+  page connected to. An embedded wallet has no other chain it could be on, so "is the wallet on the
+  right chain" is not a question this path can get wrong — see the note at the top of `src/signer.js`
+  for the bug that shape is there to prevent.
+- **Gas.** A wallet minted from an email address holds no HYPE and Privy's gas sponsorship does not
+  cover chain 999, so `../api/faucet.mjs` drips 0.002 HYPE — once per *Privy user*, not per address,
+  because an address is free to mint. It signs with a Privy server wallet under a policy that allows
+  `eth_sendTransaction` on chain 999 up to that amount and nothing else; `../keeper/policy.json` is
+  that policy as Privy returns it. `node ../test/api/faucet.test.mjs` asserts what it refuses.
+- **The SDK is loaded lazily and vendored, never from a CDN.** `vendor/privy.js` is 836 kB of
+  somebody else's JavaScript and the Floor does not pay for it: the book, the desks and the round
+  trip are this repository's own code against a node. It is fetched when a visitor asks for a
+  wallet, and on a reload only when Privy's own refresh token is in `localStorage`.
+
 ## Floor — live
 
 The landing screen, and it is live before anything is deployed.
@@ -74,7 +98,9 @@ open http://localhost:8000/app/?rpc=http://127.0.0.1:8545
 | `selectors.json` · `bytecode.json` | written by `../script/appdata.sh` out of the compiled artifacts. **No selector and no bytecode is typed into JavaScript** — a signature that drifts from a contract fails that script instead of producing a call a router silently rejects |
 | `src/console.js` | the tab shell |
 | `src/abi.js` | the ABI codec, written rather than imported. The page sends calldata to a router; a CDN import would put a third party between the judge's browser and those bytes |
-| `src/rpc.js` | JSON-RPC, the state override, the injected wallet |
+| `src/rpc.js` | JSON-RPC and the state override. No chain constant lives here |
+| `src/signer.js` | the two wallets behind one interface, and the chain description both are built from |
+| `vendor/privy.js` · `privy.json` | written by `../script/appvendor.sh`: the bundled SDK and the public app id, which is read out of `.env` rather than typed. **The app secret is a Vercel environment variable and is in neither** |
 | `src/chain.js` | every call the Floor makes, with its type strings in one place |
 | `src/floor.js` | the Floor screen and the two buttons |
 | `src/bands.js` | the live two-books strip |
@@ -87,3 +113,15 @@ Regenerate the two JSON files after any change to `CoreQuote`, `FloorLens`, `Des
 ```
 forge build && ./script/appdata.sh
 ```
+
+and the vendored SDK plus `privy.json` after a change to `PRIVY_APP_ID` or to
+`script/vendor/package.json`:
+
+```
+./script/appvendor.sh
+```
+
+That toolchain lives in `../script/vendor/` with its own lockfile on purpose. A `yarn add` in the
+root package re-resolves the pinned 1inch GitHub dependencies — it rewrote `@1inch/swap-vm`'s own
+dependency edges, installed a different tree, and `forge build` stopped finding `ProgramBuilder.sol`.
+A JavaScript bundler cannot be allowed to break the contract build.
