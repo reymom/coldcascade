@@ -338,10 +338,18 @@ function wireTake(view) {
       // An embedded wallet minted from an email address holds no gas. Ask for the drip before the
       // first of the three transactions rather than after the first one fails: a judge who watches
       // "insufficient funds" scroll past has already decided what this is.
+      //
+      // Say so *first*. The faucet calls Privy and then waits for the drip's receipt, which is ten
+      // seconds of nothing on screen — long enough that the first person to use this reloaded the
+      // page in the middle of it. Every step below announces itself before it blocks, not after.
+      say(ui.takeOut, "checking this wallet for gas…");
       const funded = await signer.fund(rpc);
-      if (funded) say(ui.takeOut, `funded this wallet with gas — ${short(funded)}. quoting…`);
+      say(ui.takeOut, funded
+        ? `funded this wallet with gas — ${short(funded)}. reading the desk's order…`
+        : "reading the desk's order…");
 
       const order = await readOrder(rpc, state.sel, desk.account);
+      say(ui.takeOut, "pricing it against the live book…");
       const traits = takerTraits({ isExactIn: true, minOut: 0n });
       const quoted = await rpc.call({
         from: account,
@@ -357,9 +365,11 @@ function wireTake(view) {
       const edge = crossing === 0n ? 0 : Number((amountOut - crossing) * 10_000n / crossing);
       say(ui.takeOut,
         `quote: ${amount(amountOut, sellBase ? 6 : 8)} out for ${amount(amountInQ, decimalsIn)} in — ` +
-        `${edge >= 0 ? "+" : ""}${edge} bps against crossing L1. sending…`);
+        `${edge >= 0 ? "+" : ""}${edge} bps against crossing L1. three transactions from here; ` +
+        `each waits for its receipt, so give it a moment and do not reload.`);
 
       await ensureAllowance(view, signer, tokenIn, state.addresses.router, amountInQ, ui.takeOut);
+      say(ui.takeOut, "swapping through the official router — 3 of 3");
       const hash = await signer.send({
         from: account,
         to: state.addresses.router,
