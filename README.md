@@ -120,15 +120,23 @@ up to that amount and nothing else, so the worst case if every line of that file
 drip. The policy is `keeper/policy.json`, as Privy returns it, and `test/api/faucet.test.mjs`
 asserts what the endpoint refuses.
 
-**A Privy policy is only enforced once the wallet has an owner**, which is worth writing down
-because it is not in the documentation and it was measured rather than assumed: with `owner_id`
-null, a rule denying *every* method was attached to this wallet and a send still reached the node —
-the app secret alone was full authority over it. So the wallet has a P-256 owner and every write
-carries a `privy-authorization-signature` from that key. The two secrets are independent: the app
-secret authenticates the app, the owner key authorizes the request, and neither moves the faucet
-alone. `node script/faucet-check.mjs` re-runs the four denials — wrong chain, over the cap,
-unsigned, and a method the policy never allows — against the live wallet, and reports which of them
-the policy let through.
+**Two things have to be true before such a policy means anything, and neither is documented.** Both
+were measured on the live wallet rather than assumed, and each one silently turns the policy into
+decoration:
+
+1. **A policy is not enforced until the wallet has an owner.** With `owner_id` null, a rule denying
+   *every* method was attached to this wallet and a send still reached the node.
+2. **A partial transaction bypasses every condition.** Privy evaluates a policy against the request
+   as sent, before it populates anything, so a condition naming a field the request omits resolves
+   to nothing and passes. `{to, value}` — the shape Privy's own quickstart shows — leaves `chain_id`
+   unresolvable and the chain restriction is a no-op. A rule denying the exact destination address
+   did not stop a send until the transaction carried all of its fields, which is why `api/faucet.mjs`
+   builds nonce, gas, fees and chain id itself instead of letting Privy fill them in.
+
+With both in place the two secrets are independent: the app secret authenticates the app, the owner
+key authorizes the request, and an unsigned send is refused with a 401. `node script/faucet-check.mjs`
+re-runs all five cases — the drip, another chain, over the cap, another method, and unsigned —
+against the live wallet and reports which the policy let through.
 
 The read path has no third party in it. `app/src/abi.js` is a hand-written codec so that nothing
 sits between a browser and the calldata going to 1inch's router, and Privy's SDK is vendored rather

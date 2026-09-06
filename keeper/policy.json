@@ -4,7 +4,7 @@
     "chain_type": "ethereum",
     "rules": [
         {
-            "id": "f3vzswqhofife557j5l6vugo",
+            "id": "af61sdgnk1seo28h5hkwpgmt",
             "name": "drip at most 0.002 HYPE on chain 999",
             "method": "eth_sendTransaction",
             "conditions": [
@@ -18,7 +18,7 @@
                     "field_source": "ethereum_transaction",
                     "field": "value",
                     "operator": "lte",
-                    "value": "2000000000000000"
+                    "value": "0x71afd498d0000"
                 }
             ],
             "action": "ALLOW"

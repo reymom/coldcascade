@@ -37,6 +37,7 @@ function mint(claims) {
 
 const USER = "did:privy:testuser";
 const ADDR = "0x1111111111111111111111111111111111111111";
+const FAUCET = "0x3333333333333333333333333333333333333333";
 let state, calls;
 const reset = (over = {}) => {
   calls = [];
@@ -54,12 +55,18 @@ globalThis.fetch = async (url, init = {}) => {
   if (url.includes(`/users/${USER}`)) {
     return ok({ id: USER, linked_accounts: state.linked, custom_metadata: state.metadata });
   }
+  if (/\/wallets\/[^/]+$/.test(url)) return ok({ id: "test-wallet", address: FAUCET });
   if (url.includes("/rpc") && url.includes("wallets")) {
     state.sent = { url, headers: init.headers, body: JSON.parse(init.body) };
     if (state.sendFails) return { ok: false, json: async () => ({ error: "policy denied" }) };
     return ok({ data: { hash: "0xdeadbeef" } });
   }
-  if (url.startsWith("https://rpc.hyperliquid")) return ok({ result: state.balance });
+  if (url.startsWith("https://rpc.hyperliquid")) {
+    const { method } = JSON.parse(init.body);
+    if (method === "eth_getTransactionCount") return ok({ result: "0x7" });
+    if (method === "eth_gasPrice") return ok({ result: "0x5f5e100" });   // 0.1 gwei
+    return ok({ result: state.balance });
+  }
   throw new Error(`unstubbed ${url}`);
 };
 
@@ -96,8 +103,20 @@ reset();
 const good = await run(post(mint({ sub: USER })));
 check("a signed-in user is funded", good, { status: 200, body: { hash: "0xdeadbeef", value: "2000000000000000" } });
 check("and the drip is marked on the user", Boolean(state.metadata.gasFundedAt), true);
-check("the drip is 0.002 HYPE to the caller", state.sent.body.params.transaction,
-  { to: ADDR, value: "0x71afd498d0000" });
+// Populated in full, and that is a security property rather than a detail: Privy evaluates the
+// policy against the request as sent, so a transaction missing `chain_id` is a transaction whose
+// chain_id condition passes vacuously. A partial one here means an unenforced policy in production.
+check("the drip is 0.002 HYPE to the caller, as a complete transaction",
+  state.sent.body.params.transaction, {
+    to: ADDR,
+    value: "0x71afd498d0000",
+    chain_id: 999,
+    nonce: 7,
+    gas_limit: "0x5208",
+    max_fee_per_gas: "0xbebc200",
+    max_priority_fee_per_gas: "0x0",
+    type: 2,
+  });
 check("on the chain the policy pins", state.sent.body.caip2, "eip155:999");
 
 // The signature the policy engine checks, verified here the way Privy verifies it: RFC 8785 over

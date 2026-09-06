@@ -15,13 +15,20 @@
 // up to the drip — so the worst case if everything in this file is wrong is one drip per request,
 // on one chain, to somewhere. `keeper/policy.json` in this repo is that policy.
 //
-// **A policy is only enforced once the wallet has an owner**, and that is worth stating plainly
-// because it was measured rather than assumed: with `owner_id: null` a rule denying *everything*
-// was attached to this wallet and a send still reached the node. The app secret alone was full
-// authority. So the wallet has a P-256 owner (`script/faucet-owner.sh`), every write below carries
-// a `privy-authorization-signature` from that key, and the two secrets are independent — a leak of
-// the Vercel environment does not move the faucet without the key, and the policy caps what the key
-// itself can do. `script/faucet-check.mjs` re-runs the denials that prove it.
+// **Two things had to be true before that policy meant anything, and neither is documented.**
+// Both were measured on the live wallet by `script/faucet-check.mjs`, which still runs them.
+//
+//  1. *A policy is not enforced until the wallet has an owner.* With `owner_id: null`, a rule
+//     denying every method was attached to this wallet and a send still reached the node. Setting a
+//     P-256 owner (`script/faucet-owner.sh`) is what switches enforcement on.
+//  2. *A partial transaction bypasses every condition.* Privy evaluates the policy against the
+//     request as sent, before it populates anything, so a condition on an absent field resolves to
+//     nothing and passes. See `transaction()` below.
+//
+// With both in place the two secrets are independent: the app secret authenticates the app, the
+// owner key authorizes the request, and an unsigned send is refused with a 401. A leak of the
+// Vercel environment alone does not move the faucet, and the policy caps what the key itself can
+// do — one method, one chain, one ceiling.
 //
 // Both secrets are Vercel environment variables. Neither is in this repository or in the browser
 // bundle, and `.vercelignore` keeps `.env` off the host.
@@ -106,7 +113,7 @@ export default async function handler(req, res) {
     const payload = {
       method: "eth_sendTransaction",
       caip2: `eip155:${CHAIN_ID}`,
-      params: { transaction: { to: address, value: "0x" + DRIP_WEI.toString(16) } },
+      params: { transaction: await transaction(address, walletId, auth) },
     };
     const sent = await json(url, {
       method: "POST",
@@ -118,6 +125,41 @@ export default async function handler(req, res) {
     await claim("").catch(() => {});
     return fail(res, 502, `the faucet could not send: ${err.message}`);
   }
+}
+
+// ---- the transaction, populated here rather than by Privy ----
+
+/**
+ * Build the drip as a complete transaction: nonce, gas, fees and chain id included.
+ *
+ * **This is what makes the policy bind, and it is not optional.** Privy evaluates a policy against
+ * the request as sent, before it fills in anything — so a condition on a field the request omits
+ * resolves to nothing and passes. Sending `{to, value}` and letting Privy populate the rest, which
+ * is the shape its own quickstart shows, means `chain_id` and every other unspecified field are
+ * unresolvable and the policy is a no-op: a rule denying this exact `to` address did not stop a
+ * send until the transaction below carried all of its fields. Measured both ways.
+ *
+ * What this costs: the nonce is ours to get right. It is read as `pending` so queued sends count,
+ * and two drips racing can still collide — in which case the send fails, the mark is released, and
+ * the visitor can press the button again. That is the right way round for a faucet: a collision
+ * costs a retry, and the alternative costs the policy.
+ */
+async function transaction(to, walletId, auth) {
+  const from = (await json(`${API}/wallets/${walletId}`, { headers: auth })).address;
+  const [nonce, gasPrice] = await Promise.all([
+    rpc("eth_getTransactionCount", [from, "pending"]),
+    rpc("eth_gasPrice", []),
+  ]);
+  return {
+    to,
+    value: "0x" + DRIP_WEI.toString(16),
+    chain_id: CHAIN_ID,
+    nonce: Number(BigInt(nonce)),
+    gas_limit: "0x5208",                                  // 21 000: a plain value transfer
+    max_fee_per_gas: "0x" + (BigInt(gasPrice) * 2n).toString(16),
+    max_priority_fee_per_gas: "0x0",
+    type: 2,
+  };
 }
 
 // ---- the owner's signature over the request ----
