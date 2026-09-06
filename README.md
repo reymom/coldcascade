@@ -339,22 +339,46 @@ python3 -m http.server 8000   # then http://localhost:8000/app/
   255 bytes** and `Extruction` spends 20 of them on its target. `abi.encode(DeskParams)` is 416 and
   does not build; the packed encoding in `src/libs/DeskParams.sol` is 138 and is exact — `decode`
   rejects any other length rather than reading a short buffer as a desk with a zero inventory band.
-- The replay that draws the two lines is `forge test --match-contract Oct10Replay -vv`; it writes
-  `results/oct10_replay.csv`, whose columns are documented in `results/oct10_replay.schema.md`.
-  The committed CSV is a **stub run** off `tape/oct10_btc_1m.stub.json`: 123 minutes whose spot is
-  real Coinbase 1m data from the 2025-10-10 cascade, whose book and forced flow are a synthetic
-  overlay, and whose quote columns are the contract itself answering. Its inventory and PnL
-  columns are placeholders. The file next to it, `oct10_replay.source`, says which tape produced
-  it. The tape runs 60 minutes past its own last fill so every markout horizon exists.
-- Three claims, three tests, and they are different questions.
+- The replay is `forge test --match-contract Oct10Replay -vv`; it writes
+  `results/oct10_replay.csv`, whose 45 columns are documented in
+  `results/oct10_replay.schema.md`. Four lines: the desk, a plain `XYCSwap` control, the same curve
+  charging 30 bps through 1inch's own `FlatFeeIn`, and Hyperliquid's own touch, which is not a
+  maker. Every maker is shipped into Aqua and every fill settles through the official router.
+- **Both takers are blind, and that is the load-bearing part.** A forced seller walks a pot that is
+  a function of the tape alone — the same notional in the quiet as in a cascade — into whichever
+  maker quotes best, one clip at a time. An arbitrageur looks, against every maker identically, for
+  the round trip that closes profitably at L1's own touch. Neither learns anything about a maker
+  beyond the number that came back from `quote`: no regime word, no parameters, no address.
+  `test_takers_areBlind` ships the same program into all three slots and requires the three lines
+  to come out equal **to the dollar**. They do — $18,968 absorbed and $774,522 of arbitrage each.
+  Without that test the rest of the file is a number the harness handed out rather than one a maker
+  won, which is exactly what an earlier version of this replay did.
+- **The book in the committed run is modelled, and the spot is not.** The CSV is a stub run off
+  `tape/oct10_btc_1m.stub.json`: 123 minutes whose `spot` and `takerNtl` are real Coinbase 1m data
+  from the 2025-10-10 cascade, and whose `mark`, `bid`, `ask` and forced columns are derived from
+  the shape of that price path by `forced_overlay` in `keeper/coldcascade/tape.py`. The quote,
+  inventory and fill columns are the contracts themselves answering under it. `oct10_replay.source`
+  names the tape and its hash.
+- So `SPREAD_GAIN` in that overlay sets how wide a book opens after it has been run over, and the
+  desk's price improvement in a lean is bounded by exactly that width. **`test_report_theSpreadIsTheDial`
+  measures what it is worth** rather than leaving it as a caveat: at half the tape's spread the desk
+  keeps $1,372 and takes 67.8% of the flow, at the tape's own spread $1,334 and 65.9%, at double
+  $1,257 and 65.2%. A fourfold range in the one modelled quantity moves the headline by 9%, and
+  moves it *against* the desk as the book widens — it pays L1's ask, which a wide book makes worse.
+  The desk's arb notional is zero at every width.
+- Four claims, four tests, and they are different questions.
   `testFuzz_noRoundTripEverProfits` asks whether the quote can ever be arbitraged against the book
   it read, which is the claim that has to hold in every block.
   `test_deathMetric_amountOutMovesWithBook` asks whether a swap responds to the regime at all — a
   program can be perfectly inarbitrable and still be a constant product that ignores L1.
-  `test_gate_absorbedEdgeBeatsControl` asks whether the session's absorbed notional actually
-  reverted in the desk's favour by a multiple of the control's; a desk can pass the first two and
-  still draw two flat lines. When that last one fails, the taker model is the suspect before the
-  quote is.
+  `test_gate_deskIsNeverArbitraged` asks the first question again at session scale, against an
+  arbitrageur that chooses its own size: 123 minutes, both directions, 640 bps of drawdown, nothing
+  found. It also fails if the two AMMs are never arbitraged, because then the zero means nothing.
+  `test_gate_deskKeepsMoreThanTheControls` asks whether any of it was worth doing: what the desk
+  kept, net of what the arbitrageur took, against the **better** of the two controls, in basis
+  points of the capital deployed. It is a signed margin and not a multiple, because a multiple has
+  no denominator once the control loses money on what it absorbed — which is what a maker priced
+  before the trade does in a cascade, and what both AMM lines do here.
 
 ## Prior art
 

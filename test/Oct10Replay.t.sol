@@ -410,6 +410,73 @@ contract Oct10ReplayTest is BlindTakers {
         return edgeOf(rows, line) - int256(lvrOf(rows, line));
     }
 
+    /// @notice What the headline number is actually resting on, measured rather than asserted.
+    ///
+    ///         The desk's advantage in a lean is the distance from L1's bid to L1's ask. Leaning
+    ///         means the bound stops being a ceiling on the curve and becomes a floor, and the only
+    ///         thing above that floor is L1's own touch — so the price improvement the desk offers a
+    ///         forced seller *is* the spread, and the size it wins is won by offering it.
+    ///
+    ///         On this tape the spread is not a measurement. `forced_overlay` in
+    ///         `keeper/coldcascade/tape.py` keeps Coinbase spot and `takerNtl` real and derives
+    ///         `mark`, `bid` and `ask` from the shape of the price path, with `SPREAD_GAIN` setting
+    ///         how far a book opens when it has just been run over. That constant is therefore a
+    ///         dial on the headline, and the honest thing is to say by how much rather than to
+    ///         mention it in a footnote.
+    ///
+    /// @dev Reported, never asserted: it is a property of the overlay, not of the desk. When a real
+    ///      tape lands the spread comes off the wire and this test becomes a description of how
+    ///      much the stub was flattering or punishing the desk.
+    function test_report_theSpreadIsTheDial() public {
+        Tick[] memory tape = loadTapeOnly();
+
+        for (uint256 k = 0; k < 3; ++k) {
+            uint256 scaleBps = k == 0 ? 5_000 : k == 1 ? 10_000 : 20_000;
+            setUp();
+            Row[] memory rows = run(scaleSpread(tape, scaleBps));
+
+            emit log_named_uint("spread scaled to (bps of the tape's own)", scaleBps);
+            emit log_named_int("  kept, desk (USD)", keptBy(rows, DESK));
+            emit log_named_uint("  absorbed, desk (USD)", absorbedOf(rows, DESK));
+            emit log_named_uint(
+                "  absorbed, both AMMs (USD)", absorbedOf(rows, CONTROL) + absorbedOf(rows, HARD)
+            );
+            emit log_named_uint("  arb notional, desk (USD)", arbOf(rows, DESK));
+
+            // The one thing that is a property of the quote and not of the overlay: however wide or
+            // narrow the book is drawn, the desk is still not arbitrageable.
+            assertEq(arbOf(rows, DESK), 0, "a scaled book made the desk arbitrageable");
+        }
+    }
+
+    /// @dev The book reopened around the same mark at a scaled width. Everything else — spot,
+    ///      oracle, the forced columns — is left alone, so only the one quantity under test moves.
+    ///
+    ///      Field by field, and not `out[i] = tape[i]`. Assigning one memory struct to another
+    ///      copies the reference, so the short version writes the scaled book straight back into the
+    ///      caller's tape and every later scale compounds on the last one — three runs that look
+    ///      like a sensitivity sweep and are actually 0.5x, 0.5x and 1x of each other.
+    function scaleSpread(Tick[] memory tape, uint256 scaleBps) internal pure returns (Tick[] memory out) {
+        out = new Tick[](tape.length);
+        for (uint256 i = 0; i < tape.length; ++i) {
+            Tick memory t = tape[i];
+            uint256 width = uint256(t.ask - t.bid) * scaleBps / BPS_DEN;
+            if (width < 2) width = 2;
+
+            out[i] = Tick({
+                ask: uint64(uint256(t.mark) + width - width / 2),
+                bid: uint64(uint256(t.mark) - width / 2),
+                forcedBuyNtl: t.forcedBuyNtl,
+                forcedSellNtl: t.forcedSellNtl,
+                mark: t.mark,
+                oracle: t.oracle,
+                spot: t.spot,
+                t: t.t,
+                takerNtl: t.takerNtl
+            });
+        }
+    }
+
     /// @notice The absorbed edge, reported as a pair and never as a quotient.
     ///
     /// @dev It is the quantity the markout rate is a rate *of* — leaning inside the spread means

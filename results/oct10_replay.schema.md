@@ -84,11 +84,12 @@ The number the whole comparison rests on is not in the file, because it does not
 absorbed edge = Σ  markoutDesk60mBps / 10 000 × absorbedDeskNtl
 ```
 
-and the same against each of the other lines. A markout in basis points is a *rate*, and the desk is supposed
-to lose on that rate — leaning inside the spread means paying up, on every fill, by construction.
-What it buys is size at a price that reverts, so the quantity that carries the argument is the
-rate applied to the notional actually absorbed. Both terms are already columns, so the page and
-`test_gate_absorbedEdgeBeatsControl` each compute it and the schema did not have to move.
+and the same against each of the other lines. A markout in basis points is a *rate*, and the desk is
+supposed to lose on that rate — leaning inside the spread means paying up, on every fill, by
+construction. What it buys is size at a price that reverts, so the quantity that carries the
+argument is the rate applied to the notional actually absorbed. Both terms are already columns, so
+the page and `test_absorbedEdge_isReportedAsAPair` each compute it and the schema did not have to
+move.
 
 `oct10_replay.source` records, for whatever run produced the file, each line's absorbed notional,
 its absorbed edge, the LVR it paid and the notional the arbitrageur traded against it.
@@ -101,7 +102,7 @@ multiple. See `test_gate_deskKeepsMoreThanTheControls`.
 ## Provenance
 
 `oct10_replay.source`, written by the same test, names the tape the CSV came from, its
-`keccak256`, its length, and whether the takers were the real ones.
+`keccak256`, its length, and each line's session totals.
 
 **The committed CSV is a stub run**, off `tape/oct10_btc_1m.stub.json`. Three layers, and they
 are not equally real:
@@ -111,10 +112,14 @@ are not equally real:
 | `spot`, `oracle`, `takerNtl` | **real.** Coinbase BTC-USD 1m closes and volume, 2025-10-10 21:03 → 23:05 UTC, pulled 2026-09-05. The trough on the tape is $107 600 at 21:21; Coinbase's low for the day was $107 000 at 21:26 |
 | `mark`, `bid`, `ask`, `forcedSellNtl`, `forcedBuyNtl` | **synthetic.** `forced_overlay` overshoots mark off oracle in the direction of recent momentum and widens the book with recent movement in excess of the session's baseline — both decaying, because a dislocated perp stays dislocated and a book that has been run over comes back slowly. A minute counts as forced when it moves more than eight times the session's own median. The fill log that would replace all of this is on S3 and requester-pays |
 | `deskBid`, `deskAsk`, `lean`, `dislocationBps` | **the contract.** `CoreQuote.bounds()` and `.regime()` answering under the row's book — not a model of the quote, the quote |
-| everything else | **placeholder.** Both takers are stubs, so every inventory, PnL, absorbed, arbitrage and markout figure is synthetic and none may be quoted |
+| everything else | **settled.** Every maker is shipped into Aqua and every fill goes through the official router, so the inventory, absorbed, arbitrage and markout columns are what the contracts actually did to each other under the book above — real arithmetic over a modelled book, which is a different thing from a modelled result |
 
-`PLACEHOLDER_TAKERS` in the test fails the suite the moment the real tape lands with the
-placeholder still in place. Regenerate the tape with:
+The one modelled quantity the headline depends on is the width of that book: the desk's price
+improvement in a lean is bounded by the distance from L1's bid to L1's ask, and `SPREAD_GAIN` in
+the overlay sets it. `test_report_theSpreadIsTheDial` re-runs the whole session at half and double
+the tape's own spread and reports what moves — 9% of the desk's kept dollars across a fourfold
+range, *against* the desk as the book widens, and an arb notional of zero at every width. Regenerate
+the tape with:
 
 ```
 python -m coldcascade tape --stub
