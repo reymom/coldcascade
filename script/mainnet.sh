@@ -118,22 +118,39 @@ echo
 # The cost of not having it is a half-deployed mainnet at addresses that then have to be abandoned.
 DEPLOY="forge script script/Deploy.s.sol --rpc-url hyperevm --account $ACCOUNT --sender $DEPLOYER --broadcast --slow --gas-estimate-multiplier 102"
 SHIP="forge script script/Ship.s.sol --rpc-url hyperevm --account $ACCOUNT --sender $DEPLOYER --broadcast --slow"
-# --skip-simulation because forge simulates locally against a fork first, and a fork cannot reach
-# the HyperCore precompiles — they carry no bytecode, so revm executes nothing and CoreQuote reverts
-# with PrecompileCallFailed before a transaction is ever sent. Deploy and Ship do not read the book,
-# which is why only this one needs it. The node itself answers fine: the deployed CorePrecompiles
-# returns the live BBO to a plain eth_call.
-SWAP="DESK=\$(jq -r .demoDesk deployments/999.json) SELL_BASE=false AMOUNT=1000000000 forge script script/Swap.s.sol --rpc-url hyperevm --account $ACCOUNT --sender $DEPLOYER --broadcast --slow --skip-simulation"
+# The swap is not a `forge script --broadcast`, and `--skip-simulation` does not rescue one.
+# forge collects the transactions to broadcast by running run() in its own EVM; that EVM is a fork,
+# a fork has no HyperCore precompiles to call, and CoreQuote reverts with PrecompileCallFailed
+# before a transaction exists to be simulated or skipped. Deploy and Ship never read the book,
+# which is why only this one is affected. So Swap.s.sol prints the calls and `cast` sends them —
+# the node answers the precompiles fine. Each `cast send` asks for the keystore password.
+swap_commands() {
+  DESK="$(jq -r '.demoDesk // empty' deployments/999.json 2>/dev/null)" \
+  SELL_BASE=false AMOUNT="${SWAP_AMOUNT:-1000000000}" TAKER="$DEPLOYER" \
+  CAST_RPC="$RPC" CAST_AUTH="--account $ACCOUNT" \
+  forge script script/Swap.s.sol --rpc-url hyperevm 2>/dev/null | sed -n 's/^  \(cast [a-z]* .*\)$/\1/p'
+}
 
 if [ "$GO" = false ]; then
-  echo "preflight clean. --go runs these three, in this order:"
-  echo; echo "  $DEPLOY"; echo; echo "  $SHIP"; echo; echo "  $SWAP"; echo
+  echo "preflight clean. --go runs these, in this order:"
+  echo; echo "  $DEPLOY"; echo; echo "  $SHIP"; echo
+  echo "  then the swap, which Swap.s.sol prints once the desks exist:"
+  echo "    DESK=\$(jq -r .demoDesk deployments/999.json) SELL_BASE=false TAKER=$DEPLOYER \\"
+  echo "      forge script script/Swap.s.sol --rpc-url hyperevm"
+  echo
   exit 0
 fi
 
 echo "== deploy =="; eval "$DEPLOY"
 echo "== ship =="  ; eval "$SHIP"
-echo "== swap ==" ; eval "$SWAP"
+
+echo "== swap =="
+mapfile -t CMDS < <(swap_commands)
+[ "${#CMDS[@]}" -ge 3 ] || { echo "Swap.s.sol printed no commands — run it on its own to see why"; exit 1; }
+for c in "${CMDS[@]}"; do
+  echo "  \$ $(echo "$c" | cut -c1-88)…"
+  eval "$c" | grep -E "^(transactionHash|status)|^0x" | tr -s ' ' | sed 's/^/    /'
+done
 echo
 echo "deployments/999.json:"; jq . deployments/999.json
 echo "the console reads it on its next tick: ./script/appdata.sh && open app/index.html"

@@ -63,13 +63,34 @@ echo; echo "== deploy =="; run script/Deploy.s.sol --gas-estimate-multiplier 102
 echo; echo "== ship =="; run script/Ship.s.sol | grep -E "canonical|demo |control " || true
 
 DESK=$(jq -r .demoDesk deployments/31337.json)
+AMOUNT="${AMOUNT:-1000000000}"
 echo; echo "== swap: buy demo base from $DESK =="
-DESK="$DESK" SELL_BASE=false AMOUNT="${AMOUNT:-1000000000}" run script/Swap.s.sol \
-  | grep -E "desk bid|lean|quote in|filled in|^  0x" || true
+
+# Swap.s.sol prints commands instead of sending them, because forge's own EVM cannot reach the
+# HyperCore precompiles even on a fork of 999 — quote() and swap() would revert with
+# PrecompileCallFailed before a transaction existed. Running exactly the lines it prints is also
+# what keeps them honest: the command in the README is the command this run executed.
+swap() {
+  DESK="$DESK" SELL_BASE=false AMOUNT="$AMOUNT" TAKER="$DEPLOYER" \
+  CAST_RPC="$LOCAL" CAST_AUTH="--unlocked --from $DEPLOYER" \
+  forge script script/Swap.s.sol --rpc-url "$LOCAL" 2>/dev/null | sed -n 's/^  \(cast [a-z]* .*\)$/\1/p'
+}
+mapfile -t CMDS < <(swap)
+[ "${#CMDS[@]}" -ge 3 ] || { echo "Swap.s.sol printed no commands — run it without the filter to see why"; exit 1; }
+
+for c in "${CMDS[@]}"; do
+  echo "  \$ $(echo "$c" | cut -c1-88)…"
+  out=$(eval "$c")
+  case "$c" in
+    "cast call"*) echo "    quote in/out $(cast abi-decode 'quote()(uint256,uint256,bytes32)' "$out" | head -2 | tr '\n' ' ')" ;;
+    *)            echo "    $(echo "$out" | grep -E '^(transactionHash|status)' | tr -s ' ' | tr '\n' ' ')" ;;
+  esac
+done
 
 echo
 echo "deployments/31337.json:"; jq . deployments/31337.json
 echo
 echo "move the book and quote again — this is the death metric, by hand:"
 echo "  cast send $BBO 'setBbo(uint32,uint64,uint64)' $PERP 810000 810010 --rpc-url $LOCAL --unlocked --from $DEPLOYER"
-echo "  DESK=$DESK SELL_BASE=false AMOUNT=1000000000 forge script script/Swap.s.sol --rpc-url $LOCAL --unlocked --sender $DEPLOYER --broadcast"
+echo "  DESK=$DESK SELL_BASE=false AMOUNT=$AMOUNT TAKER=$DEPLOYER CAST_RPC=$LOCAL \\"
+echo "    forge script script/Swap.s.sol --rpc-url $LOCAL     # then paste its step 1"

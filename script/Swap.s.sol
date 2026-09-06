@@ -1,78 +1,144 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
 import { console } from "forge-std/console.sol";
 
 import { ISwapVM } from "@1inch/swap-vm/src/interfaces/ISwapVM.sol";
 import { TakerTraitsLib } from "@1inch/swap-vm/src/libs/TakerTraits.sol";
 
 import { Addresses } from "./base/Addresses.sol";
-import { CoreQuote } from "../src/CoreQuote.sol";
-import { DemoToken } from "../src/DemoToken.sol";
-import { DeskAccount } from "../src/DeskAccount.sol";
 import { DeskParams } from "../src/libs/DeskParams.sol";
-import { Side } from "../src/libs/Regime.sol";
 
-/// @notice One swap through the official SwapVM router, against a desk that is already shipped.
-///         The explorer link in the README, and the same three calls the console's Take button
-///         makes.
+/// @notice The four calls that take a desk through the official SwapVM router — printed, not sent.
 ///
-///         DESK=0x… SELL_BASE=false AMOUNT=25000000 \
-///           forge script script/Swap.s.sol --rpc-url hyperevm --account $DEPLOYER_ACCOUNT \
-///           --sender $DEPLOYER --broadcast
+///         DESK=0x… SELL_BASE=false AMOUNT=1000000000 TAKER=0x… \
+///           forge script script/Swap.s.sol --rpc-url hyperevm
 ///
-/// @dev The order is read back from the account with `order()` rather than rebuilt here. Aqua keys
-///      a strategy by the hash of the exact bytes that were shipped, so an order assembled a second
+/// @dev **Why this prints instead of broadcasting.** `forge script` runs the body of `run()` in its
+///      own EVM and only then sends whatever transactions the body collected — including the ones
+///      inside `vm.startBroadcast()`. That EVM is a fork, and the HyperCore precompiles hold no
+///      bytecode to fork: a call to `0x080e` lands on an empty account, returns nothing, and
+///      `HyperCore._call`'s length check reverts with `PrecompileCallFailed` before a single
+///      transaction exists. So `bounds()`, `quote()` and `swap()` are all unreachable from here,
+///      and `--skip-simulation` does not help — it skips the simulation of transactions already
+///      collected, not the execution that collects them.
+///
+///      The node does serve the precompiles. So this script does the part a fork can do — read the
+///      account's own state and encode calldata — and hands the part that needs the book to `cast`,
+///      which talks to the node. Everything below is a view; there is nothing here to broadcast.
+///
+///      The order is read back from the account with `order()` rather than rebuilt. Aqua keys a
+///      strategy by the hash of the exact bytes that were shipped, so an order assembled a second
 ///      time from the same parameters is one wrong byte away from being a different, unreachable
 ///      strategy. There is one encoder, and the account owns the result of it.
 ///
 ///      `useTransferFromAndAquaPush` means the *taker* approves the router, which then pushes into
 ///      Aqua on the maker's behalf. That is the flag a page wants: a taker with an ordinary ERC-20
-///      approval and no Aqua balance of its own.
+///      approval and no Aqua balance of its own. It also means the `taker` inside the taker traits
+///      is the address the router pulls from, which is why a wrong one is worth stopping for.
 contract SwapScript is Addresses {
-    using SafeERC20 for IERC20;
+    /// @dev `forge script`'s own default sender. Reaching a swap with this in the taker traits
+    ///      means the router would try to pull tokens from an address nobody controls.
+    address internal constant FORGE_DEFAULT_SENDER = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
 
-    function run() external {
-        DeskAccount desk = DeskAccount(vm.envAddress("DESK"));
-        DeskParams memory p = desk.params();
-        CoreQuote coreQuote = CoreQuote(readAddress("coreQuote"));
+    function run() external view {
+        address deskAddress = vm.envAddress("DESK");
+        address taker = vm.envOr("TAKER", msg.sender);
+        require(
+            taker != FORGE_DEFAULT_SENDER,
+            "set TAKER=0x... (or --sender): it goes into the taker traits and the router pulls from it"
+        );
 
-        // The desk's bid side is the taker selling base. Sell base to be bought, or buy it.
+        DeskParams memory p = _params(deskAddress);
         bool sellBase = vm.envOr("SELL_BASE", false);
-        address tokenIn = sellBase ? p.base : p.quote;
+        (address tokenIn, address tokenOut) = sellBase ? (p.base, p.quote) : (p.quote, p.base);
+        // Exact-in, so the taker's leg *is* `amount`: the mint and the approve need no quote first,
+        // and the only thing the quote would tell us is the price, which is step 1 below.
         uint256 amount = vm.envOr("AMOUNT", uint256(1e6));
 
-        (uint256 bidPx, uint256 askPx, Side lean) = coreQuote.bounds(p);
-        console.log("desk bid/ask (raw L1 units)", bidPx, askPx);
-        console.log("lean", uint256(uint8(lean)));
+        bytes memory takerData = _takerData(taker);
+        ISwapVM.Order memory order = _order(deskAddress);
 
-        ISwapVM.Order memory order = desk.order();
-        bytes memory takerData = _takerData(msg.sender);
+        console.log("desk    ", deskAddress);
+        console.log("taker   ", taker);
+        console.log("in      ", amount, _symbol(tokenIn), tokenIn);
+        console.log("out     ", _symbol(tokenOut), tokenOut);
+        console.log("");
+        console.log("The book is not readable from a forge fork, so nothing here is executed.");
+        console.log("Run these against the node, in order:");
+        console.log("");
 
-        address tokenOut = sellBase ? p.quote : p.base;
-        (uint256 quotedIn, uint256 quotedOut,) =
-            ISwapVM(router()).quote(order, tokenIn, tokenOut, amount, takerData);
-        console.log("quote in/out", quotedIn, quotedOut);
+        string memory rpc = vm.envOr("CAST_RPC", string("$HYPEREVM_RPC_URL"));
+        string memory auth = vm.envOr("CAST_AUTH", string("--account $DEPLOYER_ACCOUNT"));
 
-        vm.startBroadcast();
-        if (tokenIn == readAddress("demoBase") || tokenIn == readAddress("demoQuote")) {
-            DemoToken(tokenIn).mint(msg.sender, quotedIn);
+        console.log("# 1. what the desk pays, priced off the live book");
+        console.log(
+            string.concat(
+                "cast call ",
+                vm.toString(router()),
+                " ",
+                vm.toString(abi.encodeCall(ISwapVM.quote, (order, tokenIn, tokenOut, amount, takerData))),
+                " --rpc-url ",
+                rpc
+            )
+        );
+        console.log("#    decode with: cast abi-decode 'quote()(uint256,uint256,bytes32)' <output>");
+        console.log("");
+
+        if (_isDemoToken(tokenIn)) {
+            console.log("# 2. mint the mock leg (public on DemoToken, and only on the demo pair)");
+            console.log(
+                string.concat(
+                    "cast send ",
+                    vm.toString(tokenIn),
+                    " 'mint(address,uint256)' ",
+                    vm.toString(taker),
+                    " ",
+                    vm.toString(amount),
+                    " --rpc-url ",
+                    rpc,
+                    " ",
+                    auth
+                )
+            );
+            console.log("");
         }
-        IERC20(tokenIn).forceApprove(router(), quotedIn);
-        (uint256 amountIn, uint256 amountOut, bytes32 orderHash) =
-            ISwapVM(router()).swap(order, tokenIn, tokenOut, amount, takerData);
-        vm.stopBroadcast();
 
-        console.log("filled in/out", amountIn, amountOut);
-        console.logBytes32(orderHash);
+        console.log("# 3. approve the router for exactly the amount going in");
+        console.log(
+            string.concat(
+                "cast send ",
+                vm.toString(tokenIn),
+                " 'approve(address,uint256)' ",
+                vm.toString(router()),
+                " ",
+                vm.toString(amount),
+                " --rpc-url ",
+                rpc,
+                " ",
+                auth
+            )
+        );
+        console.log("");
+
+        console.log("# 4. swap");
+        console.log(
+            string.concat(
+                "cast send ",
+                vm.toString(router()),
+                " ",
+                vm.toString(abi.encodeCall(ISwapVM.swap, (order, tokenIn, tokenOut, amount, takerData))),
+                " --rpc-url ",
+                rpc,
+                " ",
+                auth
+            )
+        );
     }
 
-    /// @dev Exact-in, no threshold, no callbacks. A page sets a threshold; a script that is its own
-    ///      counterparty does not need one, and leaving it out keeps what is being demonstrated —
-    ///      the router dispatching the maker's program — free of anything else.
+    /// @dev Exact-in, no threshold, no callbacks. A page sets a threshold; a command a human pastes
+    ///      after reading step 1's price does not need one, and leaving it out keeps what is being
+    ///      demonstrated — the router dispatching the maker's program — free of anything else.
     function _takerData(address taker) private pure returns (bytes memory) {
         return TakerTraitsLib.build(
             TakerTraitsLib.Args({
@@ -97,5 +163,32 @@ contract SwapScript is Addresses {
                 signature: ""
             })
         );
+    }
+
+    /// @dev Staticcalls rather than a typed call so a wrong DESK is a sentence, not a decode panic.
+    function _order(address desk) private view returns (ISwapVM.Order memory) {
+        (bool ok, bytes memory ret) = desk.staticcall(abi.encodeWithSignature("order()"));
+        require(ok && ret.length != 0, "desk.order() reverted: is DESK a DeskAccount, and is it open?");
+        return abi.decode(ret, (ISwapVM.Order));
+    }
+
+    function _params(address desk) private view returns (DeskParams memory p) {
+        (bool ok, bytes memory ret) = desk.staticcall(abi.encodeWithSignature("params()"));
+        require(ok && ret.length != 0, "desk.params() reverted: is DESK a DeskAccount?");
+        return abi.decode(ret, (DeskParams));
+    }
+
+    function _symbol(address token) private view returns (string memory) {
+        (bool ok, bytes memory ret) = token.staticcall(abi.encodeWithSignature("symbol()"));
+        return ok && ret.length >= 64 ? abi.decode(ret, (string)) : "?";
+    }
+
+    /// @dev Only the demo pair can be minted, and only where one is deployed. A deployment file
+    ///      without a demo pair is a real state — the mainnet desk over UBTC/USDT0 — so the missing
+    ///      key is checked rather than caught.
+    function _isDemoToken(address token) private view returns (bool) {
+        string memory json = vm.readFile(deploymentsPath());
+        if (!vm.keyExistsJson(json, ".demoBase") || !vm.keyExistsJson(json, ".demoQuote")) return false;
+        return token == vm.parseJsonAddress(json, ".demoBase") || token == vm.parseJsonAddress(json, ".demoQuote");
     }
 }

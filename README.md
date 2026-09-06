@@ -178,6 +178,16 @@ python3 -m http.server 8000   # then http://localhost:8000/app/
   deployment constraint here — `optimizer_runs` is 200 so that `DeskAccount` fits, and the factory
   takes its implementation as an argument rather than building it. `results/999_deploy_budget.md`
   has every contract's deploy gas and what the setting costs a taker.
+- **A swap cannot be sent by `forge script`.** `forge script` runs the body of `run()` in its own
+  EVM to collect the transactions it will broadcast — including the ones inside
+  `vm.startBroadcast()` — and that EVM is a fork, which cannot serve the HyperCore precompiles. A
+  call to `0x080e` lands on an empty account, so `bounds()`, `quote()` and `swap()` revert with
+  `PrecompileCallFailed` before a single transaction exists. `--skip-simulation` does not help: it
+  skips the simulation of transactions already collected, not the execution that collects them.
+  So `script/Swap.s.sol` is a `view` that reads the account's own state, encodes the calldata and
+  **prints** the four `cast` commands — quote, mint, approve, swap. The node does serve the
+  precompiles, so `cast` sends what forge cannot, and `./script/localnet.sh` runs exactly the
+  lines the script prints, which is what keeps them true.
 - **The precompiles ignore the block tag.** A read pinned 200 000 blocks back returns the current
   book, so there is no archive read of L1 state: `BookCache` is not a fallback, it is the only
   history there is, and a page must take its whole snapshot in one call.
