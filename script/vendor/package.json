@@ -1,0 +1,12 @@
+{
+  "name": "coldcascade-vendor",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The console's bundling toolchain, deliberately kept out of the root package.json — see script/appvendor.sh.",
+  "license": "MIT",
+  "dependencies": {
+    "@privy-io/js-sdk-core": "0.73.0",
+    "esbuild": "0.28.2",
+    "viem": "2.56.3"
+  }
+}
