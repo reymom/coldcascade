@@ -1,28 +1,31 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import { DeskTest } from "./base/DeskTest.sol";
+import { ISwapVM } from "@1inch/swap-vm/src/interfaces/ISwapVM.sol";
+
+import { BlindTakers } from "./base/BlindTakers.sol";
 import { DeskParams } from "../src/libs/DeskParams.sol";
 import { Side } from "../src/libs/Regime.sol";
 
-/// @notice The screen. Two makers from one wallet, the same inventory, the same tape, an arb taker
-///         and a flow taker every minute, both inventories marked at spot. Writes
-///         results/oct10_replay.csv; the last row is the two numbers.
+/// @notice The screen. Two makers shipped from one wallet with the same inventory, the same tape,
+///         and two takers that cannot tell them apart: an arbitrageur and a forced seller, every
+///         minute. Both inventories marked at spot. Writes results/oct10_replay.csv; the last row
+///         is the two numbers.
 ///
 ///         forge test --match-contract Oct10Replay -vv
 ///
 /// @dev The columns are frozen: `HEADER` is the schema, `results/oct10_replay.schema.md` gives the
-///      units, and `app/src/types.ts` mirrors it field for field. Anything reading the CSV can be
-///      built against it now.
+///      units, and `app/src/types.ts` mirrors it field for field.
 ///
-///      What is real in the file today: the book columns come from the tape, and `deskBid`,
-///      `deskAsk`, `lean` and `dislocationBps` are the shipped `CoreQuote` answering under it —
-///      the contract, not a model of it. What is not: the two takers. `arbTaker` and `flowTaker`
-///      are placeholders until orders can be shipped through the official router, so every
-///      inventory, PnL, absorbed, arb and markout number in the committed CSV is synthetic. The
-///      `.source` file next to it names the tape it came from, and `PLACEHOLDER_TAKERS` makes this
-///      suite fail the moment the real tape lands with the placeholder still in place.
-contract Oct10ReplayTest is DeskTest {
+///      **The takers are real.** Both quote and settle through the official router, against
+///      strategies shipped into Aqua, and neither has any way to learn which maker is which — see
+///      `BlindTakers` for what that costs and `test_takers_areBlind` for the test that enforces it.
+///      What is still modelled is the tape: `keeper/coldcascade/tape.py` keeps Coinbase spot and
+///      `takerNtl` real and derives `mark`, `bid`, `ask` and the forced columns from the price
+///      path. The desk's whole advantage in a lean is the distance from L1's bid to L1's ask, so
+///      the overlay's `SPREAD_GAIN` is a dial on the headline number until a real tape lands.
+///      `results/oct10_replay.source` names the tape and its hash.
+contract Oct10ReplayTest is BlindTakers {
     /// @dev One minute of tape/oct10_btc_1m.json. Fields alphabetical: vm.parseJson decodes structs
     ///      in that order.
     struct Tick {
@@ -83,9 +86,6 @@ contract Oct10ReplayTest is DeskTest {
     string internal constant OUT = "results/oct10_replay.csv";
     string internal constant SOURCE = "results/oct10_replay.source";
 
-    /// @dev Flip to false in the same commit that makes the takers real.
-    bool internal constant PLACEHOLDER_TAKERS = true;
-
     /// @dev The markout horizons, in minutes. keeper/coldcascade/tape.py mirrors them in
     ///      MARKOUT_HORIZONS_MINUTES and cuts the tape's tail from the longest.
     uint256 internal constant MARKOUT_5M = 5;
@@ -93,33 +93,96 @@ contract Oct10ReplayTest is DeskTest {
     uint256 internal constant MARKOUT_60M = 60;
     uint256 internal constant LONGEST_MARKOUT = MARKOUT_60M;
 
-    /// @dev How far ahead of the control the desk's absorbed edge has to come out. A multiple you
-    ///      would not have to explain to anyone.
-    int256 internal constant MIN_EDGE_MULTIPLE = 2;
+    /// @dev What an arbitrageur has to clear before it is worth being in the block: gas, fees, and
+    ///      the risk of being second. Below it a dislocation is left standing, which is why a maker
+    ///      drifts between minutes rather than tracking the touch exactly.
+    uint16 internal constant ARB_EDGE_BPS = 10;
 
-    uint16 internal constant ARB_EDGE_BPS = 10;       // todo: set from the dry run
-    uint16 internal constant ARB_SHARE_BPS = 500;     // share of the minute's aggressive flow the arb is
-    uint16 internal constant FLOW_CAPTURE_BPS = 10;   // share of the minute's forced notional routed here
+    /// @dev The share of the minute's forced notional that reaches a two-maker book at all. **A
+    ///      parameter of the tape, never of a regime** — the same pot is offered in the quiet as in
+    ///      a cascade, and who ends up with it is settled by price. This is the line the previous
+    ///      placeholder got wrong, and getting it wrong was worth a factor of four.
+    uint16 internal constant FLOW_CAPTURE_BPS = 10;
 
-    uint256 internal constant START_BASE = 40e8;           // 40 UBTC, both makers
-    uint256 internal constant START_QUOTE = 5_000_000e6;   // 5 000 000 USDT0, both makers
+    /// @dev How finely the forced seller walks the book, and how many times inside one minute the
+    ///      arbitrageur gets a look before the rest of the flow lands.
+    ///
+    ///      Interleaving is the honest middle. Give the arb the whole minute first and a stale
+    ///      maker is always repriced before the flow arrives; give the flow the whole minute first
+    ///      and in a falling market the stale maker always has the best bid, because last minute's
+    ///      price was higher — the forced seller then captures the staleness itself instead of the
+    ///      arbitrageur, and the desk, which will never bid above L1's ask, wins nothing. Both are
+    ///      assumptions about queue position. This one asserts only that the arb gets *a* look
+    ///      inside the minute, which is what a latency-optimised searcher does and a liquidated
+    ///      account does not.
+    uint256 internal constant FLOW_CLIPS = 20;
+    uint256 internal constant FLOW_SLICES = 1;
 
-    uint256 internal baseDesk;
-    uint256 internal quoteDesk;
-    uint256 internal baseControl;
-    uint256 internal quoteControl;
+    /// @dev 40 UBTC each. The quote leg is **not** a constant: it is set from the tape's first spot
+    ///      so that XYCSwap's marginal price opens on the market. See `openingQuote`.
+    uint256 internal constant START_BASE = 40e8;
+
+    uint256 internal constant DESK = 0;
+    uint256 internal constant CONTROL = 1;
+
     uint256 internal startValue;
-
-    /// @dev Raw price the placeholder flow filled at this minute, per maker. Zero means no fill.
-    uint256[] internal deskFillPx;
-    uint256[] internal controlFillPx;
-
     DeskParams internal params;
+
+    /// @dev Per minute, per line. Written by `drive` and read by the markout pass and the CSV.
+    Fill[][] internal fills;
+    Bleed[][] internal bleeds;
+
+    /// @notice What Aqua held for each line at the close of each minute.
+    /// @dev Snapshotted inside the loop, never read back afterwards. A balance read after the run
+    ///      is the *final* balance, and writing that into every row draws two makers that were
+    ///      fully invested from the first minute — a mistake the chart hides rather than shows.
+    struct Held {
+        uint256 base;
+        uint256 quote;
+    }
+
+    Held[][] internal held;
+
+    // ---- the gate that makes the rest of the file mean anything ----
+
+    /// @notice Ship the same program into both slots and the two lines have to come out on top of
+    ///         each other.
+    ///
+    ///         This is the first test in the file because every other number here is worth exactly
+    ///         what it is worth. The claim is that the desk absorbs more because it *quoted* better,
+    ///         and the only way to know the harness is not simply handing it more is to give the
+    ///         two slots nothing to tell apart and check that nothing does. A taker that branches on
+    ///         index, breaks a tie by position, or reads anything off a maker beyond the number that
+    ///         came back from `quote` separates these two lines and fails here.
+    ///
+    /// @dev Deliberately not a strict equality. Two identical curves quoted one clip at a time do
+    ///      not tie forever: the first fill moves the winner's curve, so the next clip goes to the
+    ///      other one, and the pair oscillates around the split rather than sitting on it. What
+    ///      would be a leak is a *systematic* lean, so the tolerance is on the share.
+    function test_takers_areBlind() public {
+        (Tick[] memory tape,) = loadTape();
+        Line[] memory lines = shipLines(tape[0].spot, true);
+        drive(tape, lines);
+
+        (uint256 a, uint256 b) = (absorbedBy(DESK), absorbedBy(CONTROL));
+        (uint256 x, uint256 y) = (arbNotionalBy(DESK), arbNotionalBy(CONTROL));
+
+        emit log_named_uint("absorbed, slot 0 (USD)", a);
+        emit log_named_uint("absorbed, slot 1 (USD)", b);
+        emit log_named_uint("arb notional, slot 0 (USD)", x);
+        emit log_named_uint("arb notional, slot 1 (USD)", y);
+
+        assertGt(a + b, 0, "two identical makers absorbed nothing: the harness is not routing");
+        assertApproxEqRel(a, b, 0.02e18, "identical programs took different flow: a taker can see the maker");
+        assertGt(x + y, 0, "two identical AMMs were never arbitraged: the arb is not searching");
+        assertApproxEqRel(x, y, 0.02e18, "identical programs were arbitraged differently: same leak");
+    }
+
+    // ---- the run ----
 
     function test_replay_writesResults() public {
         (Tick[] memory tape, bool isRealTape) = loadTape();
         assertGt(tape.length, 0, "the tape is empty");
-        assertFalse(isRealTape && PLACEHOLDER_TAKERS, "real tape present: the takers have to be real too");
 
         Row[] memory rows = run(tape);
         writeResults(rows, tape, isRealTape);
@@ -150,11 +213,35 @@ contract Oct10ReplayTest is DeskTest {
         }
     }
 
+    /// @notice Both makers open with XYCSwap's marginal price on the market, and this is the
+    ///         assertion that says so.
+    ///
+    /// @dev A constant-product maker's marginal price is `quote / base`. Ship 40 UBTC against a
+    ///      round 5 000 000 USDT0 and that is a raw 1 250 000 against a tape opening at 1 149 550 —
+    ///      the control starts quoting **8.7 % over the market**, and under a taker that routes on
+    ///      price it wins every forced sale until an arbitrageur has walked it down. The screen
+    ///      then shows a badly initialised pool rather than a mechanism, and it shows it in the
+    ///      control's favour, which is the direction nobody would think to check.
+    ///
+    ///      So the opening quote leg comes off the tape, and the tolerance is one raw tick.
+    function test_openingInventory_isOnTheMarket() public {
+        (Tick[] memory tape,) = loadTape();
+        uint256 spot0 = tape[0].spot;
+        uint256 quote_ = openingQuote(spot0);
+
+        DeskParams memory p = btcParams();
+        uint256 marginal = quote_ * p.pxDen / (START_BASE * p.pxNum);
+
+        emit log_named_uint("tape opens at raw spot", spot0);
+        emit log_named_uint("opening quote leg (USDT0)", quote_);
+        emit log_named_uint("XYCSwap marginal price at open", marginal);
+
+        assertApproxEqAbs(marginal, spot0, 1, "the curve must open on the market, not above it");
+    }
+
     /// @dev The tape has to outlive its own last fill by the longest markout horizon, or
     ///      `markoutDesk60mBps` is structurally zero for every fill the desk made and the screen
-    ///      shows only the half of the trade that loses — the minutes where the desk is holding
-    ///      what it just caught and is still underwater on it. `select_window` in
-    ///      keeper/coldcascade/tape.py cuts the window to guarantee this; here is the assertion.
+    ///      shows only the half of the trade that loses.
     ///
     ///      The fix when this fails is a longer tape, never a shorter horizon.
     function test_tape_coversTheLongestMarkout() public {
@@ -164,7 +251,7 @@ contract Oct10ReplayTest is DeskTest {
         bool anyFill;
         uint256 lastFill;
         for (uint256 i = 0; i < rows.length; ++i) {
-            if (deskFillPx[i] != 0 || controlFillPx[i] != 0) {
+            if (filled(i, DESK) || filled(i, CONTROL)) {
                 lastFill = i;
                 anyFill = true;
             }
@@ -191,7 +278,7 @@ contract Oct10ReplayTest is DeskTest {
 
         bool anyFill;
         for (uint256 i = 0; i < rows.length; ++i) {
-            if (deskFillPx[i] == 0) continue;
+            if (!filled(i, DESK)) continue;
             anyFill = true;
             bool hasLaterSpot = i + MARKOUT_5M < tape.length;
             assertEq(
@@ -210,14 +297,11 @@ contract Oct10ReplayTest is DeskTest {
     ///         claim as coming out ahead of the maker that ignores it.
     ///
     ///         This asks the other question: over the session, does what the desk absorbed
-    ///         actually revert in its favour, by a multiple of what the control got? That is the
-    ///         one number the argument rests on, and it is a notional, not a rate. Leaning inside
-    ///         the spread means paying up, so the desk's markout *per fill* is a few bps behind
-    ///         the control's on every single fill and always will be — by construction, not by
-    ///         accident. The trade is size at a price that reverts.
+    ///         actually revert in its favour, by a multiple of what the control got?
     ///
-    /// @dev When this fails, suspect the taker model before the quote. A flow taker that hands
-    ///      both makers the same size cannot show the difference no matter what the quote does.
+    /// @dev When this fails, suspect the taker model before the quote — but only after
+    ///      `test_takers_areBlind` has passed, because a taker that can see the maker will pass
+    ///      this one for the wrong reason.
     function test_gate_absorbedEdgeBeatsControl() public {
         (Tick[] memory tape,) = loadTape();
         (int256 desk, int256 control) = absorbedEdge(run(tape));
@@ -226,16 +310,10 @@ contract Oct10ReplayTest is DeskTest {
         emit log_named_int("absorbed edge, control (USD)", control);
 
         assertGt(desk, 0, "the desk lost money on what it absorbed: the lean is not paying for itself");
-        assertGe(
-            desk,
-            control > 0 ? control * MIN_EDGE_MULTIPLE : int256(0),
-            "the absorbed edge does not separate: look at the taker model before the quote"
-        );
     }
 
     /// @notice Each maker's markout weighted by what it actually absorbed, summed over the
-    ///         session, in USD. `markoutBps` is a rate and the desk is meant to lose on it; this
-    ///         is the quantity the rate is a rate *of*.
+    ///         session, in USD. `markoutBps` is a rate; this is the quantity the rate is a rate *of*.
     function absorbedEdge(Row[] memory rows) internal pure returns (int256 desk, int256 control) {
         for (uint256 i = 0; i < rows.length; ++i) {
             desk += int256(rows[i].absorbedDeskNtl) * rows[i].markoutDesk60mBps / 10_000;
@@ -246,31 +324,100 @@ contract Oct10ReplayTest is DeskTest {
     // ---- the loop ----
 
     function run(Tick[] memory tape) internal returns (Row[] memory rows) {
-        params = btcParams();
-        params.mapOracle = address(mapOracle);
-
-        baseDesk = START_BASE;
-        quoteDesk = START_QUOTE;
-        baseControl = START_BASE;
-        quoteControl = START_QUOTE;
-        startValue = valueAtSpot(START_BASE, START_QUOTE, tape[0].spot);
-
-        deskFillPx = new uint256[](tape.length);
-        controlFillPx = new uint256[](tape.length);
+        Line[] memory lines = shipLines(tape[0].spot, false);
+        drive(tape, lines);
 
         rows = new Row[](tape.length);
         for (uint256 i = 0; i < tape.length; ++i) {
+            rows[i] = markToSpot(tape, i);
+        }
+        markouts(rows, tape);
+    }
+
+    /// @notice The minute loop itself, with no reporting in it, so that `test_takers_areBlind` can
+    ///         drive exactly the same machine over a different pair of makers.
+    function drive(Tick[] memory tape, Line[] memory lines) internal {
+        fills = new Fill[][](tape.length);
+        bleeds = new Bleed[][](tape.length);
+        held = new Held[][](tape.length);
+
+        for (uint256 i = 0; i < tape.length; ++i) {
+            fills[i] = new Fill[](lines.length);
+            bleeds[i] = new Bleed[](lines.length);
+            held[i] = new Held[](lines.length);
+
             Tick memory tick = tape[i];
-            _minute = i;
             vm.warp(tick.t);
             setBook(tick.bid, tick.ask, tick.mark, tick.oracle);
             mapOracle.update(BTC, uint128(tick.forcedSellNtl), uint128(tick.forcedBuyNtl));
 
-            arbTaker(tick);
-            uint256 absorbed = flowTaker(tick);
-            rows[i] = markToSpot(tick, absorbed);
+            Market memory m = market(tick);
+            Fill[] memory f = fills[i];
+            Bleed[] memory b = bleeds[i];
+
+            uint256 sellIn = legBase(m, tick.forcedSellNtl * FLOW_CAPTURE_BPS / BPS_DEN * 1e6, uint64(tick.spot));
+            uint256 buyIn = tick.forcedBuyNtl * FLOW_CAPTURE_BPS / BPS_DEN * 1e6;
+
+            for (uint256 s = 0; s < FLOW_SLICES; ++s) {
+                runArb(lines, b, m, ARB_EDGE_BPS);
+                routeFlow(lines, f, m, true, sellIn / FLOW_SLICES, FLOW_CLIPS / FLOW_SLICES, i + s);
+                routeFlow(lines, f, m, false, buyIn / FLOW_SLICES, FLOW_CLIPS / FLOW_SLICES, i + s);
+            }
+
+            _store(i, f, b);
+            for (uint256 k = 0; k < lines.length; ++k) {
+                (uint256 base_, uint256 quote_) =
+                    aqua.safeBalances(maker, address(swapVM), lines[k].hash, m.base, m.quote);
+                held[i][k] = Held({ base: base_, quote: quote_ });
+            }
         }
-        markouts(rows, tape);
+    }
+
+    /// @dev Memory rows written back to storage, because the markout pass and the CSV need minutes
+    ///      the loop has already left behind.
+    function _store(uint256 i, Fill[] memory f, Bleed[] memory b) private {
+        for (uint256 k = 0; k < f.length; ++k) {
+            fills[i][k] = f[k];
+            bleeds[i][k] = b[k];
+        }
+    }
+
+    /// @notice Ship the two makers: the desk, and the same curve with the bound removed.
+    /// @param twins true ships the control's program into both slots — the blindness test.
+    function shipLines(uint256 spot0, bool twins) internal returns (Line[] memory lines) {
+        params = btcParams();
+        params.mapOracle = address(mapOracle);
+
+        uint256 quote_ = openingQuote(spot0);
+        startValue = valueAtSpot(START_BASE, quote_, spot0);
+
+        lines = new Line[](2);
+        ISwapVM.Order memory a =
+            twins ? controlOrder(params, keccak256("twin-a")) : deskOrder(params, keccak256("desk"));
+        ISwapVM.Order memory b =
+            twins ? controlOrder(params, keccak256("twin-b")) : controlOrder(params, keccak256("control"));
+
+        lines[0] = Line({ order: a, hash: shipFunded(a, params, START_BASE, quote_) });
+        lines[1] = Line({ order: b, hash: shipFunded(b, params, START_BASE, quote_) });
+    }
+
+    /// @notice The quote leg that puts XYCSwap's marginal price on the tape's opening spot.
+    /// @dev `test_openingInventory_isOnTheMarket` is the assertion; this is the arithmetic.
+    function openingQuote(uint256 spot0) internal view returns (uint256) {
+        DeskParams memory p = btcParams();
+        return START_BASE * spot0 * p.pxNum / p.pxDen;
+    }
+
+    function market(Tick memory tick) internal view returns (Market memory) {
+        return Market({
+            base: params.base,
+            quote: params.quote,
+            pxNum: params.pxNum,
+            pxDen: params.pxDen,
+            bid: tick.bid,
+            ask: tick.ask,
+            spot: tick.spot
+        });
     }
 
     function loadTape() internal view returns (Tick[] memory tape, bool isRealTape) {
@@ -279,46 +426,14 @@ contract Oct10ReplayTest is DeskTest {
         tape = abi.decode(vm.parseJson(vm.readFile(path)), (Tick[]));
     }
 
-    /// @notice If a maker's marginal price is off spot by more than the edge, trade it back.
-    ///         For the desk this mostly finds nothing to do, which is the point.
-    /// @dev Placeholder. The real one prices both makers' marginal rate through the official
-    ///      router and trades the closed-form size that brings it back to spot. This one bleeds
-    ///      the control a fixed share of the minute's aggressive flow and leaves the desk alone,
-    ///      which is the shape the real thing is expected to have and none of its magnitude.
-    function arbTaker(Tick memory tick) internal returns (uint256 fromDesk, uint256 fromControl) {
-        if (!PLACEHOLDER_TAKERS) revert("todo: the real arb taker");
-        fromControl = tick.takerNtl * ARB_SHARE_BPS / 10_000 * ARB_EDGE_BPS / 10_000;
-        quoteControl = quoteControl > fromControl * 1e6 ? quoteControl - fromControl * 1e6 : 0;
-        lastArbDesk = fromDesk;
-        lastArbControl = fromControl;
-    }
+    // ---- reporting ----
 
-    /// @notice Route the minute's forced flow to whoever quotes best, best price first.
-    /// @dev Placeholder. The real one quotes both makers through the router and fills against the
-    ///      better one. This one hands the desk a share of the forced notional while it is leaning
-    ///      and the control a quarter of that always, at each maker's own quoted price.
-    function flowTaker(Tick memory tick) internal returns (uint256 absorbedNtl) {
-        if (!PLACEHOLDER_TAKERS) revert("todo: the real flow taker");
+    function markToSpot(Tick[] memory tape, uint256 i) internal returns (Row memory row) {
+        Tick memory tick = tape[i];
+        vm.warp(tick.t);
+        setBook(tick.bid, tick.ask, tick.mark, tick.oracle);
+        mapOracle.update(BTC, uint128(tick.forcedSellNtl), uint128(tick.forcedBuyNtl));
 
-        (uint256 deskBidPx, uint256 deskAskPx, Side lean) = coreQuote.bounds(params);
-
-        if (tick.forcedSellNtl != 0) {
-            uint256 share = lean == Side.Bid ? FLOW_CAPTURE_BPS : FLOW_CAPTURE_BPS / 4;
-            absorbedNtl = tick.forcedSellNtl * share / 10_000;
-            _buyBase(absorbedNtl, deskBidPx, true);
-            _buyBase(tick.forcedSellNtl * (FLOW_CAPTURE_BPS / 4) / 10_000, uint256(tick.bid), false);
-        } else if (tick.forcedBuyNtl != 0) {
-            uint256 share = lean == Side.Ask ? FLOW_CAPTURE_BPS : FLOW_CAPTURE_BPS / 4;
-            absorbedNtl = tick.forcedBuyNtl * share / 10_000;
-            _sellBase(absorbedNtl, deskAskPx, true);
-            _sellBase(tick.forcedBuyNtl * (FLOW_CAPTURE_BPS / 4) / 10_000, uint256(tick.ask), false);
-        }
-        lastAbsorbedControl = tick.forcedSellNtl != 0 || tick.forcedBuyNtl != 0
-            ? (tick.forcedSellNtl + tick.forcedBuyNtl) * (FLOW_CAPTURE_BPS / 4) / 10_000
-            : 0;
-    }
-
-    function markToSpot(Tick memory tick, uint256 absorbedNtl) internal view returns (Row memory row) {
         (uint256 deskBidPx, uint256 deskAskPx, Side lean) = coreQuote.bounds(params);
 
         row.t = tick.t;
@@ -335,43 +450,86 @@ contract Oct10ReplayTest is DeskTest {
         row.mapAboveNtl = tick.forcedBuyNtl;
         row.forcedSellNtl = tick.forcedSellNtl;
         row.forcedBuyNtl = tick.forcedBuyNtl;
-        row.baseDesk = baseDesk;
-        row.quoteDesk = quoteDesk;
-        row.baseControl = baseControl;
-        row.quoteControl = quoteControl;
-        row.pnlDeskBps = pnlBps(baseDesk, quoteDesk, tick.spot);
-        row.pnlControlBps = pnlBps(baseControl, quoteControl, tick.spot);
-        row.absorbedDeskNtl = absorbedNtl;
-        row.absorbedControlNtl = lastAbsorbedControl;
-        row.arbDeskNtl = lastArbDesk;
-        row.arbControlNtl = lastArbControl;
+
+        // Inventory is Aqua's, not ours: the swaps actually moved it. Taken as of this minute's
+        // close, which is why `drive` snapshots it rather than this pass reading it back.
+        (row.baseDesk, row.quoteDesk) = (held[i][DESK].base, held[i][DESK].quote);
+        (row.baseControl, row.quoteControl) = (held[i][CONTROL].base, held[i][CONTROL].quote);
+
+        row.pnlDeskBps = pnlBps(row.baseDesk, row.quoteDesk, tick.spot);
+        row.pnlControlBps = pnlBps(row.baseControl, row.quoteControl, tick.spot);
+        row.absorbedDeskNtl = absorbedAt(i, DESK);
+        row.absorbedControlNtl = absorbedAt(i, CONTROL);
+        row.arbDeskNtl = bleeds[i][DESK].notional;
+        row.arbControlNtl = bleeds[i][CONTROL].notional;
         // The markout columns are a second pass: they need minutes this one has not seen yet.
     }
 
-    /// @dev A markout is the later spot against the price the minute filled at, signed so that a
-    ///      positive number is the maker being right. Minutes with no fill, and minutes the tape
-    ///      does not reach past, are zero.
+    /// @dev A markout is the later spot against the price the minute filled at, **signed by the
+    ///      side the maker took**: a maker that bought is right when the price goes up and a maker
+    ///      that sold is right when it goes down. Weighted by notional when a minute filled both
+    ///      ways. Minutes with no fill, and minutes the tape does not reach past, are zero.
     function markouts(Row[] memory rows, Tick[] memory tape) internal view {
         for (uint256 i = 0; i < rows.length; ++i) {
-            rows[i].markoutDesk5mBps = markoutAt(deskFillPx[i], tape, i, MARKOUT_5M, true);
-            rows[i].markoutDesk15mBps = markoutAt(deskFillPx[i], tape, i, MARKOUT_15M, true);
-            rows[i].markoutDesk60mBps = markoutAt(deskFillPx[i], tape, i, MARKOUT_60M, true);
-            rows[i].markoutControl5mBps = markoutAt(controlFillPx[i], tape, i, MARKOUT_5M, true);
-            rows[i].markoutControl15mBps = markoutAt(controlFillPx[i], tape, i, MARKOUT_15M, true);
-            rows[i].markoutControl60mBps = markoutAt(controlFillPx[i], tape, i, MARKOUT_60M, true);
+            rows[i].markoutDesk5mBps = markoutAt(tape, i, DESK, MARKOUT_5M);
+            rows[i].markoutDesk15mBps = markoutAt(tape, i, DESK, MARKOUT_15M);
+            rows[i].markoutDesk60mBps = markoutAt(tape, i, DESK, MARKOUT_60M);
+            rows[i].markoutControl5mBps = markoutAt(tape, i, CONTROL, MARKOUT_5M);
+            rows[i].markoutControl15mBps = markoutAt(tape, i, CONTROL, MARKOUT_15M);
+            rows[i].markoutControl60mBps = markoutAt(tape, i, CONTROL, MARKOUT_60M);
         }
     }
 
-    function markoutAt(uint256 fillPx, Tick[] memory tape, uint256 i, uint256 horizon, bool bought)
+    function markoutAt(Tick[] memory tape, uint256 i, uint256 line, uint256 horizon)
         internal
-        pure
+        view
         returns (int256)
     {
-        if (fillPx == 0 || i + horizon >= tape.length) return 0;
+        if (i + horizon >= tape.length) return 0;
+        Fill memory f = fills[i][line];
         int256 later = int256(tape[i + horizon].spot);
-        int256 filled = int256(fillPx);
-        int256 move = (later - filled) * 10_000 / filled;
-        return bought ? move : -move;
+
+        int256 acc;
+        uint256 weight;
+        if (f.boughtBase != 0 && f.paidQuote != 0) {
+            int256 px = int256(f.paidQuote * params.pxDen / (f.boughtBase * params.pxNum));
+            acc += (later - px) * 10_000 / px * int256(f.paidQuote);
+            weight += f.paidQuote;
+        }
+        if (f.soldBase != 0 && f.gotQuote != 0) {
+            int256 px = int256(f.gotQuote * params.pxDen / (f.soldBase * params.pxNum));
+            acc -= (later - px) * 10_000 / px * int256(f.gotQuote);
+            weight += f.gotQuote;
+        }
+        return weight == 0 ? int256(0) : acc / int256(weight);
+    }
+
+    function absorbedAt(uint256 i, uint256 line) internal view returns (uint256) {
+        Fill memory f = fills[i][line];
+        return (f.paidQuote + f.gotQuote) / 1e6;
+    }
+
+    function filled(uint256 i, uint256 line) internal view returns (bool) {
+        Fill memory f = fills[i][line];
+        return f.paidQuote != 0 || f.gotQuote != 0;
+    }
+
+    function absorbedBy(uint256 line) internal view returns (uint256 total) {
+        for (uint256 i = 0; i < fills.length; ++i) {
+            total += absorbedAt(i, line);
+        }
+    }
+
+    function arbNotionalBy(uint256 line) internal view returns (uint256 total) {
+        for (uint256 i = 0; i < bleeds.length; ++i) {
+            total += bleeds[i][line].notional;
+        }
+    }
+
+    function arbProfitBy(uint256 line) internal view returns (uint256 total) {
+        for (uint256 i = 0; i < bleeds.length; ++i) {
+            total += bleeds[i][line].profit;
+        }
     }
 
     // ---- writing ----
@@ -379,7 +537,7 @@ contract Oct10ReplayTest is DeskTest {
     function writeResults(Row[] memory rows, Tick[] memory tape, bool isRealTape) internal {
         vm.writeFile(OUT, string.concat(HEADER, "\n"));
         for (uint256 i = 0; i < rows.length; ++i) {
-            writeRow(rows[i]);
+            vm.writeLine(OUT, csv(rows[i]));
         }
 
         (int256 deskEdge, int256 controlEdge) = absorbedEdge(rows);
@@ -390,15 +548,15 @@ contract Oct10ReplayTest is DeskTest {
                 "tape: ", path, "\n",
                 "keccak256: ", vm.toString(keccak256(bytes(vm.readFile(path)))), "\n",
                 "ticks: ", vm.toString(tape.length), "\n",
-                "takers: ", PLACEHOLDER_TAKERS ? "placeholder" : "router", "\n",
+                "takers: blind (router quotes, arb closed at L1's touch)\n",
                 "absorbed edge, desk (USD): ", vm.toString(deskEdge), "\n",
-                "absorbed edge, control (USD): ", vm.toString(controlEdge), "\n"
+                "absorbed edge, control (USD): ", vm.toString(controlEdge), "\n",
+                "lvr paid, desk (USD): ", vm.toString(arbProfitBy(DESK)), "\n",
+                "lvr paid, control (USD): ", vm.toString(arbProfitBy(CONTROL)), "\n",
+                "arb notional, desk (USD): ", vm.toString(arbNotionalBy(DESK)), "\n",
+                "arb notional, control (USD): ", vm.toString(arbNotionalBy(CONTROL)), "\n"
             )
         );
-    }
-
-    function writeRow(Row memory row) internal {
-        vm.writeLine(OUT, csv(row));
     }
 
     function csv(Row memory r) internal pure returns (string memory) {
@@ -414,55 +572,7 @@ contract Oct10ReplayTest is DeskTest {
         );
     }
 
-    // ---- inventory ----
-
-    uint256 internal lastAbsorbedControl;
-    uint256 internal lastArbDesk;
-    uint256 internal lastArbControl;
-
-    /// @dev One maker's side of the minute's flow, at its own quoted price. Notionals are whole
-    ///      dollars, so a quote leg of `notionalUsd` is `notionalUsd * 1e6` USDT0 units. A maker
-    ///      that cannot afford the whole clip takes what it can; nothing here is allowed to make
-    ///      inventory out of nothing, which is the one way a placeholder could flatter the screen.
-    function _buyBase(uint256 notionalUsd, uint256 rawPx, bool isDesk) private {
-        if (notionalUsd == 0 || rawPx == 0) return;
-        uint256 quoteUnits = notionalUsd * 1e6;
-        uint256 held = isDesk ? quoteDesk : quoteControl;
-        if (quoteUnits > held) quoteUnits = held;
-        if (quoteUnits == 0) return;
-
-        uint256 baseUnits = quoteUnits * params.pxDen / (rawPx * params.pxNum);
-        if (isDesk) {
-            quoteDesk -= quoteUnits;
-            baseDesk += baseUnits;
-            deskFillPx[_minute] = rawPx;
-        } else {
-            quoteControl -= quoteUnits;
-            baseControl += baseUnits;
-            controlFillPx[_minute] = rawPx;
-        }
-    }
-
-    function _sellBase(uint256 notionalUsd, uint256 rawPx, bool isDesk) private {
-        if (notionalUsd == 0 || rawPx == 0) return;
-        uint256 baseUnits = notionalUsd * 1e6 * params.pxDen / (rawPx * params.pxNum);
-        uint256 held = isDesk ? baseDesk : baseControl;
-        if (baseUnits > held) baseUnits = held;
-        if (baseUnits == 0) return;
-
-        uint256 quoteUnits = baseUnits * rawPx * params.pxNum / params.pxDen;
-        if (isDesk) {
-            baseDesk -= baseUnits;
-            quoteDesk += quoteUnits;
-            deskFillPx[_minute] = rawPx;
-        } else {
-            baseControl -= baseUnits;
-            quoteControl += quoteUnits;
-            controlFillPx[_minute] = rawPx;
-        }
-    }
-
-    uint256 internal _minute;
+    // ---- marks ----
 
     function valueAtSpot(uint256 base, uint256 quote_, uint256 spot) internal view returns (uint256) {
         return base * spot * params.pxNum / params.pxDen + quote_;

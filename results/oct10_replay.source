@@ -1,6 +1,10 @@
 tape: tape/oct10_btc_1m.stub.json
 keccak256: 0x36b07b4abff618b01672b824870243c086eb9790558936a43ddda49d91084fba
 ticks: 123
-takers: placeholder
-absorbed edge, desk (USD): 1493
-absorbed edge, control (USD): 377
+takers: blind (router quotes, arb closed at L1's touch)
+absorbed edge, desk (USD): 1340
+absorbed edge, control (USD): -347
+lvr paid, desk (USD): 0
+lvr paid, control (USD): 3505
+arb notional, desk (USD): 0
+arb notional, control (USD): 758600

@@ -12,6 +12,11 @@ optimizer = true
 # difference costs a taker, which is what was traded away.
 optimizer_runs = 200
 via_ir = true
+# The replay drives two takers through tens of thousands of real router quotes in one transaction —
+# the arbitrageur's size search is most of them. That is far past the 2^30 forge ships with, and the
+# work is real work, not a runaway loop: `BlindTakers.quoteOut` already reclaims its own memory, so
+# what is left is the quotes themselves.
+gas_limit = "1099511627776"
 libs = ["node_modules"]
 fs_permissions = [
   { access = "read", path = "./tape" },
