@@ -366,6 +366,30 @@ python3 -m http.server 8000   # then http://localhost:8000/app/
   $1,257 and 65.2%. A fourfold range in the one modelled quantity moves the headline by 9%, and
   moves it *against* the desk as the book widens — it pays L1's ask, which a wide book makes worse.
   The desk's arb notional is zero at every width.
+- **The falsifier, and it is on the page rather than in a footnote.** `stressBps` is how far the
+  perp book has to walk from oracle before the desk quotes inside L1 — the one decision the extra
+  instruction makes. `test_report_theRegimeIsWhatCarriesIt` sweeps it with the map unwired: the
+  desk leans on 123, 49, 24, 8 and 0 minutes and absorbs $43,173, $43,173, $37,527, $17,553 and
+  **$0**. `test_falsifier_regimeOffCollapsesTheDesk` is that last rung asserted — no reachable
+  threshold and no map, and the desk quotes 20 bps outside L1 for 123 minutes and takes **nothing**,
+  while the same $56,898 of forced flow goes to the two makers willing to be the best price. It
+  also asserts that somebody absorbed it, because a desk that took nothing out of a harness that
+  routed nothing would prove the opposite of what it looks like. The shipped 25 bps sits in the
+  middle of that range and not at the edge of it, and the arbitrage column is $0 at every rung:
+  the regime decides how much the desk trades, the clamp decides that none of it is toxic.
+- **On this tape the desk did not need the liquidation map.** The book alone at 25 bps reproduces
+  the shipped run to the dollar; raise the threshold past anything the book reaches and leave the
+  map wired and the map is worth 3 minutes and $773. That is the best thing that can be said about
+  the one input taken on trust — on the day it was built for, it was redundant.
+- **Who gets served first inside a minute is an assumption, so it is a parameter and both settings
+  are published.** Arbitrageur first is what ships. Serve the forced seller first and in a falling
+  market they reach a maker still quoting last minute's higher bid, and the desk wins nothing at
+  all — because it will never bid above L1's ask. That is the desk declining to join two AMMs that
+  are bidding over the market, and it is exactly where the retired `desk >= 2 x control` gate
+  broke: it fails there while the desk is $2,249 ahead of the better control on what it kept. The
+  margin gate holds under both, 4.73 bps and 2.44.
+  `test_report_flowFirstMovesTheShareAndNotTheClaim` runs the retired gate rather than describing
+  it, so the example cannot rot into a story.
 - Four claims, four tests, and they are different questions.
   `testFuzz_noRoundTripEverProfits` asks whether the quote can ever be arbitraged against the book
   it read, which is the claim that has to hold in every block.

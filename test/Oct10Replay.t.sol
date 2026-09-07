@@ -384,23 +384,15 @@ contract Oct10ReplayTest is BlindTakers {
     function test_gate_deskKeepsMoreThanTheControls() public {
         Row[] memory rows = run(loadTapeOnly());
 
-        int256 desk = keptBy(rows, DESK);
-        int256 control = keptBy(rows, CONTROL);
-        int256 hard = keptBy(rows, HARD);
-        int256 best = control > hard ? control : hard;
-
-        int256 capital = int256(startValue / 1e6);
-        int256 marginBps = (desk - best) * 10_000 / capital;
-
-        emit log_named_int("kept, desk (USD)", desk);
-        emit log_named_int("kept, control (USD)", control);
-        emit log_named_int("kept, hardened control (USD)", hard);
-        emit log_named_int("capital deployed per maker (USD)", capital);
-        emit log_named_int("margin over the better control (bps of capital)", marginBps);
+        emit log_named_int("kept, desk (USD)", keptBy(rows, DESK));
+        emit log_named_int("kept, control (USD)", keptBy(rows, CONTROL));
+        emit log_named_int("kept, hardened control (USD)", keptBy(rows, HARD));
+        emit log_named_int("capital deployed per maker (USD)", int256(startValue / 1e6));
+        emit log_named_int("margin over the better control (bps x 100)", marginBpsX100(rows));
 
         assertGe(
-            marginBps,
-            int256(uint256(MIN_MARGIN_BPS)),
+            marginBpsX100(rows),
+            int256(uint256(MIN_MARGIN_BPS)) * 100,
             "the desk does not keep enough more than the maker that ignores the book"
         );
     }
@@ -408,6 +400,19 @@ contract Oct10ReplayTest is BlindTakers {
     /// @notice What each line kept: its absorbed edge less the LVR it paid, in USD.
     function keptBy(Row[] memory rows, uint256 line) internal pure returns (int256) {
         return edgeOf(rows, line) - int256(lvrOf(rows, line));
+    }
+
+    /// @notice How far ahead of the **better** control the desk came out, in hundredths of a basis
+    ///         point of the capital each maker deployed.
+    /// @dev Hundredths rather than basis points because whole bps truncate, and under the queue
+    ///      order where the forced seller goes first the honest number is 2.44 — which an integer
+    ///      gate would read as 2 and compare against a threshold of 2, passing on a rounding rather
+    ///      than on a result.
+    function marginBpsX100(Row[] memory rows) internal view returns (int256) {
+        int256 control = keptBy(rows, CONTROL);
+        int256 hard = keptBy(rows, HARD);
+        int256 best = control > hard ? control : hard;
+        return (keptBy(rows, DESK) - best) * 1_000_000 / int256(startValue / 1e6);
     }
 
     /// @notice What the headline number is actually resting on, measured rather than asserted.
@@ -474,6 +479,177 @@ contract Oct10ReplayTest is BlindTakers {
                 t: t.t,
                 takerNtl: t.takerNtl
             });
+        }
+    }
+
+    // ---- what happens when you take the mechanism away ----
+
+    /// @notice The falsifier, and the answer to "how do I know this is not an AMM with extra steps".
+    ///
+    ///         Turn the regime off — no dislocation threshold this book can reach, and no map — and
+    ///         the desk stops being a desk. It quotes 20 bps outside L1 on both sides for 123
+    ///         minutes, never once steps inside, and **absorbs nothing at all**. Not less: nothing.
+    ///         The forced flow still exists and still gets taken; it all goes to the two makers that
+    ///         are willing to be the best price on the screen.
+    ///
+    ///         So everything the desk earned on this tape is earned by the one decision the extra
+    ///         instruction makes, and the instruction is worth exactly what is lost here.
+    ///
+    /// @dev Both inputs have to be switched off, and finding that out was the point of sweeping
+    ///      rather than assuming. `stressBps` alone leaves the map able to declare stress by itself:
+    ///      at an unreachable threshold with the map still wired the desk leans on three minutes and
+    ///      still keeps $773. The book and the map are genuinely independent, which is the whole
+    ///      trust argument — the map can only ever *add* a lean.
+    ///
+    ///      The last two assertions are what stop this passing for the wrong reason. A desk that
+    ///      absorbed nothing because the harness routed nothing would pass the first one, and a
+    ///      quote that stopped being inarbitrable when the regime went quiet would be a different
+    ///      bug wearing this one's clothes.
+    function test_falsifier_regimeOffCollapsesTheDesk() public {
+        Tick[] memory tape = loadTapeOnly();
+
+        DeskParams memory p = shippedParams();
+        p.stressBps = type(uint16).max;
+        p.mapOracle = address(0);
+        Row[] memory rows = runWith(tape, p, false);
+
+        for (uint256 i = 0; i < rows.length; ++i) {
+            assertEq(rows[i].lean, uint8(Side.None), "a minute leaned with the regime switched off");
+        }
+
+        emit log_named_uint("absorbed, desk (USD)", absorbedOf(rows, DESK));
+        emit log_named_uint("absorbed, both AMMs (USD)", absorbedOf(rows, CONTROL) + absorbedOf(rows, HARD));
+        emit log_named_int("kept, desk (USD)", keptBy(rows, DESK));
+
+        assertEq(absorbedOf(rows, DESK), 0, "the desk absorbed flow without ever declaring stress");
+        assertEq(edgeOf(rows, DESK), 0, "a desk that absorbed nothing cannot have earned anything");
+        assertGt(
+            absorbedOf(rows, CONTROL) + absorbedOf(rows, HARD),
+            0,
+            "nobody absorbed anything: the desk's zero is the harness failing, not the desk sitting out"
+        );
+        assertEq(arbOf(rows, DESK), 0, "the desk became arbitrageable once it stopped leaning");
+    }
+
+    /// @notice The same falsifier as a dial rather than a switch, because the interesting claim is
+    ///         not that the desk needs the regime — it is that the regime is *what carries the
+    ///         result*, and that the shipped threshold is not a number chosen to flatter it.
+    ///
+    ///         `stressBps` is how far the perp book has to walk from oracle before the desk will
+    ///         quote inside L1. Sweeping it walks the desk from absorbing everything to absorbing
+    ///         nothing, monotonically, with the shipped 25 bps in the middle of the range rather
+    ///         than at the edge of it.
+    ///
+    /// @dev Reported, and one thing asserted: the desk pays nothing to arbitrageurs at **every**
+    ///      rung. Inarbitrability is a property of the clamp and the regime cannot switch it off,
+    ///      which is what makes the two claims separable — the regime decides how much the desk
+    ///      trades, the clamp decides that none of it is toxic.
+    ///
+    ///      Two readings that only the sweep gives:
+    ///
+    ///      **Leaning more is not absorbing more.** At 0 bps the desk leans on all 123 minutes and
+    ///      absorbs exactly what it absorbs at 10 bps, where it leans on 49. The extra minutes are
+    ///      quiet ones with no forced flow in them, so a desk that is permanently convinced of a
+    ///      crisis buys nothing extra — it just stops being outside L1 when it should be.
+    ///
+    ///      **On this tape the map is redundant at the shipped threshold.** The book alone, at
+    ///      25 bps with the map unwired, reproduces the shipped run to the dollar. The map only
+    ///      starts to matter as `stressBps` is raised past what the book reaches, which is the
+    ///      strongest thing that can be said about an input taken on trust: on the day it was built
+    ///      for, the desk did not need it.
+    function test_report_theRegimeIsWhatCarriesIt() public {
+        Tick[] memory tape = loadTapeOnly();
+        uint16[5] memory rungs = [uint16(0), uint16(10), STRESS_BPS, uint16(60), type(uint16).max];
+
+        for (uint256 k = 0; k < rungs.length; ++k) {
+            setUp();
+            DeskParams memory p = shippedParams();
+            p.stressBps = rungs[k];
+            p.mapOracle = address(0); // the book alone, so the dial is the only thing moving
+            Row[] memory rows = runWith(tape, p, false);
+
+            emit log_named_uint("stressBps (map unwired)", rungs[k]);
+            emit log_named_uint("  minutes leaning", leaningMinutes(rows));
+            emit log_named_uint("  absorbed, desk (USD)", absorbedOf(rows, DESK));
+            emit log_named_int("  kept, desk (USD)", keptBy(rows, DESK));
+            assertEq(arbOf(rows, DESK), 0, "a rung of the sweep made the desk arbitrageable");
+        }
+
+        // And the same threshold the book can never reach, with the map left wired: what the
+        // trusted input is worth on its own.
+        setUp();
+        DeskParams memory mapOnly = shippedParams();
+        mapOnly.stressBps = type(uint16).max;
+        Row[] memory withMap = runWith(tape, mapOnly, false);
+        emit log_named_uint("map alone, book threshold unreachable", 0);
+        emit log_named_uint("  minutes leaning", leaningMinutes(withMap));
+        emit log_named_uint("  absorbed, desk (USD)", absorbedOf(withMap, DESK));
+        emit log_named_int("  kept, desk (USD)", keptBy(withMap, DESK));
+        assertEq(arbOf(withMap, DESK), 0, "the map made the desk arbitrageable");
+    }
+
+    /// @notice The queue-position assumption, published rather than argued.
+    ///
+    ///         Inside one minute the arbitrageur and the forced seller both arrive. The replay puts
+    ///         the arbitrageur first, because a latency-optimised searcher beats a liquidated
+    ///         account to a stale quote. Put the forced seller first instead and in a falling market
+    ///         they reach a maker still quoting last minute's higher bid — and the desk, which will
+    ///         never bid above L1's ask, wins nothing at all.
+    ///
+    ///         **That reordering is where the retired gate failed.** `desk >= 2 x control` on
+    ///         absorbed edge asks the desk to have absorbed, and here the correct behaviour is to
+    ///         absorb nothing: the AMMs are bidding above the market and the desk is refusing to
+    ///         join them. The old gate fails on the desk's most disciplined minute of the session
+    ///         while the desk is thousands of dollars ahead. The gate was wrong, not the result.
+    ///
+    /// @dev Both orderings run here and both are reported, and the two claims that matter hold
+    ///      under either: the desk pays arbitrageurs nothing, and it keeps more than the better of
+    ///      the two controls. What moves is the share of flow, which is a fact about who was
+    ///      standing where and not about the quote.
+    function test_report_flowFirstMovesTheShareAndNotTheClaim() public {
+        Tick[] memory tape = loadTapeOnly();
+
+        Row[] memory arbFirst = run(tape);
+        int256 arbFirstMargin = marginBpsX100(arbFirst);
+        emit log_named_uint("arbitrageur first: absorbed, desk (USD)", absorbedOf(arbFirst, DESK));
+        emit log_named_int("arbitrageur first: kept, desk (USD)", keptBy(arbFirst, DESK));
+        emit log_named_int("arbitrageur first: margin (bps x 100)", arbFirstMargin);
+
+        setUp();
+        Row[] memory flowFirst = runWith(tape, shippedParams(), true);
+        int256 flowFirstMargin = marginBpsX100(flowFirst);
+
+        emit log_named_uint("forced seller first: absorbed, desk (USD)", absorbedOf(flowFirst, DESK));
+        emit log_named_uint("forced seller first: absorbed, both AMMs (USD)",
+            absorbedOf(flowFirst, CONTROL) + absorbedOf(flowFirst, HARD));
+        emit log_named_int("forced seller first: kept, desk (USD)", keptBy(flowFirst, DESK));
+        emit log_named_int("forced seller first: kept, control (USD)", keptBy(flowFirst, CONTROL));
+        emit log_named_int("forced seller first: kept, hardened control (USD)", keptBy(flowFirst, HARD));
+        emit log_named_int("forced seller first: margin (bps x 100)", flowFirstMargin);
+
+        // What the retired gate would have said about that run, run rather than described.
+        int256 deskEdge = edgeOf(flowFirst, DESK);
+        int256 controlEdge = edgeOf(flowFirst, CONTROL);
+        emit log_named_int("forced seller first: absorbed edge, desk (USD)", deskEdge);
+        emit log_named_int("forced seller first: absorbed edge, control (USD)", controlEdge);
+        assertLt(
+            deskEdge,
+            controlEdge * 2,
+            "the retired multiple gate would have passed here: the example no longer demonstrates anything"
+        );
+
+        // The claims that are actually the claims.
+        assertEq(arbOf(flowFirst, DESK), 0, "the desk paid arbitrageurs under the other ordering");
+        assertGe(
+            flowFirstMargin,
+            int256(uint256(MIN_MARGIN_BPS)) * 100,
+            "the desk stops keeping more than the controls when the forced seller goes first"
+        );
+    }
+
+    function leaningMinutes(Row[] memory rows) internal pure returns (uint256 n) {
+        for (uint256 i = 0; i < rows.length; ++i) {
+            if (rows[i].lean != uint8(Side.None)) ++n;
         }
     }
 
@@ -548,8 +724,18 @@ contract Oct10ReplayTest is BlindTakers {
     // ---- the loop ----
 
     function run(Tick[] memory tape) internal returns (Row[] memory rows) {
-        Line[] memory lines = shipLines(tape[0].spot, false);
-        drive(tape, lines);
+        return runWith(tape, shippedParams(), false);
+    }
+
+    /// @notice The session, with the two things a falsifier needs to change: what the desk's
+    ///         parameters are, and who gets to the makers first inside a minute.
+    /// @param flowFirst true puts the forced seller ahead of the arbitrageur. See `driveOrdered`.
+    function runWith(Tick[] memory tape, DeskParams memory p, bool flowFirst)
+        internal
+        returns (Row[] memory rows)
+    {
+        Line[] memory lines = shipLines(p, tape[0].spot, false);
+        driveOrdered(tape, lines, flowFirst);
 
         rows = new Row[](tape.length);
         for (uint256 i = 0; i < tape.length; ++i) {
@@ -558,9 +744,32 @@ contract Oct10ReplayTest is BlindTakers {
         markouts(rows, tape);
     }
 
+    /// @notice What the desk ships with: the suite's band, and the map oracle the replay writes.
+    function shippedParams() internal view returns (DeskParams memory p) {
+        p = btcParams();
+        p.mapOracle = address(mapOracle);
+    }
+
     /// @notice The minute loop itself, with no reporting in it, so that `test_takers_areBlind` can
     ///         drive exactly the same machine over a different pair of makers.
     function drive(Tick[] memory tape, Line[] memory lines) internal {
+        driveOrdered(tape, lines, false);
+    }
+
+    /// @param flowFirst Who reaches the makers first inside one minute.
+    ///
+    ///        This is a **queue-position assumption** and it changes the answer, so it is a
+    ///        parameter rather than an accident of the loop order. Arbitrageur first is what the
+    ///        replay ships: a latency-optimised searcher gets a look before a liquidated account
+    ///        does, and by the time the forced seller arrives the stale maker has been repriced.
+    ///        Forced seller first is the other extreme, and in a falling market it hands the whole
+    ///        minute to whoever is stale — last minute's bid was higher, the desk will never bid
+    ///        above L1's ask, so the desk wins nothing and the AMM buys the falling knife at its own
+    ///        old price. The forced seller then captures the staleness that the arbitrageur would
+    ///        have; the AMM loses the same money either way, to a different counterparty.
+    ///
+    ///        `test_report_flowFirstMovesTheShareAndNotTheClaim` publishes both.
+    function driveOrdered(Tick[] memory tape, Line[] memory lines, bool flowFirst) internal {
         fills = new Fill[][](tape.length);
         bleeds = new Bleed[][](tape.length);
         held = new Held[][](tape.length);
@@ -583,9 +792,10 @@ contract Oct10ReplayTest is BlindTakers {
             uint256 buyIn = tick.forcedBuyNtl * FLOW_CAPTURE_BPS / BPS_DEN * 1e6;
 
             for (uint256 s = 0; s < FLOW_SLICES; ++s) {
-                runArb(lines, b, m, ARB_EDGE_BPS);
+                if (!flowFirst) runArb(lines, b, m, ARB_EDGE_BPS);
                 routeFlow(lines, f, m, true, sellIn / FLOW_SLICES, FLOW_CLIPS / FLOW_SLICES, i + s);
                 routeFlow(lines, f, m, false, buyIn / FLOW_SLICES, FLOW_CLIPS / FLOW_SLICES, i + s);
+                if (flowFirst) runArb(lines, b, m, ARB_EDGE_BPS);
             }
 
             _store(i, f, b);
@@ -606,11 +816,18 @@ contract Oct10ReplayTest is BlindTakers {
         }
     }
 
-    /// @notice Ship the two makers: the desk, and the same curve with the bound removed.
-    /// @param twins true ships the control's program into both slots — the blindness test.
     function shipLines(uint256 spot0, bool twins) internal returns (Line[] memory lines) {
-        params = btcParams();
-        params.mapOracle = address(mapOracle);
+        return shipLines(shippedParams(), spot0, twins);
+    }
+
+    /// @notice Ship the three makers: the desk, the same curve with the bound removed, and that
+    ///         curve charging a fee.
+    /// @param twins true ships the control's program into all three slots — the blindness test.
+    function shipLines(DeskParams memory p, uint256 spot0, bool twins)
+        internal
+        returns (Line[] memory lines)
+    {
+        params = p;
 
         uint256 quote_ = openingQuote(spot0);
         startValue = valueAtSpot(START_BASE, quote_, spot0);

@@ -509,6 +509,77 @@ button.go.ghost:hover { color: var(--text); }
         tighter book than this one, the numbers above get better, not worse.</p>
     </section>
 
+    <section class="chart" id="wrap-falsifier">
+      <h2>take the mechanism away and see what is left</h2>
+      <p class="note">The question this has to answer is "how do I know this is not an AMM with
+        extra steps?" — and the way to answer it is to switch the extra step off and publish what
+        happens.</p>
+      <p class="caveat"><code>stressBps</code> is how far the perp book has to walk from oracle
+        before the desk will quote inside L1. It is the one decision the extra instruction makes.
+        <code>test_report_theRegimeIsWhatCarriesIt</code> sweeps it with the liquidation map
+        unwired, so the book alone is moving:</p>
+      <table class="sweep">
+        <thead><tr><th>stressBps</th><th>minutes leaning</th><th>desk absorbs</th><th>desk keeps</th><th>taken by arbitrageurs</th></tr></thead>
+        <tbody>
+          <tr><td>0 — always in crisis</td><td>123 of 123</td><td>$43,173</td><td>$1,378</td><td>$0</td></tr>
+          <tr><td>10</td><td>49</td><td>$43,173</td><td>$1,378</td><td>$0</td></tr>
+          <tr><td class="now">25 — as shipped</td><td class="now">24</td><td class="now">$37,527</td><td class="now">$1,334</td><td class="now">$0</td></tr>
+          <tr><td>60</td><td>8</td><td>$17,553</td><td>$832</td><td>$0</td></tr>
+          <tr><td>unreachable — never leans</td><td>0</td><td><b>$0</b></td><td><b>$0</b></td><td>$0</td></tr>
+        </tbody>
+      </table>
+      <p class="caveat"><b>The bottom row is the falsifier.</b> With no threshold the book can reach
+        and no map, the desk quotes 20 bps outside L1 on both sides for 123 minutes and absorbs
+        <b>nothing at all</b> — not less, nothing. The $56,898 of forced flow still gets taken; it
+        all goes to the two makers willing to be the best price on the screen.
+        <code>test_falsifier_regimeOffCollapsesTheDesk</code> asserts every part of that, including
+        that somebody absorbed it, because a desk that took nothing out of a harness that routed
+        nothing would prove the opposite of what it looks like.
+        <br><br>
+        Three things the sweep says that a single ablation could not. <b>The shipped 25 bps sits in
+        the middle of the range, not at the edge of it</b> — it is not a number picked to flatter
+        the result. <b>Leaning more is not absorbing more</b>: at 0 bps the desk leans on all 123
+        minutes and absorbs exactly what it absorbs at 10, where it leans on 49, because the extra
+        minutes are quiet ones with no forced flow in them — a desk permanently convinced of a
+        crisis just stops being outside L1 when it should be. And <b>the last column never
+        moves</b>: the regime decides how much the desk trades, the clamp decides that none of it
+        is toxic, and no setting of the first switches off the second.
+        <br><br>
+        <b>On this tape the desk did not need the map.</b> The book alone at 25 bps reproduces the
+        shipped run to the dollar. Raise the threshold past anything the book reaches and leave the
+        map wired and the desk leans on 3 minutes and keeps $773 — that is the trusted input's whole
+        contribution here, and it is the strongest thing that can be said about an input taken on
+        trust: on the day it was built for, it was redundant.</p>
+    </section>
+
+    <section class="chart" id="wrap-ordering">
+      <h2>and if the forced seller gets there first</h2>
+      <p class="note">Inside one minute the arbitrageur and the liquidated account both arrive. Who
+        is served first is an assumption, so it is a parameter, and both settings are published.</p>
+      <table class="sweep">
+        <thead><tr><th>inside the minute</th><th>desk absorbs</th><th>desk keeps</th><th>better control keeps</th><th>margin</th><th>desk pays arbitrageurs</th></tr></thead>
+        <tbody>
+          <tr><td class="now">arbitrageur first — as shipped</td><td class="now">$37,527</td><td class="now">$1,334</td><td class="now">−$3,021</td><td class="now">4.73 bps</td><td class="now">$0</td></tr>
+          <tr><td>forced seller first</td><td>$0</td><td>$0</td><td>−$2,249</td><td>2.44 bps</td><td>$0</td></tr>
+        </tbody>
+      </table>
+      <p class="caveat">The replay ships the first row: a latency-optimised searcher beats a
+        liquidated account to a stale quote, so by the time the forced seller arrives the AMM has
+        been repriced. Serve the forced seller first and in a falling market they reach a maker
+        still quoting last minute's higher bid — and <b>the desk wins nothing, because it will never
+        bid above L1's ask.</b> That is the desk being disciplined, not the desk failing: the AMMs
+        are bidding over the market and it declines to join them.
+        <br><br>
+        <b>It is also exactly where the retired gate broke.</b> "Desk edge at least twice the
+        control's" asks the desk to have absorbed. Here the correct behaviour is to absorb nothing,
+        so that gate fails — while the desk is $2,249 ahead of the better control on what it kept.
+        The gate was wrong, not the result.
+        <code>test_report_flowFirstMovesTheShareAndNotTheClaim</code> runs both orderings, asserts
+        the retired gate really would have failed rather than describing it, and then asserts the
+        two claims that are the claims: the desk pays arbitrageurs nothing, and it keeps more than
+        the better control — under either ordering.</p>
+    </section>
+
     <footer>
       <p>Reads <code>results/oct10_replay.csv</code>, written by
         <code>forge test --match-contract Oct10Replay</code>, whose 45 columns are documented in
