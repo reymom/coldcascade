@@ -118,8 +118,15 @@ async function connectToChain(rpc, rpcUrl) {
   };
 }
 
+/// `no-store`, and not as a precaution.
+///
+/// These three files — the address book, the selectors and the bytecode — are exactly the ones that
+/// change when contracts are redeployed, and they are the ones a browser is happiest to keep. A
+/// stale address book is the worst failure this page has: it reads as "read failed" against an
+/// address that has no code, which looks like a broken chain rather than a cached file, and it
+/// costs an hour to find. `replay.js` already does this for the CSV for the same reason.
 const fetchJson = async (url) => {
-  const res = await fetch(url);
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
   return res.json();
 };

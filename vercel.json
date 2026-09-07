@@ -6,6 +6,14 @@
     {
       "source": "/app/(.*)",
       "headers": [{ "key": "cache-control", "value": "public, max-age=0, must-revalidate" }]
+    },
+    {
+      "source": "/deployments/(.*)",
+      "headers": [{ "key": "cache-control", "value": "public, max-age=0, must-revalidate" }]
+    },
+    {
+      "source": "/results/(.*)",
+      "headers": [{ "key": "cache-control", "value": "public, max-age=0, must-revalidate" }]
     }
   ]
 }
