@@ -103,7 +103,11 @@ async function connectToChain(rpc, rpcUrl) {
       mode: "deployed",
       chainId, rpcUrl, chain, privy, sel, deployment,
       addresses: deployment,
-      accounts: [deployment.canonicalDesk, deployment.demoDesk].filter(Boolean),
+      // `filter(Boolean)` is what lets a desk be added to the address book without touching this
+      // file again, and what lets this line name one that does not exist yet. The list is explicit
+      // rather than discovered from `DeskOpened`, because the page has no indexer: it holds the
+      // addresses it was deployed with and reads them straight from the node.
+      accounts: [deployment.canonicalDesk, deployment.demoDesk, deployment.hedgedDesk].filter(Boolean),
       previews: [],
       overrides: null,
     };
