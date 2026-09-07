@@ -14,18 +14,27 @@ const tabs = [
 
 let evidenceLoaded = false;
 
-for (const { button, panel } of tabs) {
-  document.getElementById(button).addEventListener("click", async () => {
-    for (const t of tabs) {
-      const selected = t.button === button;
-      document.getElementById(t.button).setAttribute("aria-selected", String(selected));
-      document.getElementById(t.panel).hidden = !selected;
-    }
-    if (panel === "panel-evidence" && !evidenceLoaded) {
-      evidenceLoaded = true;
-      await import("./app.js");
-    }
-  });
+async function show(button, panel) {
+  for (const t of tabs) {
+    const selected = t.button === button;
+    document.getElementById(t.button).setAttribute("aria-selected", String(selected));
+    document.getElementById(t.panel).hidden = !selected;
+  }
+  if (panel === "panel-evidence" && !evidenceLoaded) {
+    evidenceLoaded = true;
+    await import("./app.js");
+  }
 }
+
+for (const { button, panel } of tabs) {
+  document.getElementById(button).addEventListener("click", () => show(button, panel));
+}
+
+// The Floor's arbitrage panel makes a claim about this block; the Evidence tab makes the same claim
+// about 123 of them. The link between them is in the prose, so it should also be in the page.
+document.getElementById("go-evidence")?.addEventListener("click", () => {
+  show("tab-evidence", "panel-evidence");
+  document.getElementById("panel-evidence").scrollIntoView({ behavior: "smooth", block: "start" });
+});
 
 mountFloor(document);

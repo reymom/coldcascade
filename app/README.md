@@ -69,9 +69,25 @@ why the page says so instead of hiding the control.
 
 ## Evidence · 10 October 2025
 
-The replay, unchanged, imported only when the tab is first opened. It reads
-`../results/oct10_replay.csv` and is labelled a reproduction from a frozen tape — nothing on a live
-screen is a picture of something else.
+The replay, imported only when the tab is first opened. It reads `../results/oct10_replay.csv` —
+45 columns, documented in `../results/oct10_replay.schema.md` — and is labelled a reproduction from
+a frozen tape, because nothing on a live screen should be a picture of something else.
+
+**It is the Floor's claim over a session rather than over a block.** The Floor prices one round
+trip against the current book; this counts what an arbitrageur actually extracted over 123
+consecutive minutes of the 2025-10-10 cascade. Both come out zero, and the zero is the headline:
+$0 taken from the desk against $3,558 from a plain `XYCSwap` control and $2,700 from the same
+curve charging 30 bps, and 0% of the desk's traded notional was an arbitrageur against 98.5% of
+theirs.
+
+There is no multiple on the page. Both AMM lines lose money on what they absorbed — which is what
+a maker whose price was set before the trade does in a cascade — so the honest denominator does
+not exist. Four lines instead: the desk, the plain control it is an ablation of, the fee'd control
+that is the competitor, and Hyperliquid's own touch, which is not a maker and is the only
+comparison nobody can call a strawman. The desk ends above it, on a third less notional.
+
+The last section on the page declares the one modelled quantity the numbers rest on — the width of
+the stub tape's book — and measures what it is worth rather than apologising for it.
 
 ## Running it
 
@@ -104,7 +120,7 @@ open http://localhost:8000/app/?rpc=http://127.0.0.1:8545
 | `src/chain.js` | every call the Floor makes, with its type strings in one place |
 | `src/floor.js` | the Floor screen and the two buttons |
 | `src/bands.js` | the live two-books strip |
-| `src/replay.js` · `src/chart.js` · `src/app.js` | the Evidence tab, unchanged |
+| `src/replay.js` · `src/chart.js` · `src/app.js` | the Evidence tab: the CSV guard, the drawing primitives, the four lines |
 | `src/types.ts` | the contract and CSV types, for the surfaces still to come |
 
 Regenerate the two JSON files after any change to `CoreQuote`, `FloorLens`, `DeskAccount`,

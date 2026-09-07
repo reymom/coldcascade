@@ -2,9 +2,14 @@ import { loadReplay, bpsFromMid, usd, hhmm, SchemaDrift } from "./replay.js";
 import { el, svg, xScale, yScale, niceBounds, ticksFor, line, band, yAxis, xLabels, VIEW_W, PAD }
   from "./chart.js";
 
+// The Evidence tab. Same claim as the Floor, over two hours instead of over one block: the Floor
+// asks what an arbitrageur would get for trying *right now*, this asks what they got for trying all
+// through 10 October 2025. Both answers are zero, and the zero is the headline — a multiple invites
+// "of what, measured how?", a zero does not.
+
 const CSV = "../results/oct10_replay.csv";
 
-const H = { spot: 96, bands: 300, lean: 26, edge: 210 };
+const H = { spot: 96, bands: 300, lean: 26, lvr: 190, edge: 210 };
 const LABEL_EVERY = 15;
 
 const fmtUsd = (v) => `$${Math.round(v).toLocaleString("en-US")}`;
@@ -32,49 +37,118 @@ async function main() {
   document.getElementById("page").hidden = false;
 
   const x = xScale(rows.length);
-  const edge = absorbedEdge(rows);
-  drawHeadline(rows, edge);
+  const edge = cumulative(rows, EDGE);
+  const lvr = cumulative(rows, LVR);
+  drawHeadline(rows, edge, lvr);
   drawSpot(rows, x);
   drawBands(rows, x);
   drawLean(rows, x);
+  drawLvr(rows, x, lvr);
   drawEdge(rows, x, edge);
   wireCrosshair(rows, x);
 }
 
-// ---- headline ----
+// ---- the four lines, named once ----
+//
+// Three makers and a venue. The desk; the plain XYCSwap control, which is the desk program with one
+// instruction removed and is therefore the right *ablation*; the same curve charging 30 bps through
+// 1inch's own FlatFeeIn, which is the right *competitor* because that is what people deploy; and
+// Hyperliquid's own touch, which is not a maker at all and is here so that "compared to what?" has
+// an answer nobody can call a strawman.
 
-function drawHeadline(rows, edge) {
-  const trough = rows.reduce((a, b) => (b.spot < a.spot ? b : a));
-  const deskTotal = edge.desk[edge.desk.length - 1];
-  const controlTotal = edge.control[edge.control.length - 1];
-  const set = (id, value, sub) => {
-    document.getElementById(id).textContent = value;
-    if (sub) document.getElementById(`${id}-sub`).textContent = sub;
-  };
-  set("stat-desk", fmtUsd(deskTotal), "absorbed, marked out at 60m");
-  set("stat-control", fmtUsd(controlTotal), "plain XYCSwap, same tape");
-  set("stat-multiple", controlTotal > 0 ? `${(deskTotal / controlTotal).toFixed(1)}x` : "—",
-    "desk over control");
-  set("stat-lean", String(rows.filter((r) => r.lean !== 0).length), `of ${rows.length} minutes`);
-  set("stat-trough", fmtUsd(usd(trough.spot)), `at ${hhmm(trough.t)} UTC`);
+const LINES = [
+  { key: "desk", name: "desk", cls: "desk" },
+  { key: "control", name: "control, plain XYCSwap", cls: "control" },
+  { key: "hard", name: "control, XYCSwap at 30 bps", cls: "hard" },
+  { key: "touch", name: "L1's own touch", cls: "touch" },
+];
+
+/** Each minute's 60 m markout applied to what that line actually absorbed, in dollars. */
+const EDGE = {
+  desk: (r) => Math.trunc((r.absorbedDeskNtl * r.markoutDesk60mBps) / 10_000),
+  control: (r) => Math.trunc((r.absorbedControlNtl * r.markoutControl60mBps) / 10_000),
+  hard: (r) => Math.trunc((r.absorbedHardNtl * r.markoutHard60mBps) / 10_000),
+  touch: (r) => Math.trunc((r.absorbedTouchNtl * r.markoutTouch60mBps) / 10_000),
+};
+
+/** What the arbitrageur took out of each line this minute, closed at L1's touch, in dollars. */
+const LVR = {
+  desk: (r) => r.lvrDeskNtl,
+  control: (r) => r.lvrControlNtl,
+  hard: (r) => r.lvrHardNtl,
+  touch: () => 0,
+};
+
+/// Truncating toward zero, per row, because that is what the Solidity does — so the dollars on this
+/// page and the dollars in results/oct10_replay.source are the same dollars.
+function cumulative(rows, pick) {
+  const out = {};
+  for (const { key } of LINES) {
+    let acc = 0;
+    out[key] = rows.map((r) => (acc += pick[key](r)));
+  }
+  return out;
 }
 
-/// The quantity the argument rests on. A markout in bps is a rate, and the desk is meant to lose
-/// on that rate: leaning inside the spread is paying up, on every fill, by construction. What it
-/// buys with that is size at a price that reverts, so the number that matters is the rate applied
-/// to the notional it actually absorbed, run forward over the session.
-function absorbedEdge(rows) {
-  let d = 0;
-  let c = 0;
-  const desk = [];
-  const control = [];
-  for (const r of rows) {
-    d += (r.markoutDesk60mBps / 10_000) * r.absorbedDeskNtl;
-    c += (r.markoutControl60mBps / 10_000) * r.absorbedControlNtl;
-    desk.push(d);
-    control.push(c);
-  }
-  return { desk, control };
+const last = (series) => series[series.length - 1];
+
+function totals(rows) {
+  const sum = (f) => rows.reduce((a, r) => a + f(r), 0);
+  return {
+    absorbed: {
+      desk: sum((r) => r.absorbedDeskNtl),
+      control: sum((r) => r.absorbedControlNtl),
+      hard: sum((r) => r.absorbedHardNtl),
+      touch: sum((r) => r.absorbedTouchNtl),
+    },
+    arb: {
+      desk: sum((r) => r.arbDeskNtl),
+      control: sum((r) => r.arbControlNtl),
+      hard: sum((r) => r.arbHardNtl),
+      touch: 0,
+    },
+  };
+}
+
+/// The share of everything a maker traded that was an arbitrageur rather than someone who needed
+/// to trade. It is the same property as the Floor's round trip, counted over a session instead of
+/// priced in one block.
+const toxicPct = (arb, absorbed) => (arb + absorbed === 0 ? 0 : (arb / (arb + absorbed)) * 100);
+
+/// One decimal, dropped when it is a whole number. 98.5 shown as "99%" invites an argument about
+/// rounding on the one number the page is asking to be believed.
+const fmtPct = (v) => `${Number.isInteger(v) ? v : v.toFixed(1)}%`;
+
+// ---- headline ----
+
+function drawHeadline(rows, edge, lvr) {
+  const trough = rows.reduce((a, b) => (b.spot < a.spot ? b : a));
+  const t = totals(rows);
+  const set = (id, value, sub) => {
+    document.getElementById(id).textContent = value;
+    if (sub !== undefined) document.getElementById(`${id}-sub`).textContent = sub;
+  };
+
+  const ammArb = t.arb.control + t.arb.hard;
+  const ammAbsorbed = t.absorbed.control + t.absorbed.hard;
+
+  // The zero first. It is the same claim the Floor makes about this block, held for 123 of them.
+  set("stat-lvr-desk", fmtUsd(last(lvr.desk)), `over ${rows.length} minutes, both directions`);
+  set("stat-lvr-control", fmtUsd(last(lvr.control)),
+    `plain XYCSwap · ${fmtUsd(last(lvr.hard))} at 30 bps`);
+  set("stat-toxic-desk", fmtPct(toxicPct(t.arb.desk, t.absorbed.desk)),
+    "of everything the desk traded");
+  set("stat-toxic-amm", fmtPct(toxicPct(ammArb, ammAbsorbed)),
+    `${fmtUsd(ammArb)} of ${fmtUsd(ammArb + ammAbsorbed)}`);
+
+  // And what the flow it did take was worth, against the venue rather than against an AMM.
+  const perDollar = (e, n) => (n === 0 ? 0 : (e / n) * 10_000);
+  set("stat-edge-desk", `${fmtBps(perDollar(last(edge.desk), t.absorbed.desk))} bps`,
+    `${fmtUsd(last(edge.desk))} on ${fmtUsd(t.absorbed.desk)} absorbed`);
+  set("stat-edge-touch", `${fmtBps(perDollar(last(edge.touch), t.absorbed.touch))} bps`,
+    `${fmtUsd(last(edge.touch))} on ${fmtUsd(t.absorbed.touch)} at L1's touch`);
+  set("stat-lean", String(rows.filter((r) => r.lean !== 0).length), `of ${rows.length} minutes`);
+  set("stat-trough", fmtUsd(usd(trough.spot)), `at ${hhmm(trough.t)} UTC`);
 }
 
 // ---- the price the whole thing happened at ----
@@ -154,31 +228,73 @@ function drawLean(rows, x) {
   });
 }
 
+// ---- what the arbitrageurs took ----
+
+/**
+ * The picture the Floor tab makes about one block, held for 123 of them.
+ *
+ * A maker is arbitraged when somebody can buy from it and sell at the reference venue for more
+ * than they paid, and that profit is the maker's loss-versus-rebalancing. Every AMM has it, because
+ * every AMM's price was set at some earlier moment than the trade that takes it. The desk has no
+ * earlier moment: `CoreQuote` reads L1's book inside the call that settles the swap and clamps
+ * itself to what crossing L1 would have paid.
+ *
+ * So the desk's line is flat on zero, and it is flat on zero because there was never a size that
+ * worked, not because nobody looked — the same search ran against every maker on this chart and
+ * found $1.3 m of size against the other two.
+ */
+function drawLvr(rows, x, lvr) {
+  const node = svg(document.getElementById("chart-lvr"), H.lvr);
+  const all = LINES.flatMap(({ key }) => lvr[key]);
+  const [lo, hi] = niceBounds([...all, 0], { padding: 0.16 });
+  const y = yScale(lo, hi, H.lvr);
+  yAxis(node, y, ticksFor(lo, hi, 5), (v) => fmtUsd(v), H.lvr);
+
+  const xs = rows.map((_, i) => x(i));
+  for (const { key, cls } of LINES) {
+    if (key === "touch") continue; // not a maker: it holds nothing to be arbitraged out of
+    line(node, xs, lvr[key].map(y), { class: `edge-${cls}` });
+  }
+
+  endLabel(node, y(last(lvr.control)) - 6, fmtUsd(last(lvr.control)), "control");
+  endLabel(node, y(last(lvr.hard)) + 14, fmtUsd(last(lvr.hard)), "hard");
+  endLabel(node, y(last(lvr.desk)) - 6, `${fmtUsd(last(lvr.desk))} — the desk`, "desk");
+
+  xLabels(node, x, rows, H.lvr - 6, LABEL_EVERY, (r) => hhmm(r.t));
+}
+
 // ---- was the desk right an hour later ----
 
 function drawEdge(rows, x, edge) {
   const node = svg(document.getElementById("chart-edge"), H.edge);
-  const [lo, hi] = niceBounds([...edge.desk, ...edge.control, 0], { padding: 0.16 });
+  const all = LINES.flatMap(({ key }) => edge[key]);
+  const [lo, hi] = niceBounds([...all, 0], { padding: 0.16 });
   const y = yScale(lo, hi, H.edge);
   yAxis(node, y, ticksFor(lo, hi, 5), (v) => fmtUsd(v), H.edge);
 
   const xs = rows.map((_, i) => x(i));
-  const deskY = edge.desk.map(y);
-  const controlY = edge.control.map(y);
+  // Shaded against L1's own touch, not against the AMMs. The AMM lines are the ablation and the
+  // competitor; the venue is the thing worth clearing, and it is the comparison a judge cannot
+  // call a strawman — so it is the one the fill points at.
+  band(node, xs, edge.desk.map(y), edge.touch.map(y), { class: "edge-gap" });
+  for (const { key, cls } of LINES) {
+    line(node, xs, edge[key].map(y), { class: `edge-${cls}` });
+  }
 
-  band(node, xs, deskY, controlY, { class: "edge-gap" });
-  line(node, xs, controlY, { class: "edge-control" });
-  line(node, xs, deskY, { class: "edge-desk" });
-
-  const label = (value, py, cls) => {
-    const text = el("text", { x: VIEW_W - PAD.right, y: py - 6, class: `edge-label ${cls}`,
-      "text-anchor": "end" }, node);
-    text.append(fmtUsd(value));
-  };
-  label(edge.desk.at(-1), deskY.at(-1), "edge-label-desk");
-  label(edge.control.at(-1), controlY.at(-1) + 18, "edge-label-control");
+  // The desk's label carries the comparison that matters, and it is not against an AMM.
+  endLabel(node, y(last(edge.control)) + 14, fmtUsd(last(edge.control)), "control");
+  endLabel(node, y(last(edge.hard)) + 26, fmtUsd(last(edge.hard)), "hard");
+  endLabel(node, y(last(edge.touch)) + 14, `${fmtUsd(last(edge.touch))} — L1's touch`, "touch");
+  endLabel(node, y(last(edge.desk)) - 6, `${fmtUsd(last(edge.desk))} — the desk`, "desk");
 
   xLabels(node, x, rows, H.edge - 6, LABEL_EVERY, (r) => hhmm(r.t));
+}
+
+function endLabel(node, py, text, cls) {
+  const node_ = el("text", {
+    x: VIEW_W - PAD.right, y: py, class: `edge-label edge-label-${cls}`, "text-anchor": "end",
+  }, node);
+  node_.append(text);
 }
 
 // ---- the readout ----
@@ -209,13 +325,27 @@ function wireCrosshair(rows, x) {
       ["lean", r.leanName],
       ["dislocation", `${fmtBps(r.dislocationBps)} bps`],
       ["forced sell / buy", `$${r.forcedSellNtl.toLocaleString("en-US")} / $${r.forcedBuyNtl.toLocaleString("en-US")}`],
-      ["absorbed", r.absorbedDeskNtl || r.absorbedControlNtl
-        ? `desk $${r.absorbedDeskNtl.toLocaleString("en-US")} · control $${r.absorbedControlNtl.toLocaleString("en-US")}`
+      ["absorbed", r.absorbedDeskNtl || r.absorbedControlNtl || r.absorbedHardNtl
+        ? `desk $${r.absorbedDeskNtl.toLocaleString("en-US")}`
+          + ` · control $${r.absorbedControlNtl.toLocaleString("en-US")}`
+          + ` · 30 bps $${r.absorbedHardNtl.toLocaleString("en-US")}`
         : "—"],
-      ["markout rate 60m", r.markoutDesk60mBps || r.markoutControl60mBps
-        ? `desk ${fmtBps(r.markoutDesk60mBps)} · control ${fmtBps(r.markoutControl60mBps)} bps`
+      ["markout rate 60m", r.markoutDesk60mBps || r.markoutControl60mBps || r.markoutHard60mBps
+        ? `desk ${fmtBps(r.markoutDesk60mBps)} · control ${fmtBps(r.markoutControl60mBps)}`
+          + ` · 30 bps ${fmtBps(r.markoutHard60mBps)} · L1 ${fmtBps(r.markoutTouch60mBps)} bps`
         : "—"],
-      ["pnl, marked at spot", `desk ${fmtBps(r.pnlDeskBps)} · control ${fmtBps(r.pnlControlBps)} bps`],
+      ["taken by arbitrageurs", r.arbDeskNtl || r.arbControlNtl || r.arbHardNtl
+        ? `desk $${r.arbDeskNtl.toLocaleString("en-US")}`
+          + ` · control $${r.arbControlNtl.toLocaleString("en-US")}`
+          + ` · 30 bps $${r.arbHardNtl.toLocaleString("en-US")}`
+        : "—"],
+      ["lvr paid", r.lvrDeskNtl || r.lvrControlNtl || r.lvrHardNtl
+        ? `desk $${r.lvrDeskNtl.toLocaleString("en-US")}`
+          + ` · control $${r.lvrControlNtl.toLocaleString("en-US")}`
+          + ` · 30 bps $${r.lvrHardNtl.toLocaleString("en-US")}`
+        : "—"],
+      ["pnl, marked at spot", `desk ${fmtBps(r.pnlDeskBps)} · control ${fmtBps(r.pnlControlBps)}`
+        + ` · 30 bps ${fmtBps(r.pnlHardBps)} bps`],
     ]) {
       const cell = document.createElement("div");
       cell.className = "readout-cell";
