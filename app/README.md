@@ -74,11 +74,20 @@ The replay, imported only when the tab is first opened. It reads `../results/oct
 a frozen tape, because nothing on a live screen should be a picture of something else.
 
 **It is the Floor's claim over a session rather than over a block.** The Floor prices one round
-trip against the current book; this counts what an arbitrageur actually extracted over 123
-consecutive minutes of the 2025-10-10 cascade. Both come out zero, and the zero is the headline:
-$0 taken from the desk against $3,558 from a plain `XYCSwap` control and $2,700 from the same
-curve charging 30 bps, and 0% of the desk's traded notional was an arbitrageur against 98.5% of
-theirs.
+trip against the current book; this counts what an arbitrageur closing at L1's own touch actually
+extracted over 123 consecutive minutes of the 2025-10-10 cascade. Both come out zero, and the zero
+is the headline: $0 taken from the desk against $3,558 from a plain `XYCSwap` control and $2,700
+from the same curve charging 30 bps, and 0% of the desk's traded notional was that arbitrageur
+against 98.5% of theirs.
+
+That zero is one adversary against one book in the same minute — the channel the clamp is aimed
+at, which is what the CSV's `lvr*` columns are named for. A taker who is right about the next
+minute is inventory risk instead, and lands in the markout.
+
+**There is no perp leg on this tab.** The edge lines are the markout of inventory each maker kept,
+which does not sum with a hedge: a spot leg bought at `P`, a short opened at `H`, both marked at
+`M`, combine to `q × (H − P)`. The cover leg is a different measurement, on chain 999, in the root
+`README.md`.
 
 There is no multiple on the page. Both AMM lines lose money on what they absorbed — which is what
 a maker whose price was set before the trade does in a cascade — so the honest denominator does

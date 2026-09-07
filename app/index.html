@@ -248,15 +248,19 @@ button.go.ghost:hover { color: var(--text); }
       <p id="floor-error" hidden></p>
 
       <div class="lede">
-        <p><b>A maker that reads the reference book in the same call cannot be arbitraged against
-          it.</b> That is the loss every automated market maker pays and the central problem in
-          their design: the maker's price was set before the trade that takes it, and somebody is
-          paid the difference. It has a name — <b>loss-versus-rebalancing</b> — and fees are what an
-          LP has to cover it with.</p>
+        <p><b>When the market moves, bots charge AMMs for still using the old price. This maker
+          reads the book before it accepts the trade.</b> That charge is the loss every automated
+          market maker pays and the central problem in their design: the maker's price was set
+          before the trade that takes it, and somebody is paid the difference. It has a name —
+          <b>loss-versus-rebalancing</b> — and fees are what an LP has to cover it with.</p>
         <p>This desk has no <i>before</i>. <code>CoreQuote</code> reads Hyperliquid's own book
           inside the call that settles the swap, and the last thing it does is clamp itself to what
-          crossing L1 would have paid. There is no stale price on this screen to take, in any
-          block, and that is a property of the construction rather than of the week.</p>
+          crossing L1 would have paid. So there is no earlier price on this screen to take —
+          against the book that quote just read, in the block it settled in.</p>
+        <p>The bound holds against the book the quote read, on one instrument, at one instant —
+          which is the channel of the loss this attacks. What it leaves standing is ordinary
+          inventory risk: somebody who is right about the <i>next</i> move still wins here, with no
+          round trip on this screen ever paying.</p>
         <p>HyperEVM is not the argument — it is where the argument is possible today: the one chain
           with 1inch Aqua deployed and a perp book readable as a precompile. <b>Absorbing a
           liquidation cascade is the same property under stress</b>, and it is on the screen too,
@@ -280,12 +284,13 @@ button.go.ghost:hover { color: var(--text); }
         else. <button class="linky" id="go-evidence">Evidence · 10 Oct 2025</button> asks the same
         question of 123 consecutive minutes through a real cascade, against an arbitrageur that
         chose its own size in both directions. It comes out zero there too, while the same search
-        took $1.3 m out of two ordinary AMMs standing next to it.</p>
+        walked $1.3 m of size through two ordinary AMMs standing next to it and took $6,258 out of
+        them.</p>
 
       <h2>the two books</h2>
       <p class="note">Distance from L1's mid, in basis points. A desk sitting outside L1 on both
-        sides is a desk that cannot be taken stale; the filled wedge is a desk quoting
-        <b>inside</b> L1 to absorb.</p>
+        sides is a desk with nothing to pick off against that book; the filled wedge is a desk
+        quoting <b>inside</b> L1 to absorb.</p>
       <div class="strip" id="floor-strip"></div>
 
       <h2>desks</h2>
@@ -296,6 +301,11 @@ button.go.ghost:hover { color: var(--text); }
         </tr></thead>
         <tbody id="floor-rows"></tbody>
       </table>
+      <p class="note"><b>cover</b> is the hedge a desk's owner has authorised, and how much
+        exposure is uncovered right now. <code>cover()</code> is a separate transaction, sent by
+        the owner or by an operator the owner names, and it queues an order: CoreWriter hands it to
+        HyperCore, which executes it seconds later and may reject or partially fill it without
+        failing the transaction that carried it. A fill is read back off HyperCore.</p>
 
       <div class="panels">
         <div class="panel">
@@ -363,9 +373,9 @@ button.go.ghost:hover { color: var(--text); }
         <div class="stat-value" id="stat-lvr-desk">—</div><div class="stat-sub" id="stat-lvr-desk-sub"></div></div>
       <div class="stat"><div class="stat-label">the same, from the control</div>
         <div class="stat-value" id="stat-lvr-control">—</div><div class="stat-sub" id="stat-lvr-control-sub"></div></div>
-      <div class="stat"><div class="stat-label">toxic flow, desk</div>
+      <div class="stat"><div class="stat-label">arbitrage share of flow, desk</div>
         <div class="stat-value" id="stat-toxic-desk">—</div><div class="stat-sub" id="stat-toxic-desk-sub"></div></div>
-      <div class="stat"><div class="stat-label">toxic flow, the AMMs</div>
+      <div class="stat"><div class="stat-label">the same, the AMMs</div>
         <div class="stat-value" id="stat-toxic-amm">—</div><div class="stat-sub" id="stat-toxic-amm-sub"></div></div>
     </div>
 
@@ -381,14 +391,21 @@ button.go.ghost:hover { color: var(--text); }
     </div>
 
     <div class="lede">
-      <p><b>Nobody got anything out of the desk.</b> Not a small number — zero, for 123 minutes,
-        both directions, through a 640 bps drawdown, against an arbitrageur that chose its own size.
-        The same search ran against the two AMMs on this page and found $1.3 m of size, so the zero
-        is the absence of an opportunity and not the absence of a search.</p>
+      <p><b>No arbitrageur closing at L1's own touch got anything out of the desk.</b> Not a small
+        number — zero, for 123 minutes, both directions, through a 640 bps drawdown, against an
+        arbitrageur that chose its own size. The same search ran against the two AMMs on this page,
+        walked $1.3 m of size through them and took $6,258, so the zero is the absence of an
+        opportunity and not the absence of a search.</p>
       <p>That is the Floor tab's round trip, counted over a session instead of priced in one block.
         There is no multiple on this page because the honest denominator does not exist: <b>both
         AMM lines lose money on what they absorbed</b>, which is what a maker whose price was set
         before the trade does in a cascade. A zero and a pair of signed numbers, never a ratio.</p>
+      <p class="caveat"><b>This page is about price. There is no perp leg in it.</b> The edge
+        below is the markout of inventory each maker <i>kept</i> — what it is worth to hold the
+        position. That does not sum with a hedge: buy at <code>P</code>, short at <code>H</code>,
+        mark both at <code>M</code>, and the combined result is <code>q × (H − P)</code>, because
+        the rebound the markout measures is exactly what a hedge gives up. The cover leg is a
+        different measurement and it lives on chain 999.</p>
       <p>The <span class="k-l1">grey band</span> is Hyperliquid's own best bid and offer. The
         <span class="k-desk">blue band</span> is where this desk is willing to trade.</p>
       <p>When nothing is happening the blue band sits <b>outside</b> the grey one on both sides:
@@ -440,12 +457,18 @@ button.go.ghost:hover { color: var(--text); }
         </div>
         <p class="caveat"><b>The flat line is the point, and it is not flat because nothing
           happened.</b> One routine ran against all three makers, both directions, every minute,
-          searching for the size that maximised a round trip closed at L1's touch. It found
-          $775,364 against the plain curve and $530,267 against the fee'd one. Against the desk it
-          found nothing, because <code>CoreQuote</code> reads L1's book inside the call that settles
-          the swap and clamps itself to what crossing L1 would have paid — there is no earlier price
-          to be wrong about. <code>test_gate_deskIsNeverArbitraged</code> fails if this line ever
-          leaves zero, and also if the other two never leave it.</p>
+          searching for the size that maximised a round trip closed at L1's touch. It put $775,364
+          of size through the plain curve and $530,267 through the fee'd one, taking $3,558 and
+          $2,700. Against the desk it found nothing, because <code>CoreQuote</code> reads L1's book
+          inside the call that settles the swap and clamps itself to what crossing L1 would have
+          paid — there is no earlier price to be wrong about.
+          <code>test_gate_deskIsNeverArbitraged</code> fails if this line ever leaves zero, and also
+          if the other two never leave it.
+          <br><br>
+          <b>What the line counts.</b> This arbitrageur, closing against this book, in the same
+          minute — the channel of the loss the clamp is aimed at. A taker who is right about the
+          next minute is inventory risk instead, and shows up in the markout below rather than
+          here.</p>
       </section>
 
       <section class="chart" id="wrap-edge">
@@ -543,7 +566,8 @@ button.go.ghost:hover { color: var(--text); }
         minutes are quiet ones with no forced flow in them — a desk permanently convinced of a
         crisis just stops being outside L1 when it should be. And <b>the last column never
         moves</b>: the regime decides how much the desk trades, the clamp decides that none of it
-        is toxic, and no setting of the first switches off the second.
+        is arbitrage against the book the quote read, and no setting of the first switches off the
+        second.
         <br><br>
         <b>On this tape the desk did not need the map.</b> The book alone at 25 bps reproduces the
         shipped run to the dollar. Raise the threshold past anything the book reaches and leave the
@@ -593,7 +617,7 @@ button.go.ghost:hover { color: var(--text); }
         anything about a maker beyond the number that came back from <code>quote</code>: no regime
         word, no parameters, no address. <code>test_takers_areBlind</code> ships the same program
         into all three slots and requires the three lines to come out equal <b>to the dollar</b>.
-        They do — $18,968 absorbed and $774,522 of arbitrage each. Without that test every number
+        They do — $18,968 absorbed and $774,522 of arbitrage <i>notional</i> each. Without that test every number
         here would be one the harness handed out rather than one a maker won.
         <br><br>
         <code>results/oct10_replay.source</code> carries each line's session totals and the hash of

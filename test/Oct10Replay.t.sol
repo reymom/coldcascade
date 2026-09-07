@@ -540,10 +540,11 @@ contract Oct10ReplayTest is BlindTakers {
     ///         nothing, monotonically, with the shipped 25 bps in the middle of the range rather
     ///         than at the edge of it.
     ///
-    /// @dev Reported, and one thing asserted: the desk pays nothing to arbitrageurs at **every**
-    ///      rung. Inarbitrability is a property of the clamp and the regime cannot switch it off,
-    ///      which is what makes the two claims separable — the regime decides how much the desk
-    ///      trades, the clamp decides that none of it is toxic.
+    /// @dev Reported, and one thing asserted: the desk pays nothing to this arbitrageur at
+    ///      **every** rung. The bound is a property of the clamp and the regime cannot switch it
+    ///      off, which is what makes the two claims separable — the regime decides how much the
+    ///      desk trades, the clamp decides none of it is a profitable round trip against the book
+    ///      the quote read.
     ///
     ///      Two readings that only the sweep gives:
     ///

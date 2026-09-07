@@ -110,9 +110,10 @@ function totals(rows) {
   };
 }
 
-/// The share of everything a maker traded that was an arbitrageur rather than someone who needed
-/// to trade. It is the same property as the Floor's round trip, counted over a session instead of
-/// priced in one block.
+/// The share of everything a maker traded that was *this* arbitrageur -- the one closing against
+/// L1's touch in the same minute -- rather than someone who needed to trade. It is the same
+/// property as the Floor's round trip, counted over a session instead of priced in one block. A
+/// taker who is right about the next minute is inventory risk and lands in the markout instead.
 const toxicPct = (arb, absorbed) => (arb + absorbed === 0 ? 0 : (arb / (arb + absorbed)) * 100);
 
 /// One decimal, dropped when it is a whole number. 98.5 shown as "99%" invites an argument about
@@ -241,7 +242,10 @@ function drawLean(rows, x) {
  *
  * So the desk's line is flat on zero, and it is flat on zero because there was never a size that
  * worked, not because nobody looked — the same search ran against every maker on this chart and
- * found $1.3 m of size against the other two.
+ * put $1.3 m of size through the other two.
+ *
+ * The `lvr` column is named for the loss it attacks: what one arbitrageur extracted against one
+ * book in the same minute, which is the channel the clamp is aimed at.
  */
 function drawLvr(rows, x, lvr) {
   const node = svg(document.getElementById("chart-lvr"), H.lvr);

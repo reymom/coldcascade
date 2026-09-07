@@ -179,6 +179,9 @@ function render(view) {
  * It is one subtraction on two prices out of the same `eth_call`, and the reason it is worth a
  * headline is that it does not need a cascade to be true. `app/src/arb.js` has the arithmetic and
  * `test/Inarbitrable.t.sol` has the same round trip asserted against the contract, fuzzed.
+ *
+ * It is exactly as wide as it looks: this round trip, against this book, in this call. What it
+ * leaves standing is inventory risk, which the Evidence tab's markout measures instead.
  */
 function renderArb(view, best) {
   const { ui } = view;
@@ -207,12 +210,14 @@ function renderArb(view, best) {
     caption.innerHTML =
       `<b>${escape(who)}</b> is leaning. Its absorbing side has walked the whole way to L1's own `
       + `price and stopped on it: a better fill than L1 for whoever is being forced out, and still `
-      + `exactly nothing for an arbitrageur. Zero is the tightest this can ever be.`;
+      + `exactly nothing for an arbitrageur closing at that same touch. Zero is the tightest this `
+      + `can ever be.`;
   } else {
     caption.innerHTML =
       `The best round trip available against any desk on this screen, and it is against `
-      + `<b>${escape(who)}</b>. Nothing here can be bought and sold back to L1 for a profit — not `
-      + `because the desk is wide, but because it has no earlier price to be wrong about.`;
+      + `<b>${escape(who)}</b>. Nothing here can be bought and sold back into the book this quote `
+      + `read for a profit — not because the desk is wide, but because it has no earlier price to `
+      + `be wrong about.`;
   }
 
   const legs = div("arb-legs");

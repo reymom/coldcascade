@@ -1,7 +1,10 @@
 # coldcascade
 
+**When the market moves, bots charge AMMs for still using the old price. This maker reads the book
+before it accepts the trade.**
+
 A maker program on 1inch Aqua whose quote is computed from Hyperliquid's own order book inside the
-call that settles the swap. It has no stale price, so there is nothing on it to arbitrage.
+call that settles the swap.
 
 That is the problem it is built against. An automated market maker is arbitraged for the distance
 between its price and the reference venue's, because its price was set before the trade that takes
@@ -10,9 +13,11 @@ fees are what an LP has to cover it with. Fees shrink it and faster blocks shrin
 in the shape of an AMM takes it to zero, because the gap between quoting and being taken is where
 the whole construction lives.
 
-A maker that reads the reference book in the same call has no such gap. This one reads it and then
-clamps itself to what crossing L1 would have paid, so the round trip against L1 is negative in the
-quiet by the desk's own band, exactly zero while it is leaning, and positive never.
+A maker that reads the reference book in the same call closes that gap against that book. This one
+reads it and then clamps itself to what crossing L1 would have paid, so a round trip that takes the
+desk's price and closes it at the touch the quote just read comes back negative in the quiet by the
+desk's own band, and exactly zero while it is leaning. That is the channel this attacks: extraction
+against a price set before the trade, bounded in the call that settles it.
 
 **HyperEVM is not the argument. It is where the argument is possible today** — the one chain with
 1inch Aqua deployed and a perp book a contract can read in the same call: `0x0806` mark, `0x0807`
@@ -26,10 +31,10 @@ the book in the quote itself, and Aqua custodies nothing.
 not the thesis. When the book dislocates from oracle, or a fresh liquidation map says mark is
 walking into forced flow, the absorbing side moves from outside L1 to L1's own price and warehouses
 the overshoot: the same clamp, reached from the other end. The desk becomes the best price on the
-screen for whoever is being forced out and is still not arbitrable. That half pays twice a year.
-The half above is true in every block.
+screen for whoever is being forced out, and the round trip against the book it read is still not
+positive. That half pays twice a year. The half above is true in every block.
 
-## It cannot be arbitraged
+## The bound, against the book the quote read
 
 One round trip, priced entirely off the same book the quote read: take the desk's price, close the
 position at L1's own touch. On chain 999 at block 45 117 336, 2026-09-05T18:46:42Z, the canonical
@@ -51,7 +56,7 @@ curve ahead of the bound, over a fuzzed book, with the lean driven by the book o
 that is lying, and with every rounding handed to the arbitrageur. The exit is priced at L1's touch
 with no fee and no depth limit, which is a better exit than any that exists.
 
-`test_lvr_theControlIsArbitrableAfterAMove_theDeskIsNot` is the whole argument in one test. Two
+`test_lvr_theControlIsArbitrableAfterAMove_theDeskIsNot` is that bound in one test. Two
 makers on 1inch's router, same pair, same inventory, both priced at the book they were shipped at.
 The book then moves 12%, which is the 10 October 2025 move. The control is a constant product and
 has not heard about it, so an arbitrageur now takes **1 352 bps** out of it in a single round trip.
@@ -60,11 +65,11 @@ curve wants to pay that same stale price — and the bound cuts 794 715 284 unit
 700 010 000, which is L1's own offer to the last unit. **Zero, not negative:** the desk is never a
 better price than crossing L1, and never worse than useless.
 
-**What this does not claim.** That the desk cannot lose. It can, and in the ordinary way: the
-reference price moves after a fill, which is inventory risk — what the markout measures and what
-the cover leg is for. It also inherits HyperCore's book, so if that book is wrong against the rest
-of the world the desk is wrong with it. LVR is the loss to somebody holding a better price than
-yours *at the same instant*. That one is zero here by construction.
+**Where the desk still loses.** The reference price moves after a fill, which is inventory risk —
+what the markout measures and what the cover leg is for. It inherits HyperCore's book, so if that
+book is wrong against the rest of the world the desk is wrong with it. And a taker who is right
+about the *next* move needs no instantaneous round trip to be right: the bound is against the book
+in the call, on one instrument, at one instant.
 
 ## The desk is a contract
 
@@ -89,9 +94,13 @@ whose every entry point reverts is still filled — and, more to the point, a ma
 taker cost. A swap against a contract maker costs 97 966 gas and one against an EOA maker 97 993:
 the contract is the cheaper of the two, because there is no callback in the bill.
 
-Cover happens in the desk's own transaction, and it is a real order. `DeskAccount.cover()` —
-owner, or an operator the owner names in `armHedge` — sends an IOC to HyperCore through CoreWriter
-from the desk's own margin account. 75 510 gas, paid by the desk; a taker pays none of it.
+**Cover is a second transaction, sent by the owner or by an operator the owner names in
+`armHedge`.** `DeskAccount.cover()` writes an IOC to CoreWriter from the desk's own margin account
+— 75 510 gas, paid by the desk; a taker pays none of it.
+
+CoreWriter *queues*: HyperCore executes the action some seconds later, and can reject it or fill it
+partially without failing the EVM transaction that carried it. So `HedgeSent` records an order
+written, and every fill below was read back off HyperCore rather than off a receipt.
 
 **The desk remembers nothing about what it has hedged.** Both legs are read in the same call: the
 spot side from `balanceOf(base)` against the square level the owner declared when funding the
@@ -134,7 +143,7 @@ CoreWriter action. A transfer of 2 USDC to a fresh contract address, followed by
 by the transfer, the fee was charged to the sender on the way in, both actions were executed, and
 the fill came back with the `cloid` the contract had put on it.
 
-**The loop, closed on mainnet.** A desk at
+**The path, run end to end on mainnet — by hand, one transaction at a time.** A desk at
 [`0xB4ad3Fc0702145fB7a1DE72576968f9A30987a7f`](https://hyperevmscan.io/address/0xB4ad3Fc0702145fB7a1DE72576968f9A30987a7f)
 was opened with 2 000 UBTC-raw and 16 USDT0, given a HyperCore margin account by a transfer, armed,
 and then taken against. Every step's effect was read off HyperCore rather than off its receipt.
@@ -145,11 +154,13 @@ and then taken against. Every step's effect was read off HyperCore rather than o
 | margined | `marginTransfer(3000000, true)` moved it to the perp balance | [`0xb330064a…d150`](https://hyperevmscan.io/tx/0xb330064a6ee423b04989231c039539b411d2ce2ce7dc9ca5b3499caea68fd150) |
 | armed | `armHedge(true, $100, no operator, 30 bps)` | [`0xafe94d38…93f4`](https://hyperevmscan.io/tx/0xafe94d38f3696b6fbed7288d783860a396365dab26a8ba71191f0ec6f2a693f4) |
 | taken | a taker sold 17 000 UBTC-raw and the desk paid 13.4790 USDT0 — **20.0 bps under the L1 bid**, which is its `quietBps` | [`0x831e2232…b431`](https://hyperevmscan.io/tx/0x831e22322346252ef6eeb618f59ef9f1a8e36de9d0e92b0fe3df15aca47ab431) |
-| covered | `cover()` sent an IOC: `sz` 17 000, `limitPx` $79 274, `cloid` 1 | [`0x15d68c54…9b4f`](https://hyperevmscan.io/tx/0x15d68c542957371a2e84742a5af3ca9021788aebb68956cb721383b7e76d9b4f) |
+| covered | the owner sent `cover()`, writing an IOC: `sz` 17 000, `limitPx` $79 274, `cloid` 1 | [`0x15d68c54…9b4f`](https://hyperevmscan.io/tx/0x15d68c542957371a2e84742a5af3ca9021788aebb68956cb721383b7e76d9b4f) |
 
-HyperCore filled it: `Open Short`, 0.00017 BTC at $79 513, crossed, and the fill came back carrying
-**`cloid 0x…0001`** — the same number as the `coverId` in the desk's own `HedgeSent` log, which is
-what makes an order resting on Hyperliquid's L1 traceable to the fill that caused it.
+The order and the fill are two observations, and the second was checked on HyperCore rather than
+inferred from the first — a dropped order leaves the same EVM receipt behind. HyperCore executed
+it: `Open Short`, 0.00017 BTC at $79 513, crossed, and the fill came back carrying **`cloid
+0x…0001`** — the same number as the `coverId` in the desk's own `HedgeSent` log, which is what
+makes an order written on HyperEVM traceable to the fill it caused on Hyperliquid's L1.
 
 Then the desk read `coverPreview()` as square again, and **nothing wrote that down**: 19 000 of base
 against a declared square level of 2 000 is +17 000, the perp position at `0x0800` is −17 lots, and
@@ -180,6 +191,31 @@ reports spot in **8** decimals while `0x0803` and `0x080f` report perps in **6**
 What the split costs: the contract no longer knows whether a fill was on the absorbing side, so
 *when* to cover is the operator's decision under the owner's ceiling, not a rule in the code. The
 contract still takes no view on the sign — long base sells the perp, short base buys it.
+
+## Two measurements, and why they do not add
+
+There are two bodies of evidence here and they answer different questions.
+
+| | what it is | what it measures |
+|---|---|---|
+| **The replay** — 123 minutes of 10 Oct 2025, `forge test --match-contract Oct10Replay` | contracts answering under a tape whose spot and taker volume are real and whose book is modelled | price behaviour against blind takers: what the arbitrageur extracts, what the desk absorbs, how the inventory marks out. There is no perp leg in it |
+| **The mainnet path** — chain 999, addresses and hashes above | one real desk, real inventory, real fills | that the quote reads HyperCore, settles through 1inch's router, and that the desk can write an order HyperCore fills |
+
+The replay's markout is the markout of **uncovered** inventory, so it does not sum with the cover
+leg. Ignoring funding, fees, basis and spot–perp drift, for a size `q` bought at `P` with a short
+opened at `H` and both marked at a common `M`:
+
+```text
+spot   = q × (M − P)
+short  = q × (H − M)
+total  = q × (H − P)
+```
+
+`M` cancels. The rebound the markout measures is precisely what the hedge gives up — that is what a
+hedge *is*. The replay's edge is what the desk earns by *carrying* the position; the hedge is what
+it pays to *not* carry it. The real world is worse than the identity, too: the two instruments
+differ, the hedge lands seconds later at a price nobody read, and it can be partial. A hedged
+desk's P&L is a third measurement and this repository does not have it yet.
 
 ## The console
 
@@ -247,10 +283,13 @@ points at the open one, and the console says which oracle each desk names.
 
 The quote, the program encoder, the desk account and the console are built and tested against
 1inch's own Aqua and the SwapVM router deployed on 999. The HyperCore reader has been run against a
-live node, and the round trip above is the live book answering today. **It is deployed.** Twelve contracts on chain 999 since 6 September, three desks shipped, and the
-canonical desk holds real UBTC and USD₮0. The taker path is live end to end from an email address.
-The subgraph and the CoreWriter cover leg come next; the markout numbers arrive when the replay runs
-on a real tape.
+live node, and the round trip above is the live book answering today. **It is deployed.** Twelve
+contracts on chain 999 since 6 September, three desks shipped, and the canonical desk holds real
+UBTC and USD₮0. The taker path is live end to end from an email address, and the CoreWriter cover
+leg has been sent from a desk and filled on HyperCore. The subgraph comes next; the markout numbers
+arrive when the replay runs on a real tape.
+
+Every fill on chain so far is one we sent; there is no external flow yet.
 
 **The first swap through the router on mainnet.**
 [`0x9407579f…537c`](https://hyperevmscan.io/tx/0x9407579f28988f85c0655637d5437476bf5371b59de63602b13936b10993537c),
@@ -279,8 +318,8 @@ because the desk's own curve wanted to pay far more than L1 for base it was shor
 
 The pool ratio at that moment was 81 003, so `XYCSwap` alone would have paid **+163 bps over L1** —
 free money for whoever took it. The bound cut it to L1's own bid less the band and stopped there.
-That is the whole mechanism in one transaction: the desk is never a better price than crossing L1,
-so there is nothing on it to arbitrage.
+That is the whole mechanism in one transaction: against the book read in that call, the desk is
+never a better price than crossing L1.
 
 **And the taker was a wallet that cost nothing to create.** `0x9D597dDf…6E85` is a Privy embedded
 wallet made from an email address minutes earlier — no extension, no seed phrase, no funding step.
@@ -373,7 +412,8 @@ python3 -m http.server 8000   # then http://localhost:8000/app/
   the round trip that closes profitably at L1's own touch. Neither learns anything about a maker
   beyond the number that came back from `quote`: no regime word, no parameters, no address.
   `test_takers_areBlind` ships the same program into all three slots and requires the three lines
-  to come out equal **to the dollar**. They do — $18,968 absorbed and $774,522 of arbitrage each.
+  to come out equal **to the dollar**. They do — $18,968 absorbed and $774,522 of arbitrage
+  *notional* each.
   Without that test the rest of the file is a number the harness handed out rather than one a maker
   won, which is exactly what an earlier version of this replay did.
 - **The book in the committed run is modelled, and the spot is not.** The CSV is a stub run off
@@ -399,7 +439,8 @@ python3 -m http.server 8000   # then http://localhost:8000/app/
   also asserts that somebody absorbed it, because a desk that took nothing out of a harness that
   routed nothing would prove the opposite of what it looks like. The shipped 25 bps sits in the
   middle of that range and not at the edge of it, and the arbitrage column is $0 at every rung:
-  the regime decides how much the desk trades, the clamp decides that none of it is toxic.
+  the regime decides how much the desk trades, the clamp decides none of it is a profitable round
+  trip against the book the quote read.
 - **On this tape the desk did not need the liquidation map.** The book alone at 25 bps reproduces
   the shipped run to the dollar; raise the threshold past anything the book reaches and leave the
   map wired and the map is worth 3 minutes and $773. That is the best thing that can be said about
@@ -430,7 +471,9 @@ python3 -m http.server 8000   # then http://localhost:8000/app/
 ## Prior art
 
 - Milionis, Moallemi, Roughgarden, Zhang, arXiv:2208.06046, *Automated Market Making and
-  Loss-Versus-Rebalancing* — the loss this desk is built to not have.
+  Loss-Versus-Rebalancing* — the formal definition of the loss, measured against a continuously
+  rebalanced portfolio at the external price. This desk attacks one channel of it: extraction
+  against a price set before the trade.
 - Milionis, Moallemi, Roughgarden, arXiv:2305.14604, *Automated Market Making and Arbitrage Profits
   in the Presence of Fees* — fees scale the loss down; they do not remove the gap that causes it.
 - P1, arXiv:2607.27070 — no early warning exists; this is a nowcast, not a forecast.
