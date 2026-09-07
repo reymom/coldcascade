@@ -134,6 +134,27 @@ CoreWriter action. A transfer of 2 USDC to a fresh contract address, followed by
 by the transfer, the fee was charged to the sender on the way in, both actions were executed, and
 the fill came back with the `cloid` the contract had put on it.
 
+**The loop, closed on mainnet.** A desk at
+[`0xB4ad3Fc0702145fB7a1DE72576968f9A30987a7f`](https://hyperevmscan.io/address/0xB4ad3Fc0702145fB7a1DE72576968f9A30987a7f)
+was opened with 2 000 UBTC-raw and 16 USDT0, given a HyperCore margin account by a transfer, armed,
+and then taken against. Every step's effect was read off HyperCore rather than off its receipt.
+
+| | | |
+|---|---|---|
+| funded | 3 USDC in, landing in **spot** — 4 debited, 1 of it the protocol's activation fee | — |
+| margined | `marginTransfer(3000000, true)` moved it to the perp balance | [`0xb330064a…d150`](https://hyperevmscan.io/tx/0xb330064a6ee423b04989231c039539b411d2ce2ce7dc9ca5b3499caea68fd150) |
+| armed | `armHedge(true, $100, no operator, 30 bps)` | [`0xafe94d38…93f4`](https://hyperevmscan.io/tx/0xafe94d38f3696b6fbed7288d783860a396365dab26a8ba71191f0ec6f2a693f4) |
+| taken | a taker sold 17 000 UBTC-raw and the desk paid 13.4790 USDT0 — **20.0 bps under the L1 bid**, which is its `quietBps` | [`0x831e2232…b431`](https://hyperevmscan.io/tx/0x831e22322346252ef6eeb618f59ef9f1a8e36de9d0e92b0fe3df15aca47ab431) |
+| covered | `cover()` sent an IOC: `sz` 17 000, `limitPx` $79 274, `cloid` 1 | [`0x15d68c54…9b4f`](https://hyperevmscan.io/tx/0x15d68c542957371a2e84742a5af3ca9021788aebb68956cb721383b7e76d9b4f) |
+
+HyperCore filled it: `Open Short`, 0.00017 BTC at $79 513, crossed, and the fill came back carrying
+**`cloid 0x…0001`** — the same number as the `coverId` in the desk's own `HedgeSent` log, which is
+what makes an order resting on Hyperliquid's L1 traceable to the fill that caused it.
+
+Then the desk read `coverPreview()` as square again, and **nothing wrote that down**: 19 000 of base
+against a declared square level of 2 000 is +17 000, the perp position at `0x0800` is −17 lots, and
+the two cancel. `squareBase` is still the 2 000 the owner funded it with.
+
 **Getting the collateral back out is the other half of that, and it is exercised too.** A margin
 account a contract can fund and trade from is worth nothing if the exit is a diagram, so the whole
 path was run on 999 with $2 and the effect checked on HyperCore after each leg — never against the
