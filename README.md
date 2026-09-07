@@ -229,11 +229,13 @@ parameters are priced against the real book. The bytecode is what `forge build` 
 node running it is a real one — `./script/probe999.sh` is the same three calls from a shell, and
 `results/999_live_quote.md` is what they answered.
 
-**Two layers, and only the tokens are mocked.** The canonical desk trades the real pair — UBTC
+**Two layers, and only the demo one is mocked.** The canonical desk trades the real pair — UBTC
 `0x9FDBdA0A…3463` against USD₮0 `0xB8CE59FC…5ebb` on 999 — and names `MapOracle`, which has one
 updater. The demo desk trades tokens anyone can mint and names `DemoMapOracle`, which anyone can
 write, so a visitor can operate the design's one trusted input instead of reading a sentence about
-it. Both price against the same live book.
+it — and the flow on it is ours: `script/demo-cadence.sh` takes it on a schedule, so that desk's
+history is the quote path holding across a week of moving book, not demand anyone brought. Both
+price against the same live book.
 
 That split is the trust argument stated as a deployment. The map can only ever *add* a lean, one
 below a desk's own floor does nothing, and a stale one is ignored — so the worst a broken keeper can
