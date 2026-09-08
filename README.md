@@ -265,6 +265,12 @@ than it can supply only discards fills. At five minutes the floor is 40% of the 
 Without the bound at all, a fill from before the series started would be marked out against a book
 five hours later and labelled five-minute, which it is not.
 
+A horizon with no number says which kind of nothing it is, because a page that draws them the same
+way is misleading in the one place it matters: `pending` resolves itself in a few minutes,
+`beforeSeries` never resolves because the fill predates the first poke, `gap` never resolves
+because the series had a hole there, and `noBook` is a fill whose own book the hook could not read.
+Right now that is 2 measured, 1 gap and 8 `beforeSeries` at the five-minute horizon.
+
 **What the number is.** Adverse selection: the move of L1 mid from the side the desk ended up
 holding, in basis points, signed so that negative is the desk having been picked off. That is the
 quantity the LVR literature is about. It is **not** the desk's P&L — it ignores the spread captured

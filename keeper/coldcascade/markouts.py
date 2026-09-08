@@ -173,12 +173,19 @@ def collect(dep: Deployment, start_block: int, stop_block: int) -> Corpus:
     return c
 
 
-def book_at(books: list[Book], target_t: int, tolerance: int) -> Book | None:
-    """The first book at or after `target_t`, if one landed inside the tolerance."""
+def book_at(books: list[Book], target_t: int, tolerance: int) -> tuple[Book | None, str, int | None]:
+    """The first book at or after `target_t`, and — when there isn't one — why not.
+
+    Two different absences, and a page that shows them the same way is lying by omission. The
+    series not having reached `target_t` yet resolves itself in a few minutes. A hole in the
+    series at `target_t` never resolves: that markout does not exist and will not later.
+    Returns (book, status, lag), status in {"ok", "pending", "gap"}.
+    """
     for b in books:                       # sorted; the corpus is small enough that this is honest
         if b.t >= target_t:
-            return b if b.t - target_t <= tolerance else None
-    return None
+            lag = b.t - target_t
+            return (b, "ok", lag) if lag <= tolerance else (None, "gap", lag)
+    return None, "pending", None
 
 
 def markout_bps(fill: Fill, mid_later: float) -> float:
@@ -245,6 +252,9 @@ def run(
 
     scale: dict[str, tuple[int, int]] = {}
     rows, to_post = [], []
+    # When the book series begins. Before it, `BookCache.poke` had never been called on mainnet:
+    # pokedAt(0) was 0 and there was no Booked event on chain 999 at all.
+    series_start = c.books[0].t if c.books else None
 
     for f in c.fills:
         if f.maker not in scale:
@@ -280,18 +290,34 @@ def run(
             row["vsTouchBps"] = round(vs_touch_bps(f, px_num, px_den), 3)
 
         for h in HORIZONS_MIN:
-            b = book_at(c.books, f.t + h * 60, tolerance_s(h)) if f.book_ok else None
+            tol = tolerance_s(h)
+            if not f.book_ok:
+                # The hook is fail-soft: a book it could not read arrives as four zeros. There is
+                # no left-hand side, so there is no markout, and there never will be for this fill.
+                row["markouts"][str(h)] = {"bps": None, "status": "noBook", "toleranceSeconds": tol}
+                continue
+            b, status, lag = book_at(c.books, f.t + h * 60, tol)
+            # A hole in a running series and a fill that predates the series are both "no book
+            # here", and calling them the same thing would be the page's most misleading number.
+            # The eight fills older than the first poke can never acquire a markout; a gap in a
+            # live series is an operational fact about one afternoon.
+            if b is None and status == "gap" and series_start is not None and f.t < series_start:
+                status = "beforeSeries"
             if b is None:
-                row["markouts"][str(h)] = None
+                row["markouts"][str(h)] = {
+                    "bps": None, "status": status, "toleranceSeconds": tol,
+                    "nearestLagSeconds": lag,
+                }
                 continue
             bps = markout_bps(f, b.mid)
             row["markouts"][str(h)] = {
                 "bps": round(bps, 3),
+                "status": "ok",
                 "midRaw": b.mid,
                 "bookAt": b.t,
                 "bookBlock": b.block,
-                "lagSeconds": b.t - (f.t + h * 60),
-                "toleranceSeconds": tolerance_s(h),
+                "lagSeconds": lag,
+                "toleranceSeconds": tol,
             }
             if (f.fill_id, h) not in c.posted:
                 # `post` takes int256 bps and the ledger's unit is a basis point, so the number
@@ -301,7 +327,17 @@ def run(
 
         rows.append(row)
 
-    complete = sum(1 for r in rows if all(r["markouts"].get(str(h)) for h in HORIZONS_MIN))
+    def bps_of(r, h):
+        m = r["markouts"].get(str(h))
+        return m["bps"] if m and m.get("bps") is not None else None
+
+    complete = sum(1 for r in rows if all(bps_of(r, h) is not None for h in HORIZONS_MIN))
+
+    def horizon_stats(h: int) -> dict:
+        st = _stats([bps_of(r, h) for r in rows if bps_of(r, h) is not None])
+        for label in ("pending", "gap", "noBook", "beforeSeries"):
+            st[label] = sum(1 for r in rows if (r["markouts"].get(str(h)) or {}).get("status") == label)
+        return st
     gaps = [b.t - a.t for a, b in zip(c.books, c.books[1:])]
     ts = [f.t for f in c.fills]
 
@@ -330,10 +366,7 @@ def run(
             "firstFillAt": min(ts) if ts else None,
             "lastFillAt": max(ts) if ts else None,
             "spanDays": round((max(ts) - min(ts)) / 86400, 2) if len(ts) > 1 else 0.0,
-            "byHorizon": {
-                str(h): _stats([r["markouts"][str(h)]["bps"] for r in rows if r["markouts"].get(str(h))])
-                for h in HORIZONS_MIN
-            },
+            "byHorizon": {str(h): horizon_stats(h) for h in HORIZONS_MIN},
             "vsTouch": _stats([r["vsTouchBps"] for r in rows if r["vsTouchBps"] is not None]),
         },
         "fills": rows,

@@ -1,5 +1,5 @@
 {
-  "generatedAt": 1788875406,
+  "generatedAt": 1788876348,
   "chainId": 999,
   "source": {
     "provider": "The Graph Market for Substreams",
@@ -7,7 +7,7 @@
     "package": "coldcascade-v0.1.0.spkg",
     "module": "desk_events",
     "startBlock": 45135453,
-    "stopBlock": 45362759
+    "stopBlock": 45363715
   },
   "horizonsMinutes": [
     5,
@@ -20,45 +20,57 @@
     "60": 360
   },
   "books": {
-    "count": 71,
+    "count": 81,
     "firstAt": 1788870223,
-    "lastAt": 1788875258,
+    "lastAt": 1788876307,
     "medianGapSeconds": 60.0
   },
   "summary": {
-    "fills": 10,
-    "fillsWithCompleteHorizons": 0,
+    "fills": 11,
+    "fillsWithCompleteHorizons": 1,
     "firstFillAt": 1788708512,
-    "lastFillAt": 1788874165,
-    "spanDays": 1.92,
+    "lastFillAt": 1788876222,
+    "spanDays": 1.94,
     "byHorizon": {
       "5": {
         "n": 2,
         "meanBps": -16.469,
         "medianBps": -16.469,
         "minBps": -33.575,
-        "maxBps": 0.637
+        "maxBps": 0.637,
+        "pending": 1,
+        "gap": 0,
+        "noBook": 0,
+        "beforeSeries": 8
       },
       "15": {
         "n": 1,
         "meanBps": 9.429,
         "medianBps": 9.429,
         "minBps": 9.429,
-        "maxBps": 9.429
+        "maxBps": 9.429,
+        "pending": 1,
+        "gap": 1,
+        "noBook": 0,
+        "beforeSeries": 8
       },
       "60": {
-        "n": 0,
-        "meanBps": null,
-        "medianBps": null,
-        "minBps": null,
-        "maxBps": null
+        "n": 1,
+        "meanBps": 71.229,
+        "medianBps": 71.229,
+        "minBps": 71.229,
+        "maxBps": 71.229,
+        "pending": 2,
+        "gap": 0,
+        "noBook": 0,
+        "beforeSeries": 8
       }
     },
     "vsTouch": {
-      "n": 10,
-      "meanBps": 29.157,
+      "n": 11,
+      "meanBps": 17.897,
       "medianBps": -20.0,
-      "minBps": -20.0,
+      "minBps": -94.695,
       "maxBps": 156.536
     }
   },
@@ -83,9 +95,24 @@
       "touchRaw": 796150,
       "vsTouchBps": 111.16,
       "markouts": {
-        "5": null,
-        "15": null,
-        "60": null
+        "5": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 161411
+        },
+        "15": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 160811
+        },
+        "60": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 360,
+          "nearestLagSeconds": 158111
+        }
       }
     },
     {
@@ -108,9 +135,24 @@
       "touchRaw": 796990,
       "vsTouchBps": -20.0,
       "markouts": {
-        "5": null,
-        "15": null,
-        "60": null
+        "5": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 158773
+        },
+        "15": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 158173
+        },
+        "60": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 360,
+          "nearestLagSeconds": 155473
+        }
       }
     },
     {
@@ -133,9 +175,24 @@
       "touchRaw": 794430,
       "vsTouchBps": -20.0,
       "markouts": {
-        "5": null,
-        "15": null,
-        "60": null
+        "5": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 84891
+        },
+        "15": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 84291
+        },
+        "60": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 360,
+          "nearestLagSeconds": 81591
+        }
       }
     },
     {
@@ -158,9 +215,24 @@
       "touchRaw": 791310,
       "vsTouchBps": 156.536,
       "markouts": {
-        "5": null,
-        "15": null,
-        "60": null
+        "5": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 79344
+        },
+        "15": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 78744
+        },
+        "60": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 360,
+          "nearestLagSeconds": 76044
+        }
       }
     },
     {
@@ -183,9 +255,24 @@
       "touchRaw": 790070,
       "vsTouchBps": -20.0,
       "markouts": {
-        "5": null,
-        "15": null,
-        "60": null
+        "5": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 49407
+        },
+        "15": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 48807
+        },
+        "60": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 360,
+          "nearestLagSeconds": 46107
+        }
       }
     },
     {
@@ -208,9 +295,24 @@
       "touchRaw": 792760,
       "vsTouchBps": 123.867,
       "markouts": {
-        "5": null,
-        "15": null,
-        "60": null
+        "5": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 40520
+        },
+        "15": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 39920
+        },
+        "60": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 360,
+          "nearestLagSeconds": 37220
+        }
       }
     },
     {
@@ -233,9 +335,24 @@
       "touchRaw": 788030,
       "vsTouchBps": -20.0,
       "markouts": {
-        "5": null,
-        "15": null,
-        "60": null
+        "5": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 28211
+        },
+        "15": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 27611
+        },
+        "60": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 360,
+          "nearestLagSeconds": 24911
+        }
       }
     },
     {
@@ -258,9 +375,24 @@
       "touchRaw": 783770,
       "vsTouchBps": -20.0,
       "markouts": {
-        "5": null,
-        "15": null,
-        "60": null
+        "5": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 18280
+        },
+        "15": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 17680
+        },
+        "60": {
+          "bps": null,
+          "status": "beforeSeries",
+          "toleranceSeconds": 360,
+          "nearestLagSeconds": 14980
+        }
       }
     },
     {
@@ -285,6 +417,7 @@
       "markouts": {
         "5": {
           "bps": 0.637,
+          "status": "ok",
           "midRaw": 784745.0,
           "bookAt": 1788872944,
           "bookBlock": 45360261,
@@ -293,13 +426,22 @@
         },
         "15": {
           "bps": 9.429,
+          "status": "ok",
           "midRaw": 784055.0,
           "bookAt": 1788873545,
           "bookBlock": 45360872,
           "lagSeconds": 54,
           "toleranceSeconds": 120
         },
-        "60": null
+        "60": {
+          "bps": 71.229,
+          "status": "ok",
+          "midRaw": 779205.0,
+          "bookAt": 1788876246,
+          "bookBlock": 45363618,
+          "lagSeconds": 55,
+          "toleranceSeconds": 360
+        }
       }
     },
     {
@@ -324,24 +466,68 @@
       "markouts": {
         "5": {
           "bps": -33.575,
+          "status": "ok",
           "midRaw": 780685.0,
           "bookAt": 1788874578,
           "bookBlock": 45361922,
           "lagSeconds": 113,
           "toleranceSeconds": 120
         },
-        "15": null,
-        "60": null
+        "15": {
+          "bps": null,
+          "status": "gap",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 165
+        },
+        "60": {
+          "bps": null,
+          "status": "pending",
+          "toleranceSeconds": 360,
+          "nearestLagSeconds": null
+        }
+      }
+    },
+    {
+      "fillId": "0x5128055c12db2ef95504e500de78539e84583d5976b2c9d2dd0f675500000033",
+      "txHash": "0x5128055c12db2ef95504e500de78539e84583d5976b2c9d2dd0f675501f5e99f",
+      "logIndex": 51,
+      "block": 45363593,
+      "at": 1788876222,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "3327697",
+      "quoteRaw": "2568453650",
+      "bookOk": true,
+      "bidRaw": 779220,
+      "askRaw": 779230,
+      "midRaw": 779225.0,
+      "touchRaw": 779220,
+      "vsTouchBps": -94.695,
+      "markouts": {
+        "5": {
+          "bps": null,
+          "status": "pending",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": null
+        },
+        "15": {
+          "bps": null,
+          "status": "pending",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": null
+        },
+        "60": {
+          "bps": null,
+          "status": "pending",
+          "toleranceSeconds": 360,
+          "nearestLagSeconds": null
+        }
       }
     }
   ],
-  "postedThisRun": [
-    {
-      "fillId": "0xe765976dd9180bedbb7e3524645e27b4fc4c2cb7a2fdd67b76bc453000000002",
-      "horizonMinutes": 5,
-      "bps": -34,
-      "txHash": "0x8b7f2ac891d8400a35c3a37946fea01397c2ded225cbb75aa181cc2193292ff4"
-    }
-  ],
+  "postedThisRun": [],
   "failedThisRun": []
 }

@@ -97,15 +97,33 @@ class Tolerance(unittest.TestCase):
 
     def test_bookAt_takesTheFirstOneInside(self):
         books = [Book(t=t, block=t, bid=100, ask=102, mark=101, oracle=101) for t in (1000, 1060, 1120)]
-        self.assertEqual(book_at(books, 1050, 120).t, 1060)
+        b, status, lag = book_at(books, 1050, 120)
+        self.assertEqual((b.t, status, lag), (1060, "ok", 10))
 
-    def test_bookAt_refusesOneOutside(self):
+    def test_bookAt_callsAHoleAGap(self):
+        """A hole in the series never fills in later. The page must not show it as "waiting"."""
         books = [Book(t=t, block=t, bid=100, ask=102, mark=101, oracle=101) for t in (1000, 1400)]
-        self.assertIsNone(book_at(books, 1050, 120))
+        b, status, lag = book_at(books, 1050, 120)
+        self.assertEqual((b, status, lag), (None, "gap", 350))
 
-    def test_bookAt_isNoneWhenTheSeriesHasNotReachedIt(self):
+    def test_bookAt_callsTheFuturePending(self):
+        """This one does resolve itself, in a few minutes, and is the opposite case."""
         books = [Book(t=1000, block=1, bid=100, ask=102, mark=101, oracle=101)]
-        self.assertIsNone(book_at(books, 5000, 360))
+        self.assertEqual(book_at(books, 5000, 360), (None, "pending", None))
+
+
+class SeriesStart(unittest.TestCase):
+    """The one distinction the panel must not blur."""
+
+    def test_aHoleAndAFillFromBeforeTheSeriesAreNotTheSameThing(self):
+        books = [Book(t=t, block=t, bid=100, ask=102, mark=101, oracle=101) for t in (5000, 5060)]
+        # A fill at t=100 targets t=400 at the 5m horizon: there is a later book, far outside
+        # tolerance, so book_at calls it a gap — and the run then relabels it, because the whole
+        # series starts at 5000 and this fill can never acquire a markout.
+        b, status, lag = book_at(books, 400, 120)
+        self.assertEqual((b, status), (None, "gap"))
+        self.assertEqual(lag, 4600)
+        self.assertLess(100, books[0].t)   # the condition the relabel is made on
 
 
 class FillId(unittest.TestCase):
