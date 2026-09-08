@@ -4,7 +4,7 @@ pragma solidity 0.8.30;
 import { ICoreReader, Book } from "./interfaces/ICoreReader.sol";
 import { HyperCore } from "./libs/HyperCore.sol";
 
-/// @notice The fallback reader, and the book series the subgraph indexes. Anyone pokes; the
+/// @notice The fallback reader, and the book series the indexer reads back. Anyone pokes; the
 ///         contract reads the precompiles itself from a normal call frame and stores the words.
 ///         Still trustless: lying requires lying about L1. One poke stale.
 ///

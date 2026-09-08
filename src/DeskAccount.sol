@@ -24,7 +24,7 @@ import { HedgeOrder, Plan, PlanInputs, SkipReason } from "./libs/HedgeOrder.sol"
 ///      admin: an account has exactly one owner and `close()` is one call that docks the strategy
 ///      and sends everything home. What it costs is that the maker's tokens sit in a contract the
 ///      maker owns rather than in the wallet itself. What it buys is an *object* — a desk with an
-///      address, which is what a name can point at, a subgraph can index, a device can be shown
+///      address, which is what a name can point at, an indexer can index, a device can be shown
 ///      the parameters of, and a HyperCore margin account can belong to.
 ///
 ///      The account can still commit more to a strategy than it holds. That is the maker's own
@@ -118,7 +118,7 @@ contract DeskAccount {
     ///         what it is worth at mark, after the ceiling and after the lot grid.
     /// @dev The decision, in the desk's own units. `HedgeSent` is the order that came out of it.
     ///      Both are emitted for the same cover, because they can differ — the size here is what
-    ///      survives rounding to `szDecimals`, and reconciling the two is how the subgraph shows a
+    ///      survives rounding to `szDecimals`, and reconciling the two is how the indexer shows a
     ///      desk that asked for more than the exchange's grid could express.
     event HedgeIntent(
         uint64 indexed coverId, uint32 perpIndex, bool isBuy, uint256 baseAmount, uint256 notional, uint64 mark
@@ -228,7 +228,7 @@ contract DeskAccount {
 
     /// @notice Take tokens out of the account. Allowed while a strategy is open, which can leave
     ///         the strategy committing more than the account holds — Aqua's `pull` then reverts at
-    ///         settlement and the subgraph flags the desk unbacked. The maker's call to make.
+    ///         settlement and the indexer flags the desk unbacked. The maker's call to make.
     function withdraw(address token, uint256 amount) external onlyOwner {
         // `squareBase` is the level at which this desk is square. Taking base out lowers it by the
         // same amount, so a withdrawal leaves the uncovered delta exactly where it was rather than
@@ -326,7 +326,7 @@ contract DeskAccount {
     ///      **What moved off chain, said plainly.** The in-swap version hedged only fills on the
     ///      absorbing side, because the hook handed it that fill's lean. A position delta does not
     ///      carry one, so *when* to cover is the operator's decision, under the owner's ceiling —
-    ///      the keeper reads the `Fill` events and their books from the subgraph and fires. That is
+    ///      the keeper reads the `Fill` events and their books off the stream and fires. That is
     ///      a guarantee that left the contract, and it is the price of the taker not paying. The
     ///      contract still takes no view on the sign: long base sells the perp, short base buys it.
     ///

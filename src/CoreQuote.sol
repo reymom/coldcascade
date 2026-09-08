@@ -187,7 +187,7 @@ contract CoreQuote is IStaticExtruction, IExtruction {
     ///      SwapVM would not let it be silently resized anyway.
     ///
     ///      An `amountOut` above the virtual balance is not the quote's problem — Aqua's pull
-    ///      reverts at transfer and the subgraph flags it — so the subtraction clamps rather than
+    ///      reverts at transfer and the indexer flags it — so the subtraction clamps rather than
     ///      masking that with an arithmetic panic here.
     function _requireBand(
         DeskParams memory p,

@@ -7,16 +7,30 @@ from the maker's side, in basis points. It is posted to `MarkoutLedger`, whose `
 same stream then picks up — which is what closes the loop, and what stops the keeper from ever
 restating a number it has already published.
 
-What a markout here is and is not.
+What a markout here is, and what it is emphatically not.
 
-  * It is adverse selection: did the market move against the side the desk ended up holding.
-    A negative markout is the desk having been picked off. That is the quantity the LVR
-    literature is about, and it is the one this repository set out to drive to zero.
-  * It is not a yield, and it is not the desk's P&L. It ignores the spread captured at the touch
+**The demand on this desk is scripted.** `script/demo-cadence.sh` sends a take every twenty
+minutes and picks its side and size from the pool's own drift and the desk's inventory. Nobody is
+trading against this desk because they thought the price was wrong. So the number below is post-fill
+drift of BTC, sampled at hours a cron chose, and calling it adverse selection would be describing a
+measurement nobody made: adverse selection is a claim about *who* traded and *why*, and here the
+answer to both is us.
+
+  * It is a signed price move over a fixed horizon, and that is all. Negative means L1 mid moved
+    against the side the desk ended up holding. With flow the desk generated itself, that is a
+    fact about BTC in those minutes, not a fact about the desk.
+  * It is not a yield and it is not the desk's P&L. It ignores the spread captured at the touch
     (reported separately, per fill, as `vsTouchBps`) and it ignores the perp leg entirely. A
     hedged desk marks spot and short at a common price and the move cancels; its P&L is a third
     measurement and this file does not compute it.
-  * It is a handful of events. Say the count before the number, every time.
+  * **What it does demonstrate is this loop.** Read the stream, join a fill to a later book,
+    decide a number, write it to the chain, and read the decision back off the same stream on the
+    next pass. Every step of that is exercised by every markout posted, and that is the reason to
+    compute them.
+
+The argument about the mechanism does not rest here. It rests on `vs_touch_bps`, because a fill
+printing at its maker's `quietBps` to the basis point is a property of the program — checkable on
+one transaction against one receipt — rather than a statistic that needs a sample to mean anything.
 """
 
 from __future__ import annotations
@@ -193,7 +207,9 @@ def markout_bps(fill: Fill, mid_later: float) -> float:
 
     The desk that bought base is long it and gains when mid rises; the desk that sold base is
     short and gains when mid falls. One sign, and it is the whole content of the number: a
-    markout that can only be positive is not a measurement.
+    markout that can only be positive is not a measurement. What the sign does *not* carry is an
+    attribution — see the module docstring on why scripted demand makes this a price move rather
+    than an adverse-selection number.
     """
     sign = 1.0 if fill.maker_buys_base else -1.0
     return sign * (mid_later - fill.mid) / fill.mid * 10_000.0
@@ -422,6 +438,23 @@ def run(
             "module": substreams.MODULE,
             "startBlock": start_block,
             "stopBlock": stop_block,
+            # Where the *flow* came from, stated next to where the data came from, because a
+            # reader who has one and not the other will draw the wrong conclusion from the
+            # markouts. Every fill here was sent by this repository.
+            "demand": {
+                "scripted": True,
+                "generator": "script/demo-cadence.sh",
+                "intervalMinutes": 20,
+                "note": (
+                    "Every fill on this desk was sent by this repository, on a schedule, with "
+                    "side and size chosen from the pool's drift and the desk's inventory. The "
+                    "markouts are therefore post-fill price drift over fixed horizons, not a "
+                    "measurement of adverse selection and not an edge claim. They are here "
+                    "because they exercise the keeper loop end to end: stream, join, decide, "
+                    "write to chain, read the decision back. The claim about the mechanism is "
+                    "vsTouchBps, which is a property of the program checkable on one fill."
+                ),
+            },
         },
         "horizonsMinutes": list(HORIZONS_MIN),
         "toleranceSeconds": {str(h): tolerance_s(h) for h in HORIZONS_MIN},

@@ -271,11 +271,25 @@ way is misleading in the one place it matters: `pending` resolves itself in a fe
 because the series had a hole there, and `noBook` is a fill whose own book the hook could not read.
 Right now that is 2 measured, 1 gap and 8 `beforeSeries` at the five-minute horizon.
 
-**What the number is.** Adverse selection: the move of L1 mid from the side the desk ended up
-holding, in basis points, signed so that negative is the desk having been picked off. That is the
-quantity the LVR literature is about. It is **not** the desk's P&L — it ignores the spread captured
-at the touch, which is reported separately per fill as `vsTouchBps`, and it ignores the perp leg
-entirely, for the reason in *Two measurements* above.
+**What the number is, and what it is not.** The demand on this desk is scripted:
+`script/demo-cadence.sh` sends a take every twenty minutes and picks its side and size from the
+pool's own drift and the desk's inventory. Nobody trades against this desk because they thought the
+price was wrong. So a markout here is the signed move of L1 mid over a fixed horizon and nothing
+more — post-fill drift of BTC, sampled at hours a cron chose. It is **not** a measurement of
+adverse selection, which is a claim about who traded and why, and here the answer to both is us.
+It is not a yield, and it is not the desk's P&L: it ignores the spread captured at the touch, which
+is reported separately per fill as `vsTouchBps`, and it ignores the perp leg entirely, for the
+reason in *Two measurements* above.
+
+**What it does demonstrate is the loop.** Read the stream, join a fill to a later book, decide a
+number, write it to the chain, and read that decision back off the same stream on the next pass.
+Every markout posted exercises all five steps, and that is the reason to compute them at all.
+
+The argument about the mechanism does not rest here. It rests on `vsTouchBps` below, and
+deliberately: a fill printing at its maker's own `quietBps` to the basis point is a **property of
+the program** — checkable on one transaction against one receipt — rather than a statistic that
+needs a sample before it means anything. The `source.demand` block in `results/markouts.json` says
+the same thing to anything that reads the artifact without reading this.
 
 **What exists so far.** Every fill on chain 999 is one we sent, and they fall into two groups
 that look like two behaviours and are one rule. Some print at exactly ±`quietBps` against the L1
