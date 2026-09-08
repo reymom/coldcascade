@@ -1,13 +1,19 @@
-// The Floor: the live book, the desks quoting against it, and the two buttons that do something.
+// The Floor: one claim, the two books, and the button that fires the map for real.
+//
+// The page's job is fifteen seconds long: the sentence, the zero, the strip. Everything else —
+// the desks, the take flow, the proof — is below that fold. The zero is earned in the open: it is
+// the best round trip found against any desk on the screen since this page was opened, recomputed
+// every block, and the toll beside it is what a plain curve on the same reserves pays instead.
+// Neither is asserted; both are re-derived from the frame the visitor is looking at.
 
 import {
   Rpc, plant, loadSelectors, readFloor, readOrder, takerTraits, quoteCall, swapCall,
-  erc20, mapUpdate, paramsTuple, decode, calldata,
+  erc20, mapUpdate, paramsTuple, decode,
 } from "./chain.js";
 import { waitForReceipt, DEFAULT_RPC } from "./rpc.js";
 import { chainFor, explorerTx, injected, openPrivy, privyConfig } from "./signer.js";
 import { drawStrip } from "./bands.js";
-import { roundTrip, bestRoundTrip } from "./arb.js";
+import { roundTrip, bestRoundTrip, bestControlToll } from "./arb.js";
 
 const POLL_MS = 2000;
 
@@ -39,6 +45,12 @@ const CANONICAL_PREVIEW = {
   maxBase: (1n << 128n) - 1n,
 };
 
+/**
+ * What the stress button writes: forced selling below mark, the size the map panel already offers.
+ * The absorbing side it lights is the bid — the desk stepping in to buy from forced sellers.
+ */
+const STRESS_NOTIONAL = 40_000_000n;
+
 export async function mountFloor(root) {
   const ui = build(root);
   const rpcUrl = new URLSearchParams(location.search).get("rpc") ?? DEFAULT_RPC;
@@ -55,10 +67,25 @@ export async function mountFloor(root) {
   ui.status.remove();
   ui.page.hidden = false;
 
-  const view = { state, rpc, ui, floor: null, signer: null };
+  const view = {
+    state, rpc, ui,
+    floor: null,
+    signer: null,
+    // The accumulator the zero is read from: blocks sampled since the page opened, and the best
+    // (least negative) round trip any of them offered. It only ever moves toward zero; the clamp
+    // is why it never crosses.
+    samples: 0,
+    lastCountedBlock: -1,
+    sessionBest: null,
+    mapPending: null,   // {hash, clearing} of a map write whose block has not landed yet
+  };
+
+  const auth = createAuth(view);
+  wireSignInPanel(view, auth);
+  wireStressAuth(view, auth);
   wireTake(view);
+  wireStress(view);
   wireMap(view);
-  wireSignIn(view);
 
   const tick = async () => {
     try {
@@ -80,6 +107,20 @@ export async function mountFloor(root) {
   };
   await tick();
   setInterval(tick, POLL_MS);
+
+  // The expiry line is a wall-clock countdown against the map's own timestamps, so it keeps
+  // moving between chain reads. It only paints while a map is live; the next read after the
+  // lapse repaints the line from the chain's answer.
+  setInterval(() => {
+    if (view.mapPending) return; // the pending write owns the line until its block lands
+    const demo = demoDesk(view);
+    if (!demo || !mapLive(demo)) return;
+    const left = demo.map.updatedAt + demo.params.mapMaxAge - Math.floor(Date.now() / 1000);
+    if (left <= 0) return;
+    const mm = Math.floor(left / 60), ss = String(left % 60).padStart(2, "0");
+    say(ui.stressOut,
+      `map live — the desk steps back out on its own in ${mm}:${ss}. The round trip above has not moved.`);
+  }, 1000);
 }
 
 /**
@@ -141,17 +182,17 @@ function render(view) {
   const { floor, ui, state } = view;
   const { book, bookOk, desks } = floor;
 
-  ui.mode.textContent = state.mode === "deployed"
-    ? `live · lens ${short(state.addresses.floorLens)}`
-    : "simulated · nothing is deployed yet";
+  ui.mode.textContent = state.mode === "deployed" ? "live" : "simulated";
   ui.mode.className = `chip chip-${state.mode}`;
-  ui.meta.textContent =
-    `chain ${floor.chainId} · block ${floor.blockNumber.toLocaleString("en-US")}` +
-    (floor.l1Block ? ` · L1 ${floor.l1Block.toLocaleString("en-US")}` : "") +
-    ` · ${new Date().toLocaleTimeString("en-US", { hour12: false })}`;
+  ui.meta.innerHTML =
+    `<span class="dot"></span>block ${floor.blockNumber.toLocaleString("en-US")}` +
+    ` · ${state.chain.name} · ${new Date().toLocaleTimeString("en-US", { hour12: false })}`;
 
   if (!bookOk) {
-    ui.book.textContent = "the book could not be read";
+    ui.verdictK.textContent = "the book could not be read";
+    ui.zero.textContent = "—";
+    ui.zero.className = "zero";
+    ui.verdictSub.textContent = "an empty field here means a read failed, not that a number was zero";
     ui.regime.textContent = "";
     return;
   }
@@ -159,17 +200,28 @@ function render(view) {
     : Number((BigInt(book.oracle) - BigInt(book.mark)) * 10_000n / BigInt(book.oracle));
 
   ui.book.replaceChildren(
-    stat("bid", px(book.bid)), stat("ask", px(book.ask)),
-    stat("mark", px(book.mark)), stat("oracle", px(book.oracle)),
-    stat("oracle − mark", `${dislocation > 0 ? "+" : ""}${dislocation} bps`),
+    cell("the book's bid", px2(book.bid)),
+    cell("ask", px2(book.ask)),
+    cell("mark", px0(book.mark)),
+    cell("oracle", px0(book.oracle)),
+    cell("oracle − mark", `${dislocation > 0 ? "+" : ""}${dislocation} bps`, "the stress word — past 25 bps the desk steps in on its own"),
   );
-  for (const v of ui.book.querySelectorAll(".stat-value")) v.classList.add("compact");
 
   const best = bestRoundTrip(book, desks);
-  renderArb(view, best);
-  renderRegime(view, desks, best);
+  if (best) {
+    // The counter says "blocks sampled", so it counts blocks: a tick that re-reads the same one
+    // adds nothing, and a block the poll skipped over was never offered to the arithmetic either.
+    if (floor.blockNumber !== view.lastCountedBlock) {
+      view.samples += 1;
+      view.lastCountedBlock = floor.blockNumber;
+    }
+    if (view.sessionBest === null || best.trip.best > view.sessionBest.trip.best) view.sessionBest = best;
+  }
+  renderVerdict(view, best);
+  renderRegime(view, desks);
 
   drawStrip(ui.strip, book, desks);
+  renderStress(view);
   renderTable(view, desks, book);
   renderPanels(view, desks);
 }
@@ -181,84 +233,99 @@ function render(view) {
  * headline is that it does not need a cascade to be true. `app/src/arb.js` has the arithmetic and
  * `test/Inarbitrable.t.sol` has the same round trip asserted against the contract, fuzzed.
  *
- * It is exactly as wide as it looks: this round trip, against this book, in this call. What it
- * leaves standing is inventory risk, which the Evidence tab's markout measures instead.
+ * It is exactly as wide as it looks: this round trip, against this book, since this page was
+ * opened. What it leaves standing is inventory risk, which the cascade tab's markout measures
+ * instead. And the number displayed is the session's *worst* — if a positive ever appears it is
+ * shown, in red, with an invitation to take it: a page that hides its own failure is a maquette.
  */
-function renderArb(view, best) {
+function renderVerdict(view, best) {
   const { ui } = view;
   if (!best) {
-    ui.arb.replaceChildren(div("arb-caption",
-      "No desk on this screen has a price right now, so there is nothing to arbitrage and nothing "
-      + "to claim. An empty field here means a read failed, not that a number was zero."));
+    ui.zero.textContent = "—";
+    ui.zero.className = "zero";
+    ui.verdictSub.textContent =
+      "No desk on this screen has a price right now, so there is nothing to arbitrage and nothing to claim.";
+    ui.toll.innerHTML = "";
+    ui.legs.replaceChildren();
     return;
   }
 
-  const { desk, trip } = best;
-  // The compact name: the panel says "canonical" four times, and the mode chip above it already
-  // says whether anything is deployed.
-  const who = desk.label && desk.label.length ? desk.label : desk.account === ZERO ? "canonical" : short(desk.account);
-  const open = trip.best > 0;
-  const atTheTouch = !open && trip.best > -0.5;
+  const session = view.sessionBest;
+  const open = session.trip.best > 0;
 
-  const caption = div("arb-caption");
   if (open) {
-    caption.innerHTML =
-      `<b>${escape(who)}</b> can be taken and closed at L1 for a profit right now. That is not `
-      + `supposed to be reachable: read it as a book that moved between two reads, or as a bug.`;
-  } else if (atTheTouch) {
-    caption.innerHTML =
-      `<b>${escape(who)}</b> is leaning: its absorbing side walked all the way to L1's own price and `
-      + `stopped on it. A better fill for whoever is being forced out, still nothing for an arbitrageur.`;
+    ui.zero.textContent = `+${session.trip.best.toFixed(2)} bps`;
+    ui.zero.className = "zero open";
+    ui.verdictSub.innerHTML =
+      `<b>${escape(name(session.desk))}</b> can be taken and closed at the book for a profit right now. ` +
+      `That is not supposed to be reachable — read it as a book that moved between two reads, or as a bug, ` +
+      `and take it before it closes.`;
   } else {
-    caption.innerHTML =
-      `The best round trip against any desk here, and it is against <b>${escape(who)}</b>. `
-      + `Nothing can be bought and sold back into the book this quote read for a profit.`;
+    ui.zero.textContent = "$0.00";
+    ui.zero.className = "zero";
+    ui.verdictSub.innerHTML =
+      `<b>${view.samples.toLocaleString("en-US")}</b> blocks sampled since you opened this page · ` +
+      `closest attempt <b>${bpsText(session.trip.best)} bps</b> against <b>${escape(name(session.desk))}</b> · ` +
+      `both directions · closing at the book's own prices`;
   }
 
-  const legs = div("arb-legs");
-  legs.append(
-    leg(`buy from ${who} at ${px(trip.prices.deskAsk)}, sell into L1's bid ${px(trip.prices.bid)}`,
-      `${bpsText(trip.buyFromDesk)} bps`),
-    leg(`sell to ${who} at ${px(trip.prices.deskBid)}, buy back at L1's ask ${px(trip.prices.ask)}`,
-      `${bpsText(trip.sellToDesk)} bps`),
-    leg("L1's own spread, which either exit has to cross", `${trip.l1SpreadBps.toFixed(2)} bps`, true),
-  );
-  const fold = document.createElement("details");
-  fold.className = "fold small";
-  fold.open = ui.arb.querySelector("details")?.open ?? false;
-  const summary = document.createElement("summary");
-  summary.textContent = "the two legs";
-  fold.append(summary, legs);
+  // The toll: the same search against the same reserves with the bound removed. It moves every
+  // block; the zero above does not. That contrast is the argument, so they sit on one line.
+  const toll = bestControlToll(view.floor.book, view.floor.desks);
+  if (toll && toll.usd > 0.005) {
+    ui.toll.innerHTML =
+      `<span>The same search against a plain curve on the same reserves:</span>` +
+      `<b>+$${toll.usd.toFixed(2)} · +${toll.bps.toFixed(1)} bps</b>` +
+      `<span>the toll, collected this block</span>`;
+  } else {
+    ui.toll.innerHTML =
+      `<span>The same search against a plain curve on the same reserves: <b>nothing to take either</b> — this block.</span>`;
+  }
 
-  ui.arb.replaceChildren(
-    div(`arb-value ${open ? "arb-open" : "arb-safe"}`, `${bpsText(trip.best)} bps`),
-    caption,
-    fold,
+  // The two legs, for whoever opens the fold: why the zero is arithmetic and not a promise.
+  const { trip } = session;
+  const who = name(session.desk);
+  ui.legs.replaceChildren(
+    leg(`buy from ${who} at ${px2(trip.prices.deskAsk)}, sell into the book's bid ${px2(trip.prices.bid)}`,
+      `${bpsText(trip.buyFromDesk)} bps`),
+    leg(`sell to ${who} at ${px2(trip.prices.deskBid)}, buy back at the book's ask ${px2(trip.prices.ask)}`,
+      `${bpsText(trip.sellToDesk)} bps`),
+    leg("the book's own spread, which either exit has to cross", `${trip.l1SpreadBps.toFixed(2)} bps`, true),
   );
 }
 
-/** What regime the floor is in, said as what it proves rather than as what is happening. */
-function renderRegime(view, desks, best) {
+/** What the floor is doing, said as what a stranger sees. */
+function renderRegime(view, desks) {
   const leaning = desks.filter((d) => d.lean !== 0);
   const { ui } = view;
 
   if (leaning.length === 0) {
-    ui.regime.textContent =
-      "QUIET — every desk is outside L1 on both sides, and the round trip above is under water.";
+    ui.regime.textContent = "quiet — sitting outside the book on both sides";
     ui.regime.className = "regime";
     return;
   }
   ui.regime.textContent =
-    `LEANING — ${leaning.map((d) => `${name(d)} on the ${d.lean === 1 ? "bid" : "ask"}`).join(", ")}`
-    + ": inside L1, capped at L1's own price. The round trip above is zero, which is as tight as it gets.";
-  ui.regime.className = "regime regime-lean";
+    `stepping in — ${leaning.map((d) => `${name(d)} on the ${d.lean === 1 ? "bid" : "ask"}`).join(", ")}, ` +
+    `capped at the book's own price`;
+  ui.regime.className = "regime step";
 }
 
 function renderTable(view, desks, book) {
   const rows = desks.map((d) => {
     const trip = roundTrip(book, d);
     const tr = document.createElement("tr");
-    const quote = d.quoted ? `${px(d.bidPx)} / ${px(d.askPx)}` : "no price";
+
+    const nameTd = document.createElement("td");
+    nameTd.className = "name";
+    nameTd.textContent = name(d);
+    if (d.account !== ZERO) {
+      const small = document.createElement("small");
+      small.textContent = short(d.account);
+      nameTd.append(small);
+    }
+    tr.append(nameTd);
+
+    const quote = d.quoted ? `${px2(d.bidPx)} / ${px2(d.askPx)}` : "no price";
     const inventory = d.account === ZERO
       ? "—"
       : `${amount(d.baseBalance, 8)} base · ${amount(d.quoteBalance, 6)} quote`;
@@ -272,10 +339,9 @@ function renderTable(view, desks, book) {
       : "off";
 
     for (const [text, cls] of [
-      [name(d), "name"], [quote, "num"],
-      [trip ? `${bpsText(trip.best)} bps` : "—", trip && trip.best > 0 ? "lean-1" : ""],
+      [quote, "num"],
+      [trip ? `${bpsText(trip.best)} bps` : "—", trip ? (trip.best > 0 ? "rt-bad" : "rt-good") : ""],
       [inventory, ""], [map, ""], [hedge, ""],
-      [d.lean === 0 ? "—" : d.lean === 1 ? "bid" : "ask", `lean-${d.lean}`],
     ]) {
       const td = document.createElement("td");
       td.className = cls;
@@ -287,7 +353,136 @@ function renderTable(view, desks, book) {
   view.ui.rows.replaceChildren(...rows);
 }
 
-// ---- the two buttons ----
+// ---- the stress button: a real map, fired from the first click ----
+
+/**
+ * The desk whose oracle anyone can write: the one pointing at `DemoMapOracle`. On the canonical
+ * desk only the updater can post, which is why the button never offers it — a button that reverts
+ * for the person the page is built for is worse than no button.
+ */
+function demoDesk(view) {
+  const { floor, state } = view;
+  if (!floor || !state.deployment) return null;
+  return floor.desks.find((d) => sameAddress(d.params.mapOracle, state.deployment.demoMapOracle)) ?? null;
+}
+
+/**
+ * A map counts as live when it is fresh *and* has weight on it. `mapFresh` alone is about
+ * staleness — a cleared map (`0 / 0`) is still fresh, and treating it as live would paint a
+ * countdown over a lean that does not exist.
+ */
+const mapLive = (demo) =>
+  demo.regime.mapFresh &&
+  (demo.map.below >= demo.params.mapMinNotional || demo.map.above >= demo.params.mapMinNotional);
+
+function renderStress(view) {
+  const { ui } = view;
+  const demo = demoDesk(view);
+  if (!demo) {
+    ui.stressGo.hidden = true;
+    return;
+  }
+  ui.stressGo.hidden = false;
+
+  const live = mapLive(demo);
+  // A pending write is done when the chain's answer matches its intent: a posted map when the lean
+  // comes live, a cleared one when it goes dead. Until then the button stays put — re-arming it
+  // early is how the same map gets posted twice.
+  if (view.mapPending && live === !view.mapPending.clearing) view.mapPending = null;
+
+  if (view.mapPending) {
+    ui.stressGo.disabled = true;
+    ui.stressGo.textContent = "waiting for the block…";
+    return;
+  }
+
+  if (live) {
+    ui.stressGo.disabled = false;
+    ui.stressGo.textContent = "take the map away";
+    // The countdown line is painted by the one-second clock; nothing to say here.
+    return;
+  }
+
+  // Already leaning on the book alone: the map would be redundant, and saying so is the demo of
+  // the book-only half. The button idles rather than posting a map that changes nothing.
+  if (demo.lean !== 0) {
+    ui.stressGo.disabled = true;
+    ui.stressGo.textContent = "watch it step in ▸";
+    say(ui.stressOut,
+      "the book is already stressed — it stepped in without any map. That half needs nothing but the chain.");
+    return;
+  }
+
+  ui.stressGo.disabled = false;
+  ui.stressGo.textContent = view.signer
+    ? "post a liquidation map — watch it step in"
+    : "watch it step in ▸";
+}
+
+function wireStress(view) {
+  const { ui } = view;
+
+  ui.stressGo.addEventListener("click", async () => {
+    const demo = demoDesk(view);
+    if (!demo) return;
+    const clearing = mapLive(demo);
+
+    // The first click of a visitor with no wallet cannot fire a transaction — physics, not design.
+    // So the first click *becomes* the wallet: the email row is right here under the strip, and
+    // thirty seconds later the same button is armed.
+    if (!view.signer) {
+      ui.stressAuth.hidden = false;
+      ui.stripEmail.focus();
+      say(ui.stressOut,
+        "this fires a real transaction on the chain you are looking at — an email address is the wallet");
+      return;
+    }
+
+    try {
+      ui.stressGo.disabled = true;
+      const signer = view.signer;
+      await signer.switchToChain();
+      say(ui.stressOut, "checking this wallet for gas…");
+      await signer.fund(view.rpc);
+      say(ui.stressOut, clearing ? "taking the map away — one transaction…" : "posting the map — one transaction…");
+      const hash = await signer.send({
+        from: signer.address,
+        to: demo.params.mapOracle,
+        data: clearing
+          ? mapUpdate(view.state.sel, demo.params.perpIndex, 0n, 0n)
+          : mapUpdate(view.state.sel, demo.params.perpIndex, STRESS_NOTIONAL, 0n),
+      });
+      view.mapPending = { hash, clearing };
+      say(ui.stressOut,
+        clearing
+          ? `cleared ${short(hash)} — the desk steps back out when this block lands`
+          : `posted ${short(hash)} — the desk steps in when this block lands, and back out on its own ` +
+            `${Math.round(demo.params.mapMaxAge / 60)} minutes later`,
+        false, explorerTx(view.state.chain, hash));
+      renderStress(view);
+      // The receipt is deliberately not awaited. The strip drawing the lean from the next chain
+      // read is the proof that the chain answered rather than the page; a spinner until then would
+      // make the page the thing being watched.
+      waitForReceipt(view.rpc, hash).catch(() => {});
+    } catch (err) {
+      // Giving up on a receipt is not the write failing, and the lean shows on the next tick
+      // either way — same rule as Take.
+      if (err.pending) {
+        view.mapPending = { hash: err.hash, clearing };
+        say(ui.stressOut, `${short(err.hash)} sent, still pending — the strip shows the lean when it lands.`,
+          false, explorerTx(view.state.chain, err.hash));
+      } else {
+        view.mapPending = null;
+        say(ui.stressOut, err.message ?? String(err), true);
+      }
+      renderStress(view);
+    } finally {
+      ui.stressGo.disabled = false;
+    }
+  });
+}
+
+// ---- the two buttons' shared plumbing ----
 
 function renderPanels(view, desks) {
   const takeable = desks.filter((d) => d.account !== ZERO && d.open);
@@ -305,7 +500,7 @@ function renderPanels(view, desks) {
     : !view.signer
       ? "One swap through the official SwapVM router. An email address is enough — the wallet that appears is the one that signs it."
       : mintable
-        ? "Three transactions: mint the demo token, approve the router, swap through the official SwapVM router. Sell base to watch the bound bite — the desk's bid is clamped to L1's own."
+        ? "Three transactions: mint the demo token, approve the router, swap through the official SwapVM router. Sell base to watch the bound bite — the desk's bid is clamped to the book's own."
         : `This desk trades the real pair: bring your own ${chosen ? short(chosen.params.base) : "tokens"}, or take the demo desk for nothing.`;
   view.ui.takeGo.disabled = none || !view.signer;
 
@@ -329,6 +524,15 @@ function fillSelect(select, desks, preferred) {
 
 function wireTake(view) {
   const { ui } = view;
+
+  // The default amount is per side, because the two sides are measured in different units and the
+  // clamp is only visible on one of them: selling base shows the desk's bid pinned to the book's,
+  // buying shows an ordinary curve. A sane default is the difference between a judge seeing the
+  // mechanism and a judge reverting the demo desk.
+  const defaultAmount = () => { ui.takeAmount.value = ui.takeSide.value === "sell" ? "0.001" : "10"; };
+  ui.takeSide.addEventListener("change", defaultAmount);
+  defaultAmount();
+
   ui.takeGo.addEventListener("click", async () => {
     const desk = view.floor.desks.find((d) => d.account === ui.takeDesk.value);
     if (!desk) return;
@@ -370,14 +574,14 @@ function wireTake(view) {
       });
       const [amountInQ, amountOut] = decode(["uint256", "uint256", "bytes32"], quoted);
 
-      // What crossing L1 would give, so the number has something to be compared to.
+      // What crossing the book would give, so the number has something to be compared to.
       const crossing = sellBase
         ? amountIn * BigInt(view.floor.book.bid) * desk.params.pxNum / desk.params.pxDen
         : amountIn * desk.params.pxDen / (BigInt(view.floor.book.ask) * desk.params.pxNum);
       const edge = crossing === 0n ? 0 : Number((amountOut - crossing) * 10_000n / crossing);
       say(ui.takeOut,
         `quote: ${amount(amountOut, sellBase ? 6 : 8)} out for ${amount(amountInQ, decimalsIn)} in — ` +
-        `${edge >= 0 ? "+" : ""}${edge} bps against crossing L1. three transactions from here; ` +
+        `${edge >= 0 ? "+" : ""}${edge} bps against crossing the book. three transactions from here; ` +
         `each waits for its receipt, so give it a moment and do not reload.`);
 
       await ensureAllowance(view, signer, tokenIn, state.addresses.router, amountInQ, ui.takeOut);
@@ -440,12 +644,11 @@ const isDemoToken = (state, token) =>
   state.deployment && [state.deployment.demoBase, state.deployment.demoQuote].some((t) => sameAddress(t, token));
 
 /**
- * The map poke, labelled as what it is.
+ * The map panel's write, labelled as what it is.
  *
  * The map is the one input the design takes on trust: it is reconstructed off chain, it can only
- * ever *add* a lean, and a stale one is ignored. This button writes one. On the demo desk anybody
- * can, because that desk points at `DemoMapOracle`; on the canonical desk only the updater can, and
- * the page says so rather than hiding the button.
+ * ever *add* a lean, and a stale one is ignored. The stress button above posts the same write with
+ * no choices; this fold keeps the full controls for whoever wants the other side or another size.
  */
 function wireMap(view) {
   const { ui } = view;
@@ -469,10 +672,8 @@ function wireMap(view) {
       say(ui.mapOut, `posted ${short(hash)} — the lean shows on the next tick and expires in ${desk.params.mapMaxAge}s`);
       await waitForReceipt(view.rpc, hash);
     } catch (err) {
-      // Same rule as Take: giving up on a receipt is not the write failing, and the map is visible
-      // on the next tick either way.
       if (err.pending) {
-        say(ui.mapOut, `${short(err.hash)} is still pending — watch the lean column, it shows when it lands.`,
+        say(ui.mapOut, `${short(err.hash)} is still pending — watch the strip, it shows when it lands.`,
           false, explorerTx(view.state.chain, err.hash));
       } else {
         say(ui.mapOut, err.message ?? String(err), true);
@@ -483,109 +684,73 @@ function wireMap(view) {
   });
 }
 
-/**
- * Sign in, and the twenty seconds it is supposed to take.
- *
- * A visitor with no extension and no seed phrase types an email address, receives a six-digit code
- * and has a wallet on the chain this page is reading. That is the taker path this console is
- * judged on: everything after it — mint, approve, swap — is the same three transactions whichever
- * key signs them, which is why there is one signer interface and not two flows.
- *
- * A browser wallet is still offered, second, for whoever already has one.
- */
-function wireSignIn(view) {
-  const { ui, state } = view;
-  let session = null;   // the Privy session, once the SDK has been fetched
-  let emailed = null;   // the address a code was sent to
+// ---- sign-in, one session shared by the Take panel and the strip's compact row ----
 
+/**
+ * One wallet, two surfaces.
+ *
+ * The session — the Privy client, the address a code was mailed to, the signer itself — is a
+ * single thing, created once per page. Both the Take panel's full row and the strip's compact row
+ * are views over it, subscribing to repaints rather than owning state: a code mailed from the
+ * strip is a code the Take panel knows about, because the fifteen-second path and the thirty-
+ * second path are the same person.
+ */
+function createAuth(view) {
+  const { state } = view;
+  let privySession = null;
+  let emailed = null;
+  const paints = new Set();
+
+  const repaint = () => { for (const paint of paints) paint(); };
   const setSigner = (signer) => {
     view.signer = signer;
     // A resumed session can land before the first read does, and `render` wants a floor to draw.
     // The next tick is two seconds away and repaints everything anyway.
     if (view.floor) render(view);
-    paint();
+    repaint();
   };
 
-  const paint = () => {
-    const signed = Boolean(view.signer);
-    ui.who.hidden = !signed;
-    ui.signOut.hidden = !signed;
-    ui.email.hidden = signed;
-    ui.signInGo.hidden = signed;
-    ui.connect.hidden = signed || !globalThis.ethereum;
-    ui.code.hidden = signed || !emailed;
-    if (signed) {
-      ui.who.textContent = `${view.signer.label} · ${short(view.signer.address)}`;
-      ui.who.title = view.signer.address;
-    }
-    ui.signInGo.textContent = emailed ? "sign in" : "email me a code";
-  };
+  const auth = {
+    get emailed() { return emailed; },
 
-  if (!state.privy) {
-    ui.email.hidden = true;
-    ui.signInGo.hidden = true;
-    say(ui.signInNote, "Privy is not configured on this deployment (app/privy.json has no app id).", true);
-  }
+    subscribe(paint) { paints.add(paint); paint(); },
 
-  ui.signInGo.addEventListener("click", async () => {
-    if (!state.privy) return;
-    try {
-      ui.signInGo.disabled = true;
-      session ??= await openPrivy(state.chain, state.privy);
-      if (!emailed) {
-        const address = ui.email.value.trim();
-        if (!address.includes("@")) return say(ui.signInNote, "an email address, please", true);
-        await session.sendCode(address);
-        emailed = address;
-        say(ui.signInNote, `code sent to ${address}`);
-        paint();
-        ui.code.focus();
-        return;
-      }
-      const code = ui.code.value.trim();
-      if (!code) return say(ui.signInNote, "the six digits from the email", true);
-      say(ui.signInNote, "signing in and creating a wallet…");
-      setSigner(await session.submitCode(emailed, code));
-      say(ui.signInNote, "this wallet is yours; nothing was installed.");
-    } catch (err) {
-      say(ui.signInNote, err.message ?? String(err), true);
-    } finally {
-      ui.signInGo.disabled = false;
-    }
-  });
+    async sendCode(email) {
+      if (!state.privy) throw new Error("Privy is not configured on this deployment (app/privy.json has no app id).");
+      privySession ??= await openPrivy(state.chain, state.privy);
+      await privySession.sendCode(email);
+      emailed = email;
+      repaint();
+    },
 
-  ui.code.addEventListener("keydown", (e) => { if (e.key === "Enter") ui.signInGo.click(); });
-  ui.email.addEventListener("keydown", (e) => { if (e.key === "Enter") ui.signInGo.click(); });
+    async submitCode(code) {
+      if (!emailed) throw new Error("send yourself a code first");
+      privySession ??= await openPrivy(state.chain, state.privy);
+      const signer = await privySession.submitCode(emailed, code);
+      emailed = null;
+      setSigner(signer);
+    },
 
-  ui.connect.addEventListener("click", async () => {
-    const signer = injected(state.chain);
-    if (!signer) return say(ui.signInNote, "no wallet in this browser", true);
-    try {
-      ui.connect.disabled = true;
-      setSigner(await signer.connect());
+    async connectInjected() {
+      const signer = injected(state.chain);
+      if (!signer) throw new Error("no wallet in this browser");
+      await signer.connect();
       signer.onChanged(async () => {
         // An injected wallet can be moved off this chain from outside the page, so unlike the
         // embedded one it is re-checked rather than assumed.
         if (!(await signer.onChain())) await signer.switchToChain();
         await signer.resume();
         if (view.floor) render(view);
-        paint();
+        repaint();
       });
-      say(ui.signInNote, "");
-    } catch (err) {
-      say(ui.signInNote, err.message ?? String(err), true);
-    } finally {
-      ui.connect.disabled = false;
-    }
-  });
+      setSigner(signer);
+    },
 
-  ui.signOut.addEventListener("click", async () => {
-    await view.signer?.disconnect();
-    emailed = null;
-    ui.code.value = "";
-    setSigner(null);
-    say(ui.signInNote, "");
-  });
+    async signOut() {
+      await view.signer?.disconnect();
+      setSigner(null);
+    },
+  };
 
   // Whoever was already signed in on this device, without a prompt: a Privy session survives a
   // reload, and an injected wallet the page has been allowed before answers eth_accounts.
@@ -598,13 +763,126 @@ function wireSignIn(view) {
     if (already && (await already.resume()) && (await already.onChain())) return setSigner(already);
     if (!state.privy || !hasPrivySession()) return;
     try {
-      session = await openPrivy(state.chain, state.privy);
-      const signer = await session.resume();
+      privySession = await openPrivy(state.chain, state.privy);
+      const signer = await privySession.resume();
       if (signer) setSigner(signer);
     } catch { /* the session expired, or the SDK is unreachable; the buttons still work */ }
   })();
 
-  paint();
+  return auth;
+}
+
+/** The Take panel's full row: email, code, the injected wallet, sign out. */
+function wireSignInPanel(view, auth) {
+  const { ui, state } = view;
+
+  auth.subscribe(() => {
+    const signed = Boolean(view.signer);
+    const mailed = Boolean(auth.emailed);
+    ui.who.hidden = !signed;
+    ui.signOut.hidden = !signed;
+    ui.email.hidden = signed || mailed;
+    ui.code.hidden = signed || !mailed;
+    ui.signInGo.hidden = signed;
+    ui.connect.hidden = signed || mailed || !globalThis.ethereum;
+    if (signed) {
+      ui.who.textContent = `${view.signer.label} · ${short(view.signer.address)}`;
+      ui.who.title = view.signer.address;
+    }
+    ui.signInGo.textContent = mailed ? "sign in" : "email me a code";
+  });
+
+  if (!state.privy) {
+    say(ui.signInNote, "Privy is not configured on this deployment (app/privy.json has no app id).", true);
+  }
+
+  ui.signInGo.addEventListener("click", async () => {
+    try {
+      ui.signInGo.disabled = true;
+      if (!auth.emailed) {
+        const address = ui.email.value.trim();
+        if (!address.includes("@")) return say(ui.signInNote, "an email address, please", true);
+        await auth.sendCode(address);
+        say(ui.signInNote, `code sent to ${address}`);
+        ui.code.focus();
+        return;
+      }
+      const code = ui.code.value.trim();
+      if (!code) return say(ui.signInNote, "the six digits from the email", true);
+      say(ui.signInNote, "signing in and creating a wallet…");
+      await auth.submitCode(code);
+      say(ui.signInNote, "this wallet is yours; nothing was installed.");
+    } catch (err) {
+      say(ui.signInNote, err.message ?? String(err), true);
+    } finally {
+      ui.signInGo.disabled = false;
+    }
+  });
+
+  ui.code.addEventListener("keydown", (e) => { if (e.key === "Enter") ui.signInGo.click(); });
+  ui.email.addEventListener("keydown", (e) => { if (e.key === "Enter") ui.signInGo.click(); });
+
+  ui.connect.addEventListener("click", async () => {
+    try {
+      ui.connect.disabled = true;
+      await auth.connectInjected();
+      say(ui.signInNote, "");
+    } catch (err) {
+      say(ui.signInNote, err.message ?? String(err), true);
+    } finally {
+      ui.connect.disabled = false;
+    }
+  });
+
+  ui.signOut.addEventListener("click", async () => {
+    await auth.signOut();
+    ui.code.value = "";
+    say(ui.signInNote, "");
+  });
+}
+
+/**
+ * The strip's compact row — the stress button's first click for a visitor with no wallet. It is
+ * deliberately narrower than the panel's: no injected option, no sign-out, just the email that
+ * arms the button they just pressed. Anything else is a detour from the thing they came to watch.
+ */
+function wireStressAuth(view, auth) {
+  const { ui } = view;
+
+  auth.subscribe(() => {
+    const signed = Boolean(view.signer);
+    const mailed = Boolean(auth.emailed);
+    if (signed) ui.stressAuth.hidden = true;
+    ui.stripEmail.hidden = signed || mailed;
+    ui.stripCode.hidden = signed || !mailed;
+    ui.stripGo.textContent = mailed ? "sign in" : "email me a code";
+  });
+
+  ui.stripGo.addEventListener("click", async () => {
+    try {
+      ui.stripGo.disabled = true;
+      if (!auth.emailed) {
+        const address = ui.stripEmail.value.trim();
+        if (!address.includes("@")) return say(ui.stripNote, "an email address, please", true);
+        await auth.sendCode(address);
+        say(ui.stripNote, `code sent — check ${address}`);
+        ui.stripCode.focus();
+        return;
+      }
+      const code = ui.stripCode.value.trim();
+      if (!code) return say(ui.stripNote, "the six digits from the email", true);
+      say(ui.stripNote, "signing in and creating a wallet…");
+      await auth.submitCode(code);
+      say(ui.stripNote, "done — press the button again, and this time the chain answers.");
+    } catch (err) {
+      say(ui.stripNote, err.message ?? String(err), true);
+    } finally {
+      ui.stripGo.disabled = false;
+    }
+  });
+
+  ui.stripCode.addEventListener("keydown", (e) => { if (e.key === "Enter") ui.stripGo.click(); });
+  ui.stripEmail.addEventListener("keydown", (e) => { if (e.key === "Enter") ui.stripGo.click(); });
 }
 
 // ---- helpers ----
@@ -623,8 +901,9 @@ const sameAddress = (a, b) => (a ?? "").toLowerCase() === (b ?? "").toLowerCase(
 const short = (a) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 const name = (d) => (d.label && d.label.length ? d.label : d.account === ZERO ? "canonical (parameters only)" : short(d.account));
 
-/** Raw HyperCore price to dollars: raw / 10^(6 - szDecimals), and BTC's szDecimals is 5. */
-const px = (raw) => `$${(Number(raw) / 10).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`;
+/** Raw book price to dollars: raw / 10^(6 - szDecimals), and BTC's szDecimals is 5. */
+const px0 = (raw) => `$${Math.round(Number(raw) / 10).toLocaleString("en-US")}`;
+const px2 = (raw) => `$${(Number(raw) / 10).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const amount = (v, decimals) => {
   const n = Number(v) / 10 ** decimals;
@@ -638,37 +917,40 @@ const units = (text, decimals) => {
 };
 
 /** A signed bps figure. "−0.00" is a lie about a positive number, so the sign follows the value. */
-const bpsText = (v) => `${v > 0 ? "+" : v < 0 ? "\u2212" : ""}${Math.abs(v).toFixed(2)}`;
+const bpsText = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(2)}`;
 
 const escape = (s) => s.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c]);
 
-function div(cls, text) {
+function cell(label, value, sub) {
   const node = document.createElement("div");
-  node.className = cls;
-  if (text !== undefined) node.textContent = text;
+  node.className = "cell";
+  const k = document.createElement("div");
+  k.className = "cell-k";
+  k.textContent = label;
+  const v = document.createElement("div");
+  v.className = "cell-v";
+  v.textContent = value;
+  node.append(k, v);
+  if (sub) {
+    const s = document.createElement("div");
+    s.className = "cell-s";
+    s.textContent = sub;
+    node.append(s);
+  }
   return node;
 }
 
 function leg(label, value, muted = false) {
   const row = document.createElement("div");
   row.className = "arb-leg";
-  const k = div("arb-leg-k", label);
-  const v = div(`arb-leg-v${muted ? " arb-muted" : ""}`, value);
-  row.append(k, v);
-  return row;
-}
-
-function stat(label, value) {
-  const div = document.createElement("div");
-  div.className = "stat";
   const k = document.createElement("div");
-  k.className = "stat-label";
+  k.className = "arb-leg-k";
   k.textContent = label;
   const v = document.createElement("div");
-  v.className = "stat-value";
+  v.className = `arb-leg-v${muted ? " arb-muted" : ""}`;
   v.textContent = value;
-  div.append(k, v);
-  return div;
+  row.append(k, v);
+  return row;
 }
 
 function say(node, text, isError = false, link = null) {
@@ -688,10 +970,16 @@ function build(root) {
   return {
     status: id("floor-status"), page: id("floor-page"), error: id("floor-error"),
     mode: id("floor-mode"), meta: id("floor-meta"),
-    book: id("floor-book"), arb: id("floor-arb"), regime: id("floor-regime"), strip: id("floor-strip"),
-    rows: id("floor-rows"), connect: id("floor-connect"),
+    verdictK: id("verdict-k"), zero: id("hero-zero"), verdictSub: id("hero-sub"),
+    toll: id("hero-toll"), legs: id("hero-legs"),
+    book: id("floor-book"), regime: id("floor-regime"), strip: id("floor-strip"),
+    stressGo: id("stress-go"), stressOut: id("stress-out"), stressAuth: id("stress-auth"),
+    stripEmail: id("strip-email"), stripCode: id("strip-code"), stripGo: id("strip-go"),
+    stripNote: id("strip-note"),
+    rows: id("floor-rows"),
     who: id("floor-who"), email: id("signin-email"), code: id("signin-code"),
     signInGo: id("signin-go"), signOut: id("signin-out"), signInNote: id("signin-note"),
+    connect: id("floor-connect"),
     takeDesk: id("take-desk"), takeSide: id("take-side"), takeAmount: id("take-amount"),
     takeGo: id("take-go"), takeOut: id("take-out"), takeNote: id("take-note"),
     mapDesk: id("map-desk"), mapSide: id("map-side"), mapNotional: id("map-notional"),

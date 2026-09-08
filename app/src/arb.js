@@ -53,3 +53,49 @@ export function bestRoundTrip(book, desks) {
   }
   return best;
 }
+
+/**
+ * The ablated control, live: a plain constant-product curve on this desk's own reserves, the bound
+ * removed, searched over size against the same book.
+ *
+ * That is the toll the zero next to it is compared against — the same arbitrageur, the same exit
+ * prices, the same reserves, one instruction fewer. It is computed from the frame on the screen
+ * rather than quoted from a past block, so it breathes with the book: the point the pair of numbers
+ * makes is that the toll moves every block and the desk's zero does not.
+ *
+ * Sizes are fractions of the curve's own depth, which is the honest way to search a thin curve: a
+ * clip that is most of the reserve pays a terrible average price, so the best clip is usually
+ * small and the bps is the story, not the dollars. Base is UBTC (8 decimals) and quote is USDT0
+ * (6) on every desk this floor lists; BBO raw is tenths of a dollar.
+ */
+export function controlToll(book, desk) {
+  const B = Number(desk.baseBalance) / 1e8;
+  const Q = Number(desk.quoteBalance) / 1e6;
+  const bid = Number(book.bid) / 10;
+  const ask = Number(book.ask) / 10;
+  if (!(B > 0 && Q > 0 && bid > 0 && ask > 0)) return null;
+
+  let best = { usd: 0, bps: 0 };
+  for (const f of [0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.4]) {
+    const x = B * f;
+    // Buy at L1's ask, sell into the curve — pays when the curve's ratio sits above the book.
+    const sellProfit = (Q * x) / (B + x) - x * ask;
+    if (sellProfit > best.usd) best = { usd: sellProfit, bps: (sellProfit / (x * ask)) * 10_000 };
+    // Buy from the curve, sell into L1's bid — pays when the ratio sits below it.
+    const cost = (Q * x) / (B - x);
+    const buyProfit = x * bid - cost;
+    if (buyProfit > best.usd) best = { usd: buyProfit, bps: (buyProfit / cost) * 10_000 };
+  }
+  return best;
+}
+
+/** The worst toll on the screen — the curve an arbitrageur would start with. */
+export function bestControlToll(book, desks) {
+  let best = null;
+  for (const desk of desks) {
+    if (!desk.account || BigInt(desk.account) === 0n) continue;
+    const toll = controlToll(book, desk);
+    if (toll && (best === null || toll.usd > best.usd)) best = toll;
+  }
+  return best;
+}
