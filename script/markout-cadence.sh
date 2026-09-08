@@ -29,9 +29,15 @@ ACCOUNT="${MARKOUT_ACCOUNT:-${DEPLOYER_ACCOUNT:-coldcascade-deployer}}"
 PASSFILE="${MARKOUT_PASSFILE:-$HOME/.config/coldcascade/deployer.pass}"
 DRY_RUN="${DRY_RUN:-0}"
 
+# Bounded per pass. A run that comes back after an outage has every matured horizon waiting, and
+# three hundred sends would hold the send lock for twenty minutes — which is twenty minutes of
+# holes in the book series the markouts are computed from. The backlog drains over the next few
+# passes instead; nothing is lost, because what has been posted is read back off the chain.
+LIMIT="${MARKOUT_LIMIT:-30}"
+
 ARGS=()
 if [ "$DRY_RUN" != "1" ] && [ -f "$PASSFILE" ]; then
-  ARGS=(--post --account "$ACCOUNT" --password-file "$PASSFILE")
+  ARGS=(--post --account "$ACCOUNT" --password-file "$PASSFILE" --limit "$LIMIT")
 else
   echo "no $PASSFILE (or DRY_RUN=1) — refreshing results/markouts.json without posting" >&2
 fi

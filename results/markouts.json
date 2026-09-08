@@ -1,5 +1,5 @@
 {
-  "generatedAt": 1788874110,
+  "generatedAt": 1788874206,
   "chainId": 999,
   "source": {
     "provider": "The Graph Market for Substreams",
@@ -7,7 +7,7 @@
     "package": "coldcascade-v0.1.0.spkg",
     "module": "desk_events",
     "startBlock": 45135453,
-    "stopBlock": 45361442
+    "stopBlock": 45361539
   },
   "horizonsMinutes": [
     5,
@@ -16,17 +16,17 @@
   ],
   "toleranceSeconds": 180,
   "books": {
-    "count": 62,
+    "count": 63,
     "firstAt": 1788870223,
-    "lastAt": 1788874084,
-    "medianGapSeconds": 60
+    "lastAt": 1788874144,
+    "medianGapSeconds": 60.0
   },
   "summary": {
-    "fills": 9,
+    "fills": 10,
     "fillsWithCompleteHorizons": 0,
     "firstFillAt": 1788708512,
-    "lastFillAt": 1788872591,
-    "spanDays": 1.9,
+    "lastFillAt": 1788874165,
+    "spanDays": 1.92,
     "byHorizon": {
       "5": {
         "n": 1,
@@ -51,8 +51,8 @@
       }
     },
     "vsTouch": {
-      "n": 9,
-      "meanBps": 34.618,
+      "n": 10,
+      "meanBps": 29.157,
       "medianBps": -20.0,
       "minBps": -20.0,
       "maxBps": 156.536
@@ -293,6 +293,31 @@
           "bookBlock": 45360872,
           "lagSeconds": 54
         },
+        "60": null
+      }
+    },
+    {
+      "fillId": "0xe765976dd9180bedbb7e3524645e27b4fc4c2cb7a2fdd67b76bc453000000002",
+      "txHash": "0xe765976dd9180bedbb7e3524645e27b4fc4c2cb7a2fdd67b76bc4530c55bbd35",
+      "logIndex": 2,
+      "block": 45361502,
+      "at": 1788874165,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "1270424",
+      "quoteRaw": "993145551",
+      "bookOk": true,
+      "bidRaw": 783310,
+      "askRaw": 783320,
+      "midRaw": 783315.0,
+      "touchRaw": 783310,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": null,
+        "15": null,
         "60": null
       }
     }
