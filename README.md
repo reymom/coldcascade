@@ -219,6 +219,73 @@ it pays to *not* carry it. The real world is worse than the identity, too: the t
 differ, the hedge lands seconds later at a price nobody read, and it can be partial. A hedged
 desk's P&L is a third measurement and this repository does not have it yet.
 
+## The desk's own record
+
+Every fill this desk makes already carries the book it filled against — `DeskHooks.Fill` emits
+bid, ask, mark and oracle as `CoreQuote` read them while pricing that swap. So the desk's history
+is not a thing that has to be reconstructed. It has to be *read*, and then joined to what the book
+did next.
+
+The second half is the hard one, and it is why `BookCache` exists. The HyperCore precompiles
+**ignore the block tag**: an `eth_call` to `0x080e` pinned two hundred thousand blocks back answers
+with the current book (`results/999_precompile_block_tag.md`). They are node state, not chain
+state. There is no archive read and no way to ask what the book was fifteen minutes ago — unless
+somebody wrote the four words into a log while they were current. `BookCache.poke` is that, it is
+permissionless, and `script/poke-cadence.sh` calls it once a minute for 50 642 gas.
+
+**`substreams/`** is a Rust Substreams package decoding `Fill`, `Booked`, `MapUpdated` and
+`Markout` out of HyperEVM blocks. `index_desk_events` writes one key per contract that spoke in a
+block; `desk_events` filters on it, so a scan from the desk's first block to the head is a quarter
+of a million HyperEVM blocks and about twenty messages. It runs against The Graph Market for
+Substreams — Subgraph Studio reports `hyper-evm: subgraphsSupportLevel: "none"`, so there is no
+hosted subgraph on chain 999 to deploy to, and the Substreams provider is the path that is open.
+
+`results/999_substreams_fill_decode.md` sets the module's decode of `0xfaf1b6c6…ab20` beside the
+receipt the node serves for it: eleven data words and two indexed topics, all equal.
+
+**`keeper/coldcascade/markouts.py`** consumes that stream, joins each fill to the first book at or
+after `t+5`, `t+15` and `t+60` minutes, and posts the result to `MarkoutLedger`, whose `Markout`
+log the same module decodes on the next pass. That is what stops the keeper restating a number it
+has already published: it reads what it said from the chain, not from its own memory.
+
+```
+python -m coldcascade markouts            # stream, join, write results/markouts.json
+python -m coldcascade markouts --post     # and send what is new
+```
+
+A horizon counts only if a book landed within 180 seconds of it. Without that bound a fill from
+before the series started would be marked out against a book five hours later and labelled a
+five-minute markout, which it is not.
+
+**What the number is.** Adverse selection: the move of L1 mid from the side the desk ended up
+holding, in basis points, signed so that negative is the desk having been picked off. That is the
+quantity the LVR literature is about. It is **not** the desk's P&L — it ignores the spread captured
+at the touch, which is reported separately per fill as `vsTouchBps`, and it ignores the perp leg
+entirely, for the reason in *Two measurements* above.
+
+**What exists so far.** Nine fills on chain 999, all of them ours, and they split cleanly in two.
+
+| | `vsTouchBps` |
+|---|---|
+| six fills where the bound had something to cut | −20.00, −20.00, −20.00, −20.00, −20.00, +20.00 |
+| three where it did not | +111.16, +123.87, +156.54 |
+
+The first row is `quietBps` to the basis point, on every one of them, including the fill taken
+against the hedged desk's real inventory. The clamp is not one screenshot. The second row is the
+constant-product curve already asking more than L1 plus the band, so there was nothing to cut —
+the same reading the first mainnet swap gets in *Status* below, now with two more instances of it.
+
+The split is not a coincidence and it is one line of `CoreQuote`: in the quiet regime the taker
+receives `min(curve, bound)`. The bound caps how *good* the desk's price is allowed to get; it
+never makes it better. So a fill prints at exactly ±`quietBps` when the curve wanted to deal
+inside the band and was pulled back to its edge, and prints outside the band when the curve was
+already further out than the bound would have held it — where there is nothing to pull.
+
+The `Booked` series began at 12:23:43Z on 8 Sep
+(`0x24dbe446…b60d`, block 45 357 494); before that `pokedAt(0)` was 0 and there was not one
+`Booked` event on the chain. **Every fill older than that series has no right-hand side to join
+to, and carries no markout.** The record starts where the series starts, and it is short.
+
 ## The console
 
 One URL. The Floor leads with the round trip above — recomputed off the live book every two
@@ -288,8 +355,8 @@ The quote, the program encoder, the desk account and the console are built and t
 live node, and the round trip above is the live book answering today. **It is deployed.** Twelve
 contracts on chain 999 since 6 September, three desks shipped, and the canonical desk holds real
 UBTC and USD₮0. The taker path is live end to end from an email address, and the CoreWriter cover
-leg has been sent from a desk and filled on HyperCore. The subgraph comes next; the markout numbers
-arrive when the replay runs on a real tape.
+leg has been sent from a desk and filled on HyperCore. The desk's own record is indexed off
+Substreams and the keeper posts markouts back to the chain, described below.
 
 Every fill on chain so far is one we sent; there is no external flow yet.
 
