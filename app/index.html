@@ -214,6 +214,59 @@ a .rc-dot { cursor: pointer; }
   border-top: 1px solid var(--line); padding-top: 12px; margin-top: 8px; }
 .record-foot b { color: var(--ink); font-weight: 500; }
 
+/* ---- the book archive ---- */
+.archive .controls { margin: 16px 0 10px; }
+.archive .controls input { width: 17em; }
+.archive-presets { display: flex; flex-wrap: wrap; gap: 8px; }
+.archive-verdict { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
+  margin: 16px 0 4px; }
+.archive-verdict .chip { flex: none; }
+#archive-explanation { color: var(--muted); font-size: 12.5px; line-height: 1.65;
+  max-width: 80ch; }
+#archive-explanation code { color: var(--ink); }
+.ba-chip-bracketed, .ba-chip-exact { color: var(--ask); border-color: #1e4a42; }
+.ba-chip-stale, .ba-chip-beforeseries { color: var(--bid); border-color: #4a3a1e; }
+.ba-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line);
+  border: 1px solid var(--line); margin: 12px 0 10px; }
+@media (max-width: 720px) { .ba-grid { grid-template-columns: 1fr; } }
+.ba-card { background: var(--bg); padding: 14px 16px; }
+.ba-card-k { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; }
+.ba-card-when { font-size: 12.5px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.ba-card-book { font-size: 19px; font-weight: 500; margin-top: 8px; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums; }
+.ba-card-book .b { color: var(--bid); }
+.ba-card-book .a { color: var(--ask); }
+.ba-card-s { color: var(--muted); font-size: 10.5px; margin-top: 5px; line-height: 1.6; }
+.ba-dist { color: var(--desk); font-size: 11px; margin-top: 9px; font-variant-numeric: tabular-nums; }
+.archive-gap { color: var(--muted); font-size: 11.5px; margin: 8px 0 0;
+  font-variant-numeric: tabular-nums; }
+.archive-nointerp { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
+.archive-nointerp code { color: var(--ink); }
+.archive-warn { color: var(--bid); font-size: 12px; line-height: 1.65;
+  border-left: 2px solid var(--bid); padding-left: 12px; margin: 12px 0 0; max-width: 76ch; }
+.archive-refusal { border-left: 2px solid var(--bid); padding: 8px 0 8px 18px; margin: 14px 0 6px;
+  max-width: 80ch; }
+.archive-refusal h3 { font: 500 15px var(--mono); color: var(--ink); margin: 0 0 8px;
+  letter-spacing: -0.01em; }
+.archive-refusal p { color: var(--muted); font-size: 12.5px; line-height: 1.7; margin: 0 0 8px; }
+.archive-refusal p b { color: var(--ink); font-weight: 500; }
+.archive-refusal code { color: var(--ink); }
+.ba-call { border: 1px solid var(--line); padding: 13px 16px 9px; margin: 16px 0 6px; }
+.ba-call-k { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--muted); margin-bottom: 6px; }
+.ba-cmd { display: grid; grid-template-columns: 185px minmax(0, 1fr) auto; gap: 4px 12px;
+  align-items: baseline; padding: 5px 0; }
+.ba-cmd-k { color: var(--muted); font-size: 11px; }
+.ba-cmd code { color: var(--ink); font-size: 11px; white-space: pre-wrap; word-break: break-all; }
+.ba-cmd .linky { font-size: 11px; justify-self: end; }
+@media (max-width: 720px) {
+  .ba-cmd { grid-template-columns: 1fr; }
+  .ba-cmd .linky { justify-self: start; }
+}
+.ba-json { font-size: 11px; line-height: 1.55; color: var(--muted); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 3px; padding: 12px 14px; overflow: auto;
+  max-height: 360px; }
+
 /* ---- the desks ---- */
 h2 { font: 11px var(--mono); font-weight: 400; text-transform: uppercase; letter-spacing: 0.2em;
   color: var(--muted); margin: 0 0 14px; }
@@ -432,6 +485,68 @@ table.sweep td.now { color: var(--desk); }
         <div id="record-decision"></div>
         <div id="record-markouts"></div>
         <div class="record-foot" id="record-foot"></div>
+      </section>
+
+      <section class="record archive" id="archive">
+        <h2>the book archive — what the book was</h2>
+        <p class="strip-caption" style="max-width:78ch">Hyperliquid's book reaches HyperEVM through
+          precompiles that <b>ignore the block tag</b>: an <code>eth_call</code> pinned two hundred
+          thousand blocks back returns the <i>current</i> book, without erroring — the official RPC
+          serves the latest block only. So <i>what was the BBO at this instant</i> is not a slow
+          query, it is not a query at all — unless somebody wrote it down while it was true.
+          <code>BookCache.poke</code> is that writing: permissionless, four uint64, about once a
+          minute, into an EVM log. Ask for an instant and the panel returns the two observations
+          that bracket it, each with its distance — <b>never a number, never interpolated</b>. It
+          is the same answer the MCP server gives, from the same file, with the commands that
+          reproduce it underneath.<span id="archive-start"></span></p>
+
+        <div class="controls">
+          <input id="archive-when" type="text" spellcheck="false" autocomplete="off"
+                 placeholder="2026-09-08T16:30:00Z"
+                 aria-label="an instant — ISO-8601 or unix seconds, UTC">
+          <button class="go" id="archive-go">ask the archive</button>
+        </div>
+        <div class="archive-presets" id="archive-presets">
+          <button class="go ghost" data-when="2026-09-08T16:30:00Z">8 Sep 16:30Z — inside the series</button>
+          <button class="go ghost" data-when="2026-09-08T13:43:07Z">8 Sep 13:43Z — inside a 485&#8201;s hole</button>
+          <button class="go ghost" data-when="2025-10-10T21:21:00Z">10 Oct 2025 — the cascade's trough, before the series</button>
+        </div>
+        <p class="out" id="archive-status" aria-live="polite"></p>
+
+        <div id="archive-answer" hidden>
+          <p class="archive-verdict"><span class="chip" id="archive-chip"></span><span id="archive-explanation"></span></p>
+          <div class="ba-grid" id="archive-bracket"></div>
+          <div class="archive-refusal" id="archive-refusal" hidden></div>
+          <p class="archive-gap" id="archive-gap"></p>
+          <p class="archive-nointerp" id="archive-nointerp"></p>
+          <p class="archive-warn" id="archive-warn" hidden></p>
+
+          <div class="ba-call">
+            <div class="ba-call-k">the call — repeat what you see</div>
+            <div class="ba-cmd">
+              <span class="ba-cmd-k">regenerate from the stream</span>
+              <code id="archive-reproduce"></code>
+              <button class="linky" data-copy="archive-reproduce">copy</button>
+            </div>
+            <div class="ba-cmd">
+              <span class="ba-cmd-k">verify against the chain</span>
+              <code id="archive-verify"></code>
+              <button class="linky" data-copy="archive-verify">copy</button>
+            </div>
+          </div>
+
+          <details class="fold small">
+            <summary>the response object — the shape the MCP server returns</summary>
+            <p class="caveat"><code>get_book_at_time</code> in <code>mcp/</code> returns this same
+              object from the keeper's live corpus; the page builds it in the browser from the
+              static file the same pass writes. The file carries the four logged numbers and the
+              block per observation; the server adds the poker and the transaction hash. Nothing
+              else differs.</p>
+            <pre class="ba-json" id="archive-json"></pre>
+          </details>
+        </div>
+
+        <div class="record-foot" id="archive-foot"></div>
       </section>
 
       <h2>desks</h2>

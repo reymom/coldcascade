@@ -7,6 +7,7 @@
 
 import { mountFloor } from "./floor.js";
 import { mountRecord } from "./record.js";
+import { mountArchive } from "./archive.js";
 
 const tabs = [
   { button: "tab-floor", panel: "panel-floor" },
@@ -41,3 +42,6 @@ document.getElementById("go-evidence")?.addEventListener("click", () => {
 mountFloor(document);
 // The record reads its own file on its own cadence; it neither waits for the chain nor blocks it.
 mountRecord(document);
+// The archive is the record's other half: the record shows the fills, the archive answers for any
+// instant. Same keeper pass, same cadence, and no chain needed — the file alone carries it.
+mountArchive(document);
