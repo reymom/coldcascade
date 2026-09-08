@@ -28,8 +28,10 @@ print(s['fills'], s['fillsWithCompleteHorizons'], d['books']['count'], s['spanDa
   # everything already in the index, and on 8 Sep this script swept a staged file deletion into a
   # commit whose message said "markouts: 21 fills". A script that promises to publish one file
   # must be unable to publish anything else.
-  git commit -q --only -- results/markouts.json results/book-archive.json \
-    -m "markouts: $FILLS fills over $SPAN days, $COMPLETE with a complete 5/15/60, $BOOKS books"
+  # `-m` before the `--`: everything after the separator is a pathspec, so a message placed
+  # there is looked up as a filename and the commit dies with "did not match any file(s)".
+  git commit -q -m "markouts: $FILLS fills over $SPAN days, $COMPLETE with a complete 5/15/60, $BOOKS books" \
+    --only -- results/markouts.json results/book-archive.json
   echo "committed: $FILLS fills, $COMPLETE complete, $BOOKS books"
 fi
 
