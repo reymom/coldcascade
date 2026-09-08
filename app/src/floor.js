@@ -163,6 +163,7 @@ function render(view) {
     stat("mark", px(book.mark)), stat("oracle", px(book.oracle)),
     stat("oracle − mark", `${dislocation > 0 ? "+" : ""}${dislocation} bps`),
   );
+  for (const v of ui.book.querySelectorAll(".stat-value")) v.classList.add("compact");
 
   const best = bestRoundTrip(book, desks);
   renderArb(view, best);
@@ -203,21 +204,15 @@ function renderArb(view, best) {
   if (open) {
     caption.innerHTML =
       `<b>${escape(who)}</b> can be taken and closed at L1 for a profit right now. That is not `
-      + `supposed to be reachable — every leg of the quote is clamped to L1's own crossing price — `
-      + `so read it as a book that moved between two reads, or as a bug on this screen. It is not `
-      + `an invitation.`;
+      + `supposed to be reachable: read it as a book that moved between two reads, or as a bug.`;
   } else if (atTheTouch) {
     caption.innerHTML =
-      `<b>${escape(who)}</b> is leaning. Its absorbing side has walked the whole way to L1's own `
-      + `price and stopped on it: a better fill than L1 for whoever is being forced out, and still `
-      + `exactly nothing for an arbitrageur closing at that same touch. Zero is the tightest this `
-      + `can ever be.`;
+      `<b>${escape(who)}</b> is leaning: its absorbing side walked all the way to L1's own price and `
+      + `stopped on it. A better fill for whoever is being forced out, still nothing for an arbitrageur.`;
   } else {
     caption.innerHTML =
-      `The best round trip available against any desk on this screen, and it is against `
-      + `<b>${escape(who)}</b>. Nothing here can be bought and sold back into the book this quote `
-      + `read for a profit — not because the desk is wide, but because it has no earlier price to `
-      + `be wrong about.`;
+      `The best round trip against any desk here, and it is against <b>${escape(who)}</b>. `
+      + `Nothing can be bought and sold back into the book this quote read for a profit.`;
   }
 
   const legs = div("arb-legs");
@@ -228,11 +223,17 @@ function renderArb(view, best) {
       `${bpsText(trip.sellToDesk)} bps`),
     leg("L1's own spread, which either exit has to cross", `${trip.l1SpreadBps.toFixed(2)} bps`, true),
   );
+  const fold = document.createElement("details");
+  fold.className = "fold small";
+  fold.open = ui.arb.querySelector("details")?.open ?? false;
+  const summary = document.createElement("summary");
+  summary.textContent = "the two legs";
+  fold.append(summary, legs);
 
   ui.arb.replaceChildren(
     div(`arb-value ${open ? "arb-open" : "arb-safe"}`, `${bpsText(trip.best)} bps`),
     caption,
-    legs,
+    fold,
   );
 }
 
@@ -243,15 +244,13 @@ function renderRegime(view, desks, best) {
 
   if (leaning.length === 0) {
     ui.regime.textContent =
-      "QUIET — every desk is outside L1 on both sides. This is the regime the page is here to show:"
-      + " nothing is happening, and the round trip above is still under water.";
+      "QUIET — every desk is outside L1 on both sides, and the round trip above is under water.";
     ui.regime.className = "regime";
     return;
   }
   ui.regime.textContent =
     `LEANING — ${leaning.map((d) => `${name(d)} on the ${d.lean === 1 ? "bid" : "ask"}`).join(", ")}`
-    + ". The absorbing side is inside L1 and capped at L1's own price; the same round trip is now"
-    + " zero rather than negative, which is as good as it is ever allowed to get.";
+    + ": inside L1, capped at L1's own price. The round trip above is zero, which is as tight as it gets.";
   ui.regime.className = "regime regime-lean";
 }
 
@@ -259,9 +258,6 @@ function renderTable(view, desks, book) {
   const rows = desks.map((d) => {
     const trip = roundTrip(book, d);
     const tr = document.createElement("tr");
-    const band = d.quoted
-      ? `−${d.params.quietBps} / +${d.params.quietBps} bps`
-      : "—";
     const quote = d.quoted ? `${px(d.bidPx)} / ${px(d.askPx)}` : "no price";
     const inventory = d.account === ZERO
       ? "—"
@@ -276,7 +272,7 @@ function renderTable(view, desks, book) {
       : "off";
 
     for (const [text, cls] of [
-      [name(d), "name"], [band, ""], [quote, "num"],
+      [name(d), "name"], [quote, "num"],
       [trip ? `${bpsText(trip.best)} bps` : "—", trip && trip.best > 0 ? "lean-1" : ""],
       [inventory, ""], [map, ""], [hedge, ""],
       [d.lean === 0 ? "—" : d.lean === 1 ? "bid" : "ask", `lean-${d.lean}`],
@@ -305,12 +301,12 @@ function renderPanels(view, desks) {
   const chosen = takeable.find((d) => d.account === view.ui.takeDesk.value);
   const mintable = chosen && isDemoToken(view.state, chosen.params.base);
   view.ui.takeNote.textContent = none
-    ? "No desk is deployed yet. The Floor is quoting the canonical parameters against the live book; Take turns on when the desks are on chain."
+    ? "No desk is deployed yet; Take turns on when the desks are on chain."
     : !view.signer
-      ? `One swap through the official SwapVM router on chain ${view.state.chainId}. Sign in above — an email address is enough, and the wallet that appears is the one that signs it.`
+      ? "One swap through the official SwapVM router. An email address is enough — the wallet that appears is the one that signs it."
       : mintable
-        ? `Three transactions on chain ${view.state.chainId}: mint the demo token, approve the router, swap. The last goes through the official SwapVM router, and the page reads the order back from the account rather than rebuilding it. Selling base is where the bound bites — the desk's bid is clamped to L1's own.`
-        : `This desk trades the real pair, so the page cannot mint your side of it: bring your own ${chosen ? short(chosen.params.base) : "tokens"} and approve the router. The demo desk above takes mintable tokens and costs nothing.`;
+        ? "Three transactions: mint the demo token, approve the router, swap through the official SwapVM router. Sell base to watch the bound bite — the desk's bid is clamped to L1's own."
+        : `This desk trades the real pair: bring your own ${chosen ? short(chosen.params.base) : "tokens"}, or take the demo desk for nothing.`;
   view.ui.takeGo.disabled = none || !view.signer;
 
   const mapNone = view.ui.mapDesk.options.length === 0;

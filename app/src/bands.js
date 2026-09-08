@@ -15,7 +15,7 @@
 // distance it travelled is on the screen and not in a sentence underneath it.
 
 const W = 1000;
-const ROW = 34;
+const ROW = 32;
 const PAD = { top: 18, bottom: 26, left: 8, right: 8 };
 
 export function drawStrip(host, book, desks) {

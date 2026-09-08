@@ -25,7 +25,7 @@ body {
   font: 14px/1.55 var(--font);
   -webkit-font-smoothing: antialiased;
 }
-main { max-width: 1180px; margin: 0 auto; padding: 40px 24px 72px; }
+main { max-width: 1180px; margin: 0 auto; padding: 26px 24px 72px; }
 
 h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; }
 .sub { color: var(--muted); margin: 0 0 28px; font-size: 13px; }
@@ -134,7 +134,7 @@ footer code { color: var(--text); }
 .tab { background: none; border: 1px solid var(--line); color: var(--muted); font: inherit;
   padding: 5px 12px; border-radius: 6px; cursor: pointer; }
 .tab[aria-selected="true"] { color: var(--text); border-color: #38506e; background: var(--panel); }
-#floor-meta { color: var(--muted); font-size: 12px; margin: 0 0 18px; }
+#floor-meta { color: var(--muted); font-size: 12px; margin: 0; }
 .chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px;
   border: 1px solid var(--line); }
 .chip-simulated { color: #e0b978; border-color: #5b4a2a; }
@@ -214,12 +214,41 @@ button.go.ghost:hover { color: var(--text); }
 .status { white-space: pre-wrap; background: var(--panel); border: 1px solid var(--line);
   border-radius: 8px; padding: 20px; color: var(--muted); }
 .status.error { border-color: #6d3030; color: #e5b4b4; }
+
+/* ---- the fold: headline first, prose folded ---- */
+.headline { margin: 18px 0 22px; max-width: 920px; }
+.headline p { margin: 0; font-size: 23px; line-height: 1.32; letter-spacing: -0.01em; font-weight: 400; }
+.headline p b { font-weight: 650; }
+.headline .sub { margin: 10px 0 0; font-size: 13px; max-width: 78ch; }
+.meta { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.instrument { display: grid; grid-template-columns: 1.15fr 1fr; gap: 16px; margin-bottom: 8px; }
+@media (max-width: 900px) { .instrument { grid-template-columns: 1fr; } }
+.instrument .stats { margin-bottom: 0; align-content: start; grid-template-columns: repeat(4, 1fr) 1.35fr; }
+.instrument .stat { padding: 10px 12px; }
+@media (max-width: 900px) { .instrument .stats { grid-template-columns: repeat(3, 1fr); } }
+.instrument .arb { margin-bottom: 0; }
+.stat-value.compact { font-size: 18px; }
+.regime { margin: 6px 0 22px; }
+details.fold { border-top: 1px solid var(--line); padding: 10px 0 4px; margin: 0 0 6px; }
+details.fold > summary { cursor: pointer; list-style: none; color: var(--muted); font-size: 12px;
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.09em; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::before { content: "+ "; color: var(--desk); }
+details.fold[open] > summary::before { content: "\2212\00a0"; }
+details.fold > :not(summary) { margin-top: 10px; }
+details.small { border: none; padding: 8px 0 0; margin: 0; }
+details.small > summary { font-size: 11px; letter-spacing: 0.07em; }
+.panel .signin { margin-left: 0; justify-content: flex-start; margin-bottom: 10px; }
+.panel .signin-note { text-align: left; }
+.panels.take { grid-template-columns: 1fr; }
 </style>
 </head>
 <body>
 <main>
   <div class="topbar">
     <h1>coldcascade</h1>
+    <span id="floor-mode" class="chip">—</span>
+    <p id="floor-meta" class="meta">reading the chain…</p>
     <div class="tabs" role="tablist">
       <button class="tab" id="tab-floor" role="tab" aria-selected="true" aria-controls="panel-floor">Floor</button>
       <button class="tab" id="tab-evidence" role="tab" aria-selected="false" aria-controls="panel-evidence">Evidence · 10 Oct 2025</button>
@@ -227,89 +256,67 @@ button.go.ghost:hover { color: var(--text); }
   </div>
 
   <section id="panel-floor" role="tabpanel">
-    <p id="floor-meta">reading the chain…</p>
+    <div class="headline">
+      <p><b>When the market moves, bots charge AMMs for still using the old price.</b> This maker
+        reads the book before it accepts the trade.</p>
+      <p class="sub">A maker on 1inch Aqua, on HyperEVM — the one chain with Aqua deployed and a perp
+        book a contract can read inside the swap. Hyperliquid's BTC book, live, and the desks quoting
+        against it.</p>
+    </div>
+
     <pre id="floor-status" class="status">connecting to HyperEVM…</pre>
 
     <div id="floor-page" hidden>
-      <div class="topbar" style="margin-bottom:4px">
-        <span id="floor-mode" class="chip">—</span>
-        <div class="signin">
-          <span class="who" id="floor-who" hidden></span>
-          <input id="signin-email" type="email" autocomplete="email" placeholder="you@example.com"
-                 aria-label="email address">
-          <input id="signin-code" type="text" inputmode="numeric" autocomplete="one-time-code"
-                 placeholder="6-digit code" aria-label="the code from the email" hidden>
-          <button class="go" id="signin-go">email me a code</button>
-          <button class="go ghost" id="floor-connect">or a browser wallet</button>
-          <button class="go ghost" id="signin-out" hidden>sign out</button>
-        </div>
-      </div>
-      <p class="out signin-note" id="signin-note"></p>
       <p id="floor-error" hidden></p>
 
-      <div class="lede">
-        <p><b>When the market moves, bots charge AMMs for still using the old price. This maker
-          reads the book before it accepts the trade.</b> That charge is the loss every automated
-          market maker pays and the central problem in their design: the maker's price was set
-          before the trade that takes it, and somebody is paid the difference. It has a name —
-          <b>loss-versus-rebalancing</b> — and fees are what an LP has to cover it with.</p>
-        <p>This desk has no <i>before</i>. <code>CoreQuote</code> reads Hyperliquid's own book
-          inside the call that settles the swap, and the last thing it does is clamp itself to what
-          crossing L1 would have paid. So there is no earlier price on this screen to take —
-          against the book that quote just read, in the block it settled in.</p>
-        <p>The bound holds against the book the quote read, on one instrument, at one instant —
-          which is the channel of the loss this attacks. What it leaves standing is ordinary
-          inventory risk: somebody who is right about the <i>next</i> move still wins here, with no
-          round trip on this screen ever paying.</p>
-        <p>HyperEVM is not the argument — it is where the argument is possible today: the one chain
-          with 1inch Aqua deployed and a perp book readable as a precompile. <b>Absorbing a
-          liquidation cascade is the same property under stress</b>, and it is on the screen too,
-          twice a year in the wild and on demand in the map panel below.</p>
+      <div class="instrument">
+        <div>
+          <h2>Hyperliquid BTC, read by the quote itself</h2>
+          <p class="note">Four words the quote reads inside the same call that prices the swap.</p>
+          <div class="stats" id="floor-book"></div>
+        </div>
+        <div>
+          <h2>arbitrage this floor against L1, right now</h2>
+          <p class="note">Take a desk's price, close at L1's own touch in the same book. Negative is
+            what the arbitrageur loses.</p>
+          <div class="arb" id="floor-arb"></div>
+          <p class="note" style="margin-top:8px"><button class="linky" id="go-evidence">Evidence · 10 Oct 2025</button>
+            asks the same question of 123 consecutive minutes through a real cascade, against an
+            arbitrageur that chose its own size. Zero there too, while the same search took $6,258
+            out of two ordinary AMMs standing next to it.</p>
+        </div>
       </div>
-
-      <h2>Hyperliquid BTC, read by the quote itself</h2>
-      <p class="note">Four words out of <code>0x080e</code>, <code>0x0806</code> and
-        <code>0x0807</code> — the perp book, read inside the same call that prices the swap.</p>
-      <div class="stats" id="floor-book"></div>
-
-      <h2>if you tried to arbitrage this floor against L1, right now</h2>
-      <p class="note">One round trip: take a desk's price, close the position at L1's own touch in
-        the same book the quote read. Negative is what the arbitrageur loses. Both legs are priced
-        at L1's touch with no fee and no depth limit, which is the most generous exit that exists —
-        a real one is worse for them than this.</p>
-      <div class="arb" id="floor-arb"></div>
       <p class="regime" id="floor-regime"></p>
-      <p class="note"><b>This block, and then every block.</b> The number above is one subtraction on
-        two prices out of one <code>eth_call</code>, which is a claim about right now and nothing
-        else. <button class="linky" id="go-evidence">Evidence · 10 Oct 2025</button> asks the same
-        question of 123 consecutive minutes through a real cascade, against an arbitrageur that
-        chose its own size in both directions. It comes out zero there too, while the same search
-        walked $1.3 m of size through two ordinary AMMs standing next to it and took $6,258 out of
-        them.</p>
 
       <h2>the two books</h2>
-      <p class="note">Distance from L1's mid, in basis points. A desk sitting outside L1 on both
-        sides is a desk with nothing to pick off against that book; the filled wedge is a desk
+      <p class="note">Distance from L1's mid, in basis points. Grey is Hyperliquid's bid–ask; blue is
+        where each desk trades. Outside on both sides: nothing to pick off. A filled wedge is a desk
         quoting <b>inside</b> L1 to absorb.</p>
       <div class="strip" id="floor-strip"></div>
 
       <h2>desks</h2>
       <table class="desks">
         <thead><tr>
-          <th>desk</th><th>band</th><th>quote now</th><th>best round trip</th>
+          <th>desk</th><th>bid / ask now</th><th>round trip vs L1</th>
           <th>inventory</th><th>map</th><th>cover</th><th>lean</th>
         </tr></thead>
         <tbody id="floor-rows"></tbody>
       </table>
-      <p class="note"><b>cover</b> is the hedge a desk's owner has authorised, and how much
-        exposure is uncovered right now. <code>cover()</code> is a separate transaction, sent by
-        the owner or by an operator the owner names, and it queues an order: CoreWriter hands it to
-        HyperCore, which executes it seconds later and may reject or partially fill it without
-        failing the transaction that carried it. A fill is read back off HyperCore.</p>
 
-      <div class="panels">
+      <div class="panels take">
         <div class="panel">
           <h3>Take</h3>
+          <div class="signin">
+            <span class="who" id="floor-who" hidden></span>
+            <input id="signin-email" type="email" autocomplete="email" placeholder="you@example.com"
+                   aria-label="email address">
+            <input id="signin-code" type="text" inputmode="numeric" autocomplete="one-time-code"
+                   placeholder="6-digit code" aria-label="the code from the email" hidden>
+            <button class="go" id="signin-go">email me a code</button>
+            <button class="go ghost" id="floor-connect">or a browser wallet</button>
+            <button class="go ghost" id="signin-out" hidden>sign out</button>
+          </div>
+          <p class="out signin-note" id="signin-note"></p>
           <p class="why" id="take-note"></p>
           <div class="controls">
             <select id="take-desk"></select>
@@ -322,27 +329,31 @@ button.go.ghost:hover { color: var(--text); }
           </div>
           <p class="out" id="take-out"></p>
         </div>
+      </div>
 
+      <details class="fold">
+        <summary>cover — the hedge, on L1, in the desk's own transaction</summary>
+        <p class="note"><b>cover</b> is the hedge a desk's owner has authorised, and how much
+          exposure is uncovered right now. <code>cover()</code> is a separate transaction, sent by
+          the owner or by an operator the owner names, and it queues an order: CoreWriter hands it to
+          HyperCore, which executes it seconds later and may reject or partially fill it without
+          failing the transaction that carried it. A fill is read back off HyperCore.</p>
+      </details>
+
+      <details class="fold">
+        <summary>post a liquidation map — the one trusted input, on demand</summary>
         <div class="panel">
-          <h3>Post a liquidation map <span class="label-hard">— this is the trusted input</span></h3>
-          <p class="why">The desk's quote is a function of two things. The <b>book</b> it reads from
-            the chain, which nobody signs. And the <b>map</b> — how much forced notional sits within
+          <p class="why">The desk's quote is a function of two things: the <b>book</b> it reads from
+            the chain, which nobody signs, and the <b>map</b> — how much forced notional sits within
             1% of mark — which is reconstructed off chain and taken on trust. This button writes one.
+            A map can only ever <b>add</b> a lean, one below the desk's own floor does nothing, and a
+            stale one is ignored, so the worst a broken keeper does is take a lean away. The
+            <b>demo</b> desk names an oracle <b>anyone</b> can write, which is why you can press this;
+            the <b>canonical</b> desk names one with a single updater.
             <br><br>
-            It is the honest place to point at, so it is a button rather than a paragraph: a map can
-            only ever <b>add</b> a lean, one below the desk's own floor does nothing, and a stale one
-            is ignored, so the worst a broken keeper does is take a lean away. The <b>demo</b> desk
-            names an oracle <b>anyone</b> can write, which is why you can press this. The
-            <b>canonical</b> desk names one with a single updater, because a desk quoting inside L1
-            is a desk offering a better price than L1, and an oracle anyone can write is an oracle
-            anyone can be paid out of.
-            <br><br>
-            The map expires on its own. Nobody clears it; it simply stops counting.
-            <br><br>
-            <b>This is the other half.</b> The panel above is the property that holds in every
-            block; this button is the one that pays twice a year. Post a map and the absorbing side
-            walks from 20 bps outside L1 to L1's own price — twenty basis points in one tick, drawn
-            on the strip — and the round trip above goes to zero and stops there.</p>
+            <b>This is the other half.</b> Post a map and the absorbing side walks from 20 bps
+            outside L1 to L1's own price — twenty basis points in one tick, drawn on the strip — and
+            the round trip above goes to zero and stops there. The map expires on its own.</p>
           <div class="controls">
             <select id="map-desk"></select>
             <select id="map-side">
@@ -355,15 +366,34 @@ button.go.ghost:hover { color: var(--text); }
           <p class="out" id="map-out"></p>
           <p class="out" id="map-note"></p>
         </div>
-      </div>
+      </details>
+
+      <details class="fold">
+        <summary>what the bound is, and what it is not</summary>
+        <div class="lede">
+          <p>That charge is the loss every automated market maker pays and the central problem in
+            their design: the maker's price was set before the trade that takes it, and somebody is
+            paid the difference. It has a name — <b>loss-versus-rebalancing</b> — and fees are what
+            an LP has to cover it with.</p>
+          <p>This desk has no <i>before</i>. <code>CoreQuote</code> reads Hyperliquid's own book
+            inside the call that settles the swap, and the last thing it does is clamp itself to what
+            crossing L1 would have paid. So there is no earlier price on this screen to take —
+            against the book that quote just read, in the block it settled in.</p>
+          <p>The bound holds against the book the quote read, on one instrument, at one instant —
+            which is the channel of the loss this attacks. What it leaves standing is ordinary
+            inventory risk: somebody who is right about the <i>next</i> move still wins here, with no
+            round trip on this screen ever paying. <b>Absorbing a liquidation cascade is the same
+            property under stress</b>: twice a year in the wild, on demand in the map panel above.</p>
+        </div>
+      </details>
     </div>
   </section>
 
   <section id="panel-evidence" role="tabpanel" hidden>
   <h2 style="font-size:20px;text-transform:none;letter-spacing:-0.01em;color:var(--text)">10 October 2025</h2>
-  <p class="sub">The tab above asks what an arbitrageur would get for trying <b>right now</b>. This
-    asks what they got for trying all through the cascade and the hour after it. Same claim, 123
-    blocks instead of one. A reproduction from a frozen tape, not a live reading.</p>
+  <p class="sub">The Floor asks what an arbitrageur would get for trying <b>right now</b>. This asks
+    what they got for trying all through the cascade and the hour after it: the same claim, 123
+    minutes instead of one block. A reproduction from a frozen tape, not a live reading.</p>
 
   <pre id="status" class="status">loading results/oct10_replay.csv…</pre>
 
@@ -390,32 +420,14 @@ button.go.ghost:hover { color: var(--text); }
         <div class="stat-value" id="stat-trough">—</div><div class="stat-sub" id="stat-trough-sub"></div></div>
     </div>
 
-    <div class="lede">
-      <p><b>No arbitrageur closing at L1's own touch got anything out of the desk.</b> Not a small
-        number — zero, for 123 minutes, both directions, through a 640 bps drawdown, against an
-        arbitrageur that chose its own size. The same search ran against the two AMMs on this page,
-        walked $1.3 m of size through them and took $6,258, so the zero is the absence of an
-        opportunity and not the absence of a search.</p>
-      <p>That is the Floor tab's round trip, counted over a session instead of priced in one block.
-        There is no multiple on this page because the honest denominator does not exist: <b>both
-        AMM lines lose money on what they absorbed</b>, which is what a maker whose price was set
-        before the trade does in a cascade. A zero and a pair of signed numbers, never a ratio.</p>
-      <p class="caveat"><b>This page is about price. There is no perp leg in it.</b> The edge
-        below is the markout of inventory each maker <i>kept</i> — what it is worth to hold the
-        position. That does not sum with a hedge: buy at <code>P</code>, short at <code>H</code>,
-        mark both at <code>M</code>, and the combined result is <code>q × (H − P)</code>, because
-        the rebound the markout measures is exactly what a hedge gives up. The cover leg is a
-        different measurement and it lives on chain 999.</p>
-      <p>The <span class="k-l1">grey band</span> is Hyperliquid's own best bid and offer. The
-        <span class="k-desk">blue band</span> is where this desk is willing to trade.</p>
-      <p>When nothing is happening the blue band sits <b>outside</b> the grey one on both sides:
-        the desk is never the best price on the screen, so a stale quote is not worth taking.</p>
-      <p>When the book breaks, one side of the blue band crosses <b>inside</b> the grey one and the
-        wedge lights up — <span class="k-bid">amber</span> when the desk is buying from forced
-        sellers, <span class="k-ask">teal</span> when it is selling to forced buyers. That is the
-        desk stepping in front of L1 to take the flow, on one side only, and only while the
-        dislocation lasts.</p>
-    </div>
+    <p class="note"><b>No arbitrageur closing at L1's own touch got anything out of the desk.</b>
+      Zero, for 123 minutes, both directions, through a 640 bps drawdown, against an arbitrageur
+      that chose its own size — while the same search took $6,258 out of the two AMMs on this page.
+      The <span class="k-l1">grey band</span> below is Hyperliquid's own best bid and offer; the
+      <span class="k-desk">blue band</span> is where this desk is willing to trade. In the quiet it
+      sits <b>outside</b> on both sides. When the book breaks, one side crosses <b>inside</b> and the
+      wedge lights up — <span class="k-bid">amber</span> buying from forced sellers,
+      <span class="k-ask">teal</span> selling to forced buyers.</p>
 
     <div id="panels">
       <section class="chart" id="wrap-spot">
@@ -446,35 +458,37 @@ button.go.ghost:hover { color: var(--text); }
       <section class="chart" id="wrap-lvr">
         <h2>if you had tried to arbitrage this desk against L1, all day</h2>
         <p class="note">Running total of the profit an arbitrageur actually extracted from each
-          maker, closed at L1's own touch — the maker's loss-versus-rebalancing, in dollars. The
-          Floor tab prices this round trip for the current block; this is the same round trip taken
-          123 times, by someone free to pick their own size.</p>
+          maker, closed at L1's own touch — the maker's loss-versus-rebalancing, in dollars.</p>
         <div id="chart-lvr"></div>
         <div class="legend">
           <span><i class="swatch" style="background:var(--desk)"></i>desk</span>
           <span><i class="swatch sw-control"></i>control, plain XYCSwap</span>
           <span><i class="swatch sw-hard"></i>control, XYCSwap at 30 bps</span>
         </div>
-        <p class="caveat"><b>The flat line is the point, and it is not flat because nothing
-          happened.</b> One routine ran against all three makers, both directions, every minute,
-          searching for the size that maximised a round trip closed at L1's touch. It put $775,364
-          of size through the plain curve and $530,267 through the fee'd one, taking $3,558 and
-          $2,700. Against the desk it found nothing, because <code>CoreQuote</code> reads L1's book
-          inside the call that settles the swap and clamps itself to what crossing L1 would have
-          paid — there is no earlier price to be wrong about.
-          <code>test_gate_deskIsNeverArbitraged</code> fails if this line ever leaves zero, and also
-          if the other two never leave it.
-          <br><br>
-          <b>What the line counts.</b> This arbitrageur, closing against this book, in the same
-          minute — the channel of the loss the clamp is aimed at. A taker who is right about the
-          next minute is inventory risk instead, and shows up in the markout below rather than
-          here.</p>
+        <details class="fold small">
+          <summary>what the flat line counts</summary>
+          <p class="caveat"><b>The flat line is the point, and it is not flat because nothing
+            happened.</b> One routine ran against all three makers, both directions, every minute,
+            searching for the size that maximised a round trip closed at L1's touch. It put $775,364
+            of size through the plain curve and $530,267 through the fee'd one, taking $3,558 and
+            $2,700. Against the desk it found nothing, because <code>CoreQuote</code> reads L1's book
+            inside the call that settles the swap and clamps itself to what crossing L1 would have
+            paid — there is no earlier price to be wrong about.
+            <code>test_gate_deskIsNeverArbitraged</code> fails if this line ever leaves zero, and also
+            if the other two never leave it.
+            <br><br>
+            <b>What the line counts.</b> This arbitrageur, closing against this book, in the same
+            minute — the channel of the loss the clamp is aimed at. A taker who is right about the
+            next minute is inventory risk instead, and shows up in the markout below rather than
+            here.</p>
+        </details>
       </section>
 
       <section class="chart" id="wrap-edge">
         <h2>what the absorbing was worth</h2>
         <p class="note">Each minute's 60 minute markout applied to the notional that maker actually
-          absorbed, run forward over the session, in dollars.</p>
+          absorbed, run forward over the session, in dollars. The line to beat is the dashed one:
+          Hyperliquid's own touch.</p>
         <div id="chart-edge"></div>
         <div class="legend">
           <span><i class="swatch" style="background:var(--desk)"></i>desk</span>
@@ -482,30 +496,42 @@ button.go.ghost:hover { color: var(--text); }
           <span><i class="swatch sw-hard"></i>control, XYCSwap at 30 bps</span>
           <span><i class="swatch sw-touch"></i>L1's own touch</span>
         </div>
-        <p class="caveat"><b>The line to beat is the dashed one, not the grey ones.</b> A zero-fee
-          constant product is the right <i>ablation</i> — it is the desk program with one instruction
-          removed, so a gap between them is that instruction and nothing else — and it is nobody's
-          idea of a competitor. The amber line is the same curve charging 30 bps through 1inch's own
-          <code>FlatFeeIn</code>, which is what people actually deploy. The dashed line is
-          Hyperliquid itself: the identical forced flow, filled at L1's own bid and ask, holding no
-          inventory and never arbitraged.
-          <br><br>
-          <b>The desk clears the venue on a smaller book.</b> It ends above L1's touch while
-          absorbing a third less notional — 356 bps per dollar against 215 — because it is in the
-          six minutes that paid and absent from every quiet one. That is a stronger statement than
-          any of the three AMM comparisons, and it is the one a judge should be handed first.
-          <br><br>
-          <b>The desk still quotes worse per fill, on purpose.</b> Leaning inside the spread means
-          paying up, so on a minute where both fill its markout <i>rate</i> is at or behind the
-          control's. The rate is not the trade; the trade is size at a price that reverts. Hover any
-          minute for all four.</p>
+        <details class="fold small">
+          <summary>the four lines, and what they are not</summary>
+          <p class="caveat"><b>The line to beat is the dashed one, not the grey ones.</b> A zero-fee
+            constant product is the right <i>ablation</i> — it is the desk program with one instruction
+            removed, so a gap between them is that instruction and nothing else — and it is nobody's
+            idea of a competitor. The amber line is the same curve charging 30 bps through 1inch's own
+            <code>FlatFeeIn</code>, which is what people actually deploy. The dashed line is
+            Hyperliquid itself: the identical forced flow, filled at L1's own bid and ask, holding no
+            inventory and never arbitraged.
+            <br><br>
+            <b>The desk clears the venue on a smaller book.</b> It ends above L1's touch while
+            absorbing a third less notional — 356 bps per dollar against 215 — because it is in the
+            six minutes that paid and absent from every quiet one.
+            <br><br>
+            <b>The desk still quotes worse per fill, on purpose.</b> Leaning inside the spread means
+            paying up, so on a minute where both fill its markout <i>rate</i> is at or behind the
+            control's. The rate is not the trade; the trade is size at a price that reverts. Hover any
+            minute for all four.
+            <br><br>
+            <b>This page is about price. There is no perp leg in it.</b> The edge is the markout of
+            inventory each maker <i>kept</i>. That does not sum with a hedge: buy at <code>P</code>,
+            short at <code>H</code>, mark both at <code>M</code>, and the combined result is
+            <code>q × (H − P)</code>, because the rebound the markout measures is exactly what a hedge
+            gives up. The cover leg is a different measurement and it lives on chain 999.
+            <br><br>
+            There is no multiple on this page because the honest denominator does not exist: <b>both
+            AMM lines lose money on what they absorbed</b>, which is what a maker whose price was set
+            before the trade does in a cascade. A zero and a pair of signed numbers, never a ratio.</p>
+        </details>
       </section>
     </div>
 
     <div id="readout"></div>
 
-    <section class="chart" id="wrap-sweep">
-      <h2>the one modelled number, and what it is worth</h2>
+    <details class="fold" id="wrap-sweep">
+      <summary>the one modelled number, and what it is worth</summary>
       <p class="note">This is not a caveat. It is a measurement, and it is on the page because the
         alternative is a judge finding it.</p>
       <p class="caveat">The tape's <code>spot</code> and taker volume are real Coinbase 1m data from
@@ -530,10 +556,10 @@ button.go.ghost:hover { color: var(--text); }
         book makes that worse. The last column does not move at all, because inarbitrability is a
         property of the quote and not of the overlay. If the real tape turns out to have drawn a
         tighter book than this one, the numbers above get better, not worse.</p>
-    </section>
+    </details>
 
-    <section class="chart" id="wrap-falsifier">
-      <h2>take the mechanism away and see what is left</h2>
+    <details class="fold" id="wrap-falsifier">
+      <summary>take the mechanism away and see what is left</summary>
       <p class="note">The question this has to answer is "how do I know this is not an AMM with
         extra steps?" — and the way to answer it is to switch the extra step off and publish what
         happens.</p>
@@ -574,10 +600,10 @@ button.go.ghost:hover { color: var(--text); }
         map wired and the desk leans on 3 minutes and keeps $773 — that is the trusted input's whole
         contribution here, and it is the strongest thing that can be said about an input taken on
         trust: on the day it was built for, it was redundant.</p>
-    </section>
+    </details>
 
-    <section class="chart" id="wrap-ordering">
-      <h2>and if the forced seller gets there first</h2>
+    <details class="fold" id="wrap-ordering">
+      <summary>and if the forced seller gets there first</summary>
       <p class="note">Inside one minute the arbitrageur and the liquidated account both arrive. Who
         is served first is an assumption, so it is a parameter, and both settings are published.</p>
       <table class="sweep">
@@ -602,9 +628,11 @@ button.go.ghost:hover { color: var(--text); }
         the retired gate really would have failed rather than describing it, and then asserts the
         two claims that are the claims: the desk pays arbitrageurs nothing, and it keeps more than
         the better control — under either ordering.</p>
-    </section>
+    </details>
 
-    <footer>
+    <details class="fold">
+      <summary>how these numbers were produced, and why the takers are blind</summary>
+      <footer style="border-top:none;margin-top:0;padding-top:0">
       <p>Reads <code>results/oct10_replay.csv</code>, written by
         <code>forge test --match-contract Oct10Replay</code>, whose 45 columns are documented in
         <code>results/oct10_replay.schema.md</code>. Three makers are shipped into Aqua and every
@@ -622,7 +650,8 @@ button.go.ghost:hover { color: var(--text); }
         <br><br>
         <code>results/oct10_replay.source</code> carries each line's session totals and the hash of
         the tape they came from.</p>
-    </footer>
+      </footer>
+    </details>
   </div>
   </section>
 </main>
