@@ -49,7 +49,10 @@ DRY_RUN="${DRY_RUN:-0}"
 # to poke at all. A gap in the series is recoverable; 1 440 pokes a day at 2 gwei is 0.15 HYPE a
 # day against a poster holding 0.147, and that is not.
 MIN_GAS_WEI="${POKE_MIN_GAS_WEI:-150000000}"      # 0.15 gwei
-MAX_GAS_WEI="${POKE_MAX_GAS_WEI:-1000000000}"     # 1 gwei; above this the minute is skipped
+# 8 gwei. Not a budget limit — the proportional interval already fixes the budget — but the point
+# past which the granularity is worthless: at 8 gwei the interval is 32 minutes, and a series that
+# coarse cannot bound a five-minute horizon at all.
+MAX_GAS_WEI="${POKE_MAX_GAS_WEI:-8000000000}"
 ATTEMPTS="${POKE_ATTEMPTS:-3}"
 
 # The poster pays if its password is on disk, the taker otherwise. Both work — poke() is
@@ -123,9 +126,14 @@ WANT=$(( BASEFEE * 5 / 4 ))
 # Thinning the cadence instead of stopping it keeps the series alive through a spike and keeps the
 # daily cost flat at roughly 0.02 HYPE across every tier — one poke a minute at 0.25 gwei and one
 # every five at 1 gwei cost the same per day. Above the cap nothing is worth it.
-if   [ "$WANT" -le 250000000 ];  then EVERY=1
-elif [ "$WANT" -le 600000000 ];  then EVERY=2
-elif [ "$WANT" -le "$MAX_GAS_WEI" ]; then EVERY=5
+# One rule instead of three tiers: **hold the spend per day constant and let the interval stretch
+# with the price.** EVERY = price / 0.25 gwei, so a poke costs the same per day at any gas price —
+# about 0.018 HYPE — and the series degrades in granularity rather than stopping. The tiers this
+# replaces fell off a cliff: above 1 gwei they poked not at all, and tonight's spike put sixteen
+# consecutive minutes into that bucket, which is a hole in the series every markout is measured
+# against. A book every twelve minutes still bounds a sixty-minute horizon. Nothing does not.
+EVERY=$(( WANT / 250000000 )); [ "$EVERY" -lt 1 ] && EVERY=1
+if [ "$WANT" -le "$MAX_GAS_WEI" ]; then :
 else
   printf '%s\tSKIP\tperp=%s\tgas too dear: base %s, would pay %s, cap %s\n' \
     "$(date -Is)" "$PERP" "$BASEFEE" "$WANT" "$MAX_GAS_WEI" >>"$LOG"

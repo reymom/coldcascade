@@ -11,6 +11,9 @@
 #
 # Each `cast send` asks for the keystore password. To answer once, non-interactively:
 #   CAST_AUTH="--account $DEPLOYER_ACCOUNT --password-file /path/to/pass" ./script/firstswap.sh
+#
+# CAST_GAS is passed through to Swap.s.sol the same way. Leave it unset and the script prices at
+# Swap.s.sol's own default; set it to price off the live base fee, which is what the cadence does.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -51,7 +54,7 @@ for attempt in 1 2; do
   RC=0
   PRINTED=$(
     DESK="$DESK" SELL_BASE="${SELL_BASE:-false}" AMOUNT="${AMOUNT:-1000000000}" TAKER="$TAKER" \
-    CAST_RPC="$RPC" CAST_AUTH="$AUTH" \
+    CAST_RPC="$RPC" CAST_AUTH="$AUTH" CAST_GAS="${CAST_GAS:-}" \
     forge script script/Swap.s.sol --rpc-url "$RPC" 2>&1
   ) || RC=$?
   [ "$RC" = "0" ] && break

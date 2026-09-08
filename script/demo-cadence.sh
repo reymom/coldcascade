@@ -67,6 +67,42 @@ if [ "$BAL" -lt "$FLOOR" ] && [ "$DRY_RUN" != "1" ]; then
 fi
 [ "$BAL" -lt "$FLOOR" ] && echo "note: taker holds $BAL wei, below the $FLOOR floor — a real run would stop here." >&2
 
+# What the network is charging, and whether this cycle is worth it.
+#
+# **The same trap the poke fell into at 15:27, met again at 21:31 from the other side.** 999's
+# base fee sits at its 0.1 gwei floor almost all the time and then briefly does not — 11.66 gwei
+# tonight — and a legacy transaction priced under it is accepted into the mempool and never mined.
+# The poke and the keeper were taught to price off the chain this afternoon; this sender was not,
+# so the 21:30 cycle sent a mint at 0.15 gwei against a base fee seventy-eight times higher and
+# `cast` timed out waiting for a confirmation that could not come.
+#
+# The cap here is deliberately tighter than the poke's. A missing poke is a hole in the series
+# every markout is measured against; a missing fill is one sample. So this one gives up sooner.
+FILL_MIN_GAS_WEI="${FILL_MIN_GAS_WEI:-150000000}"   # 0.15 gwei
+FILL_MAX_GAS_WEI="${FILL_MAX_GAS_WEI:-1500000000}"  # 1.5 gwei; above this the cycle is skipped
+BASEFEE=$(cast base-fee --rpc-url "$RPC" 2>/dev/null || echo "")
+case "$BASEFEE" in ''|*[!0-9]*) BASEFEE="$FILL_MIN_GAS_WEI" ;; esac
+WANT=$(( BASEFEE * 5 / 4 ))
+[ "$WANT" -lt "$FILL_MIN_GAS_WEI" ] && WANT="$FILL_MIN_GAS_WEI"
+if [ "$WANT" -gt "$FILL_MAX_GAS_WEI" ] && [ "$DRY_RUN" != "1" ]; then
+  printf '%s\tSKIP\tgas too dear: base %s wei, would pay %s, cap %s\n' \
+    "$(date -Is)" "$BASEFEE" "$WANT" "$FILL_MAX_GAS_WEI" >>"$LOG"
+  echo "base fee $BASEFEE wei; skipping this cycle rather than paying $WANT" >&2
+  exit 0
+fi
+export CAST_GAS="--legacy --gas-price $WANT"
+echo "gas: base $BASEFEE wei, paying $WANT wei"
+
+# A transaction of ours still in flight means the next nonce is taken. Three sends in a row make
+# that worse than for the poke: a stuck mint strands the approve and the swap behind it.
+PEND=$(cast rpc eth_getTransactionCount "$TAKER" pending --rpc-url "$RPC" 2>/dev/null | tr -d '"')
+LAST=$(cast rpc eth_getTransactionCount "$TAKER" latest  --rpc-url "$RPC" 2>/dev/null | tr -d '"')
+if [ -n "$PEND" ] && [ -n "$LAST" ] && [ "$PEND" != "$LAST" ] && [ "$DRY_RUN" != "1" ]; then
+  printf '%s\tSKIP\t%s has a transaction pending (%s vs %s)\n' "$(date -Is)" "$TAKER" "$PEND" "$LAST" >>"$LOG"
+  echo "taker has a transaction pending; skipping this cycle" >&2
+  exit 0
+fi
+
 # Cron fires on a schedule; a desk does not get taken on one. Sleep a random slice of the interval
 # before touching the chain so the timestamps are irregular.
 #
