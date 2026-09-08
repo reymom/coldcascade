@@ -1,0 +1,78 @@
+{
+    "id": "o4zhtiih20eg12e03lq10e9o",
+    "name": "coldcascade hedge operator",
+    "chain_type": "ethereum",
+    "rules": [
+        {
+            "id": "pzti2w7vnxcrf1m0ki85d0f5",
+            "name": "deny anything that carries value",
+            "method": "eth_sendTransaction",
+            "conditions": [
+                {
+                    "field_source": "ethereum_transaction",
+                    "field": "value",
+                    "operator": "gt",
+                    "value": "0x0"
+                }
+            ],
+            "action": "DENY"
+        },
+        {
+            "id": "glashpvzdps2zmaf2wwa1tnv",
+            "name": "cover() only, on the operator desk, on 999",
+            "method": "eth_sendTransaction",
+            "conditions": [
+                {
+                    "field_source": "ethereum_transaction",
+                    "field": "chain_id",
+                    "operator": "eq",
+                    "value": "999"
+                },
+                {
+                    "field_source": "ethereum_transaction",
+                    "field": "to",
+                    "operator": "eq",
+                    "value": "0xa09765E0bBC38E1Ae37f1EB9f2D75b4cEd4dc144"
+                },
+                {
+                    "field_source": "ethereum_transaction",
+                    "field": "value",
+                    "operator": "eq",
+                    "value": "0x0"
+                },
+                {
+                    "field_source": "ethereum_calldata",
+                    "field": "function_name",
+                    "abi": [
+                        {
+                            "type": "function",
+                            "name": "cover",
+                            "inputs": [],
+                            "outputs": [
+                                {
+                                    "name": "covered",
+                                    "type": "bool"
+                                },
+                                {
+                                    "name": "baseAmount",
+                                    "type": "uint256"
+                                },
+                                {
+                                    "name": "notional",
+                                    "type": "uint256"
+                                }
+                            ],
+                            "stateMutability": "nonpayable"
+                        }
+                    ],
+                    "operator": "eq",
+                    "value": "cover"
+                }
+            ],
+            "action": "ALLOW"
+        }
+    ],
+    "version": "1.0",
+    "created_at": 1788885586900,
+    "owner_id": "kuxctzctgr8k88v2naluo1v9"
+}

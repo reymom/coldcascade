@@ -194,6 +194,73 @@ What the split costs: the contract no longer knows whether a fill was on the abs
 *when* to cover is the operator's decision under the owner's ceiling, not a rule in the code. The
 contract still takes no view on the sign — long base sells the perp, short base buys it.
 
+### The operator is a key that can only do this
+
+`armHedge`'s third argument is an address, and while it is zero the loop has a person in it: every
+cover above was sent by the owner, by hand. A second desk at
+[`0xa09765E0…c144`](https://hyperevmscan.io/address/0xa09765E0bBC38E1Ae37f1EB9f2D75b4cEd4dc144)
+names one instead — a Privy server wallet at
+[`0xf33c1145…7da3`](https://hyperevmscan.io/address/0xf33c11453144F9a44406766602885Cd353497da3)
+whose entire authority, on chain and off it, is `cover()` on that desk.
+
+**Two controls, and neither depends on the other being right.** On chain the account decides what
+the key can *reach*: `cover` transfers nothing, and `withdraw`, `close`, `marginTransfer`,
+`marginHome` and `armHedge` are all `onlyOwner`, so the ceiling, the slippage room and the identity
+of the operator are the owner's signature and the operator cannot rewrite any of them. Off chain
+the policy decides what the key can *express*: `keeper/hedge-policy.json` allows
+`eth_sendTransaction` only where the chain is 999, the recipient is that desk, the value is zero and
+the calldata decodes to `cover()`; denies outright anything carrying value; and denies whatever no
+rule allows. The wallet holds HYPE for its own gas and there is no transaction it can sign that
+sends any of it anywhere.
+
+Both halves are owned by the same P-256 key, and that is the second lock rather than a detail: a
+Privy policy is not enforced at all on a wallet whose `owner_id` is null, and a policy whose own
+`owner_id` is null can be rewritten by anything holding the app secret. An owned wallet under an
+unowned policy is a lock with its key beside it.
+
+`node script/hedge-check.mjs` is where that stops being a description. It asks the live wallet for
+each of these and reports what came back:
+
+| asked of the live wallet | answer |
+|---|---|
+| `cover()` on the desk, chain 999, value 0 | **allowed** — and stopped at the node, because the check sends a nonce far ahead of the account |
+| the same `cover()` on the hedged desk | `policy_violation` |
+| `close()`, which returns the desk's inventory to its owner | `policy_violation` |
+| `armHedge()`, which is the operator rewriting its own ceiling | `policy_violation` |
+| `transfer()` of the desk's UBTC | `policy_violation` |
+| `personal_sign` | `policy_violation` |
+| the same `cover()` on Ethereum mainnet | `policy_violation` |
+| `cover()` with 1 wei attached | `policy_violation` |
+| `cover()` with no owner signature | `401` — the app secret alone signs nothing |
+| a partial `{to, data}` aimed anywhere else | `policy_violation` — an unpopulated request is still read on the fields it does carry |
+| does the wallet have an owner? the policy? | both, or the run fails |
+
+`close()` and `armHedge()` differ from the allowed call in four bytes of calldata and nothing else —
+same desk, same chain, same zero value — which is the sharp form of the question, because a policy
+that only reads the envelope would pass them.
+
+**One measurement is worth keeping out of the check's way.** A request Privy still has to populate
+gets its gas estimated first, so calldata the desk would revert on comes back as
+`transaction_broadcast_failure` *before the policy has said anything*, which reads exactly like a
+policy that allowed it. Asking a policy question with reverting calldata gets an answer from the
+node instead. Every case above is either fully populated or uses calldata that does not revert.
+
+`script/cover.mjs` is the sender: it reads `coverPreview()` — the same `HedgeOrder.plan` the
+transaction would run — and sends nothing when the desk is square, which on a cadence is most
+minutes. It builds the whole transaction itself, because a policy is evaluated against the request
+as sent and a request that omits `chain_id` cannot be judged on `chain_id`.
+
+| | | |
+|---|---|---|
+| opened | a second desk, 1 000 UBTC-raw and 2 USDT0, so the hedged desk's live position is not the test subject | [`0x6ae81751…f7f8`](https://hyperevmscan.io/tx/0x6ae817512ba1d5a36b1552e36f30b74f2a0bc12b5f79a2b113490bd4bb20f7f8) |
+| armed | `armHedge(true, $20, 0xf33c1145…7da3, 30 bps)` — the owner's signature, naming the key | [`0x15d44e34…603e`](https://hyperevmscan.io/tx/0x15d44e3483a0b038f98f358556b79785fd8b5107bb72fa643b13e9e8ccc9603e) |
+| fired | the operator sent `cover()`. The desk was square, so it wrote `HedgeSkipped(1, Flat)` and sent no order — the cadence's ordinary case, and the first cover on this project the owner did not sign | [`0x62432604…34d8`](https://hyperevmscan.io/tx/0x62432604b1d74c4304fc6357822a2dba9d1bb4399f33432f0577bb62d3ae34d8) |
+
+The cover that produced a real IOC, further up, was sent by the owner; this one was sent by a key
+that cannot send anything else. What the two together establish is the shape of the control, not a
+larger claim about the hedge: a receipt still is not a fill, and what a cover actually did is read
+back from `0x0800`.
+
 ## Two measurements, and why they do not add
 
 There are two bodies of evidence here and they answer different questions.
@@ -368,6 +435,13 @@ decoration:
    did not stop a send until the transaction carried all of its fields, which is why `api/faucet.mjs`
    builds nonce, gas, fees and chain id itself instead of letting Privy fill them in.
 
+**There are two policy-held wallets here, and the second is the more interesting one.** The faucet
+gives a visitor gas; the hedge operator holds `hedgeOperator` on a desk and may call `cover()` and
+nothing else, on chain and off it — that is *The operator is a key that can only do this*, above.
+The same two findings apply to it and were re-measured on it rather than assumed to have carried
+over, and it closes a gap this one still has: its policy has an owner too, so the app secret alone
+cannot rewrite the rules it is held under.
+
 With both in place the two secrets are independent: the app secret authenticates the app, the owner
 key authorizes the request, and an unsigned send is refused with a 401. `node script/faucet-check.mjs`
 re-runs all five cases — the drip, another chain, over the cap, another method, and unsigned —
@@ -403,10 +477,12 @@ points at the open one, and the console says which oracle each desk names.
 The quote, the program encoder, the desk account and the console are built and tested against
 1inch's own Aqua and the SwapVM router deployed on 999. The HyperCore reader has been run against a
 live node, and the round trip above is the live book answering today. **It is deployed.** Twelve
-contracts on chain 999 since 6 September, three desks shipped, and the canonical desk holds real
-UBTC and USD₮0. The taker path is live end to end from an email address, and the CoreWriter cover
-leg has been sent from a desk and filled on HyperCore. The desk's own record is indexed off
-Substreams and the keeper posts markouts back to the chain, described below.
+contracts on chain 999 since 6 September, four desks shipped and open, and the canonical desk holds
+real UBTC and USD₮0. The taker path is live end to end from an email address, and the CoreWriter
+cover leg has been sent from a desk and filled on HyperCore. A desk can hand that trigger to an
+automation key that may call `cover()` and nothing else — on chain and under a policy — and one on
+999 has. The desk's own record is indexed off Substreams and the keeper posts markouts back to the
+chain, described below.
 
 Every fill on chain so far is one we sent; there is no external flow yet.
 
@@ -469,6 +545,8 @@ forge build
 forge test
 node test/api/faucet.test.mjs # the one server-side endpoint, and what it refuses
 node script/faucet-check.mjs  # the same denials against the live wallet, so the policy is a fact
+node script/hedge-check.mjs   # what the hedge operator's key is refused: every call but cover()
+DRY_RUN=1 node script/cover.mjs  # what a cover would send right now, and nothing sent
 ./script/probe999.sh          # the live book and the desk's two prices, no key, nothing deployed
 ./script/localnet.sh          # fork 999, deploy, ship, swap, against the real router
 ./script/mainnet.sh           # every read that can fail a mainnet deploy, before it costs anything

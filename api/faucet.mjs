@@ -179,10 +179,14 @@ async function transaction(to, walletId, auth) {
  * repository whose `package.json` pins 1inch's Solidity graph, and one runtime dependency is one
  * more thing that can re-resolve it. RFC 8785 over this payload is object keys sorted by code unit
  * and `JSON.stringify` for the leaves — there are no floats and no arrays in it.
+ *
+ * `key` defaults to the faucet's. It is a parameter because there is a second owned wallet in this
+ * repository — the hedge operator, whose key signs its `cover()` and nothing else — and the two must
+ * not be able to sign for each other; `script/cover.mjs` passes its own.
  */
-export function authorize(url, body, appId) {
-  const pem = env("PRIVY_AUTHORIZATION_KEY").replace(/^wallet-auth:/, "");
-  if (!pem) throw new Error("PRIVY_AUTHORIZATION_KEY is unset, so the policy would not be enforced");
+export function authorize(url, body, appId, ownerKey = env("PRIVY_AUTHORIZATION_KEY")) {
+  const pem = ownerKey.replace(/^wallet-auth:/, "");
+  if (!pem) throw new Error("no authorization key, so the policy would not be enforced");
   const payload = { version: 1, method: "POST", url, body, headers: { "privy-app-id": appId } };
   const key = crypto.createPrivateKey({
     key: `-----BEGIN PRIVATE KEY-----\n${pem}\n-----END PRIVATE KEY-----`,
