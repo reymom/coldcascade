@@ -82,24 +82,55 @@ ORACLE=$(cast to-dec "$(cast call "$(printf '0x%040x' 0x807)" "$(cast abi-encode
 # Side, then size. Inside the band the side is a coin flip, which is what keeps the sequence from
 # reading as a sweep; outside it the side is forced, because minBase/maxBase are wide open on this
 # desk and nothing else stops a week of one-way takes from walking the curve off the book.
-read -r SELL_BASE AMOUNT DEVBPS < <(
-python3 - "$BASEBAL" "$QUOTEBAL" "$ORACLE" "$PXNUM" "$PXDEN" "$DRIFT_BAND_BPS" <<'PY'
+#
+# **Inventory outranks the band.** At 72 takes a day the thing that actually breaks is not gas and
+# not the price: it is a leg running out. The band only ever argues about *price*, and it will
+# happily force one direction for hours while L1 trends — which the desk pays for out of a single
+# reserve. A leg under its floor forces the side that refills it, whatever the band wanted.
+FLOOR_FRACTION="${FLOOR_FRACTION:-25}"          # percent of what the desk was shipped with
+SHIPPED_BASE="${SHIPPED_BASE:-200000000}"       # 2 dUBTC, from the ship transaction
+SHIPPED_QUOTE="${SHIPPED_QUOTE:-160000000000}"  # 160 000 dUSDT0
+
+read -r SELL_BASE AMOUNT DEVBPS REASON < <(
+python3 - "$BASEBAL" "$QUOTEBAL" "$ORACLE" "$PXNUM" "$PXDEN" "$DRIFT_BAND_BPS" \
+         "$SHIPPED_BASE" "$SHIPPED_QUOTE" "$FLOOR_FRACTION" <<'SIDE'
 import sys, secrets
-base, quote, oracle, pxnum, pxden, band = (int(x) for x in sys.argv[1:7])
+base, quote, oracle, pxnum, pxden, band, ship_b, ship_q, frac = (int(x) for x in sys.argv[1:10])
 l1 = oracle * pxnum / pxden                     # raw quote units per raw base unit
 dev = (quote / base / l1 - 1) * 10_000          # pool against the book, in bps
-if dev > band:      sell = True                 # too much quote: sell base in to walk it down
-elif dev < -band:   sell = False
-else:               sell = secrets.randbelow(2) == 0
+floor_b, floor_q = ship_b * frac // 100, ship_q * frac // 100
+
+# The desk pays out whichever leg the taker is *not* putting in: a take that sells base to the
+# desk drains its quote, and one that buys base drains its base.
+if   base  < floor_b: sell, reason = True,  'refill-base'
+elif quote < floor_q: sell, reason = False, 'refill-quote'
+elif dev > band:      sell, reason = True,  'band'   # too much quote: sell base in to walk it down
+elif dev < -band:     sell, reason = False, 'band'
+else:                 sell, reason = secrets.randbelow(2) == 0, 'coin'
+
 # Log-uniform so most takes are small and a few are not, which is the shape real flow has.
 lo, hi = (250_000, 3_500_000) if sell else (200_000_000, 3_000_000_000)
 u = secrets.randbelow(10**9) / 10**9
 amt = int(lo * (hi / lo) ** u)
-print('true' if sell else 'false', amt, round(dev, 1))
-PY
+# Never more than a fiftieth of the leg the desk pays out of. The size distribution is fixed and
+# the reserve is not, so without this a shrinking desk meets ever-larger takes.
+#
+# The cap has to be expressed in the unit `amt` is in, which is not the unit the desk pays in:
+# a take that sells base puts base in and takes *quote* out, so the ceiling is the quote reserve
+# converted back through l1. Capping a quote-denominated amount with a base reserve is off by the
+# price and silently shrinks every buy by ~800x.
+if sell:                                  # base in, quote out
+    ceiling = quote / 50 / l1
+else:                                     # quote in, base out
+    ceiling = base / 50 * l1
+amt = max(1, min(amt, int(ceiling)))
+print('true' if sell else 'false', amt, round(dev, 1), reason)
+SIDE
 )
 
-echo "desk $DESK · taker $TAKER · pool ${DEVBPS}bps off L1 · sell_base=$SELL_BASE · amount=$AMOUNT"
+BASE_PCT=$(( BASEBAL * 100 / SHIPPED_BASE )); QUOTE_PCT=$(( QUOTEBAL * 100 / SHIPPED_QUOTE ))
+echo "desk $DESK · taker $TAKER · pool ${DEVBPS}bps off L1 · sell_base=$SELL_BASE ($REASON) · amount=$AMOUNT"
+echo "inventory: base $BASEBAL (${BASE_PCT}% of shipped) · quote $QUOTEBAL (${QUOTE_PCT}%) · floor ${FLOOR_FRACTION}%"
 
 if [ "$DRY_RUN" = "1" ]; then
   echo "DRY_RUN=1 — nothing sent."
@@ -131,12 +162,12 @@ printf '%s\n' "$OUT"
 
 HASH=$(printf '%s' "$OUT" | awk '/^swap 0x/ { print $2 }')
 if [ "$STATUS" != "0" ] || [ -z "$HASH" ]; then
-  { printf '%s\tFAIL\tsell_base=%s\tamount=%s\tdev=%s\texit=%s\n' \
-      "$(date -Is)" "$SELL_BASE" "$AMOUNT" "$DEVBPS" "$STATUS"
+  { printf '%s\tFAIL\tsell_base=%s\tamount=%s\tdev=%s\twhy=%s\tbase=%s\tquote=%s\texit=%s\n' \
+      "$(date -Is)" "$SELL_BASE" "$AMOUNT" "$DEVBPS" "$REASON" "$BASEBAL" "$QUOTEBAL" "$STATUS"
     printf '%s\n' "$OUT" | sed 's/^/\t/'; } >>"$LOG"
   exit "${STATUS:-1}"
 fi
 
 GAS=$(cast receipt "$HASH" --rpc-url "$RPC" 2>/dev/null | awk '/^gasUsed/ { print $2 }')
-printf '%s\tOK\tsell_base=%s\tamount=%s\tdev=%s\tgas=%s\t%s\n' \
-  "$(date -Is)" "$SELL_BASE" "$AMOUNT" "$DEVBPS" "${GAS:-?}" "$HASH" >>"$LOG"
+printf '%s\tOK\tsell_base=%s\tamount=%s\tdev=%s\twhy=%s\tbase=%s\tquote=%s\tgas=%s\t%s\n' \
+  "$(date -Is)" "$SELL_BASE" "$AMOUNT" "$DEVBPS" "$REASON" "$BASEBAL" "$QUOTEBAL" "${GAS:-?}" "$HASH" >>"$LOG"
