@@ -47,6 +47,7 @@ class Deployment:
     deployed_at_block: int
     desks: dict[str, str] = field(default_factory=dict)
     raw: dict = field(default_factory=dict)
+    archive_rpc_url: str = ""
 
 
 def load_deployment(chain_id: int = 999) -> Deployment:
@@ -55,7 +56,18 @@ def load_deployment(chain_id: int = 999) -> Deployment:
     if not path.exists():
         raise ChainError(f"no {path} — nothing is deployed on chain {chain_id}")
     d = json.loads(path.read_text())
-    rpc = os.environ.get("HYPEREVM_RPC_URL", "https://rpc.hyperliquid.xyz/evm")
+    # The keeper deliberately does **not** default to the same endpoint as the page. Three
+    # cadences and every browser on the console share one public RPC, and it does rate-limit:
+    # `-32005` on two consecutive calls on 8 Sep. A keeper that is throttled retries; a page that
+    # is throttled sits at "connecting to HyperEVM…" in front of a judge.
+    rpc = os.environ.get("KEEPER_RPC_URL") or os.environ.get(
+        "HYPEREVM_RPC_URL", "https://rpc.hyperliquid.xyz/evm"
+    )
+    # And a separate one for state at a past block, because the public node does not have it:
+    # `balanceOf` at four blocks 145 000 apart returns the *current* balance every time. The block
+    # tag is accepted and ignored, exactly as it is for the HyperCore precompiles. Verified 8 Sep
+    # against drpc, which reproduces every fill's balance delta to the unit.
+    archive = os.environ.get("ARCHIVE_RPC_URL", "https://hyperliquid.drpc.org")
     return Deployment(
         chain_id=d["chainId"],
         rpc_url=rpc,
@@ -70,15 +82,20 @@ def load_deployment(chain_id: int = 999) -> Deployment:
         deployed_at_block=int(d["deployedAtBlock"]),
         desks={k: v for k, v in d.items() if k.endswith("Desk")},
         raw=d,
+        archive_rpc_url=archive,
     )
 
 
 # --- reads ------------------------------------------------------------------------------------
 
-def rpc(dep: Deployment, method: str, params: list) -> object:
+def rpc(dep: Deployment, method: str, params: list, url: str | None = None) -> object:
     body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}).encode()
     req = urllib.request.Request(
-        dep.rpc_url, data=body, headers={"content-type": "application/json"}
+        url or dep.rpc_url,
+        data=body,
+        # A User-Agent is not optional here: drpc answers a bare urllib request with 403 and cast
+        # only works because it sends one.
+        headers={"content-type": "application/json", "user-agent": "coldcascade-keeper/0.1"},
     )
     with urllib.request.urlopen(req, timeout=30) as r:
         out = json.loads(r.read())
@@ -89,6 +106,22 @@ def rpc(dep: Deployment, method: str, params: list) -> object:
 
 def call(dep: Deployment, to: str, data: str) -> bytes:
     return bytes.fromhex(rpc(dep, "eth_call", [{"to": to, "data": data}, "latest"])[2:])
+
+
+def token_balance_at(dep: Deployment, token: str, holder: str, block: int) -> int:
+    """An ERC-20 balance as it was at the end of `block`, off the archive endpoint.
+
+    `dep.rpc_url` cannot answer this. It accepts the block tag and returns current state, so a
+    reserve read there is silently the wrong number rather than an error — which is the whole
+    reason this takes a different URL.
+    """
+    data = "0x70a08231" + holder.lower().replace("0x", "").rjust(64, "0")
+    out = rpc(
+        dep, "eth_call",
+        [{"to": token, "data": data}, hex(block)],
+        url=dep.archive_rpc_url,
+    )
+    return int(out, 16)
 
 
 def read_book(dep: Deployment, perp_index: int) -> tuple[int, int, int, int]:

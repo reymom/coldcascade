@@ -25,7 +25,16 @@ command -v jq   >/dev/null || { echo "jq not found" >&2; exit 1; }
 
 [ -f .env ] && { set -a; . ./.env; set +a; }
 
-RPC="${HYPEREVM_RPC_URL:-https://rpc.hyperliquid.xyz/evm}"
+# Two endpoints, and the reason is the page rather than the poke. One poke a minute is about
+# 8 600 RPC calls a day, which is the largest single consumer we have, and it shares the public
+# node with every browser that opens the console — the node answered `-32005 rate limited` to two
+# consecutive calls on 8 Sep. A throttled keeper retries; a throttled console sits at
+# "connecting to HyperEVM…" in front of a judge on Monday. So the cadences move off it.
+#
+# The fallback is not decoration: a third party that goes down must not be able to stop the book
+# series, so the attempts below alternate between the two.
+RPC="${POKE_RPC_URL:-https://rpc.hypurrscan.io}"
+RPC_FALLBACK="${HYPEREVM_RPC_URL:-https://rpc.hyperliquid.xyz/evm}"
 PERP="${PERP:-0}"
 LOG="${POKE_LOG:-$HOME/.config/coldcascade/poke.log}"
 DRY_RUN="${DRY_RUN:-0}"
@@ -163,9 +172,12 @@ WAS="${WAS:-0}"
 STATUS=1; OUT=""; TRIED=0
 for i in $(seq 1 "$ATTEMPTS"); do
   TRIED=$i
+  # Even attempts go to the other endpoint. If one of them is throttling or down, the minute is
+  # still poked rather than logged as a failure of the chain.
+  if [ $(( i % 2 )) -eq 0 ]; then USE="$RPC_FALLBACK"; else USE="$RPC"; fi
   OUT=$(cast send "$BOOKCACHE" 'poke(uint32)' "$PERP" \
           --account "$ACCOUNT" --password-file "$PASSFILE" \
-          --legacy --gas-price "$GAS_PRICE" --rpc-url "$RPC" 2>&1) && { STATUS=0; break; }
+          --legacy --gas-price "$GAS_PRICE" --rpc-url "$USE" 2>&1) && { STATUS=0; break; }
   STATUS=$?
 
   # Not every failure means nothing was sent, and resending the ones that did is how you get four
