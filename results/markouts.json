@@ -1,5 +1,5 @@
 {
-  "generatedAt": 1788879010,
+  "generatedAt": 1788880210,
   "chainId": 999,
   "source": {
     "provider": "The Graph Market for Substreams",
@@ -7,7 +7,7 @@
     "package": "coldcascade-v0.1.0.spkg",
     "module": "desk_events",
     "startBlock": 45135453,
-    "stopBlock": 45366420,
+    "stopBlock": 45367640,
     "demand": {
       "scripted": true,
       "generator": "script/demo-cadence.sh",
@@ -26,34 +26,34 @@
     "60": 360
   },
   "books": {
-    "count": 122,
+    "count": 142,
     "firstAt": 1788870223,
-    "lastAt": 1788878949,
+    "lastAt": 1788880149,
     "medianGapSeconds": 60
   },
   "summary": {
-    "fills": 12,
-    "fillsWithCompleteHorizons": 1,
+    "fills": 13,
+    "fillsWithCompleteHorizons": 2,
     "firstFillAt": 1788708512,
-    "lastFillAt": 1788878789,
-    "spanDays": 1.97,
+    "lastFillAt": 1788879751,
+    "spanDays": 1.98,
     "byHorizon": {
       "5": {
-        "n": 3,
-        "meanBps": -4.734,
+        "n": 5,
+        "meanBps": -2.203,
         "medianBps": 0.637,
         "minBps": -33.575,
         "maxBps": 18.737,
-        "pending": 1,
+        "pending": 0,
         "gap": 0,
         "noBook": 0,
         "beforeSeries": 8
       },
       "15": {
-        "n": 2,
-        "meanBps": 26.595,
-        "medianBps": 26.595,
-        "minBps": 9.429,
+        "n": 3,
+        "meanBps": 15.308,
+        "medianBps": 9.429,
+        "minBps": -7.265,
         "maxBps": 43.761,
         "pending": 1,
         "gap": 1,
@@ -61,11 +61,11 @@
         "beforeSeries": 8
       },
       "60": {
-        "n": 2,
-        "meanBps": 33.827,
-        "medianBps": 33.827,
+        "n": 3,
+        "meanBps": 50.956,
+        "medianBps": 71.229,
         "minBps": -3.575,
-        "maxBps": 71.229,
+        "maxBps": 85.213,
         "pending": 2,
         "gap": 0,
         "noBook": 0,
@@ -73,35 +73,35 @@
       }
     },
     "vsTouch": {
-      "n": 12,
-      "meanBps": 18.073,
+      "n": 13,
+      "meanBps": 14.346,
       "medianBps": -20.0,
       "minBps": -94.695,
       "maxBps": 156.536
     },
     "bySide": {
       "buysBase": {
-        "fills": 7,
+        "fills": 8,
         "atTheBand": 6,
         "vsTouch": {
-          "n": 7,
-          "meanBps": -30.671,
+          "n": 8,
+          "meanBps": -30.634,
           "medianBps": -20.0,
           "minBps": -94.695,
           "maxBps": -20.0
         },
         "poolDev": {
-          "n": 7,
-          "meanBps": 13083.51,
-          "medianBps": 171.984,
-          "minBps": 63.707,
+          "n": 8,
+          "meanBps": 11446.463,
+          "medianBps": 166.406,
+          "minBps": -12.865,
           "maxBps": 90656.026
         },
         "byHorizon": {
           "5": {
-            "n": 2,
-            "meanBps": -7.419,
-            "medianBps": -7.419,
+            "n": 3,
+            "meanBps": -4.946,
+            "medianBps": 0.0,
             "minBps": -33.575,
             "maxBps": 18.737
           },
@@ -113,11 +113,11 @@
             "maxBps": 43.761
           },
           "60": {
-            "n": 1,
-            "meanBps": -3.575,
-            "medianBps": -3.575,
+            "n": 2,
+            "meanBps": 40.819,
+            "medianBps": 40.819,
             "minBps": -3.575,
-            "maxBps": -3.575
+            "maxBps": 85.213
           }
         }
       },
@@ -140,17 +140,17 @@
         },
         "byHorizon": {
           "5": {
-            "n": 1,
-            "meanBps": 0.637,
-            "medianBps": 0.637,
+            "n": 2,
+            "meanBps": 1.912,
+            "medianBps": 1.912,
             "minBps": 0.637,
-            "maxBps": 0.637
+            "maxBps": 3.187
           },
           "15": {
-            "n": 1,
-            "meanBps": 9.429,
-            "medianBps": 9.429,
-            "minBps": 9.429,
+            "n": 2,
+            "meanBps": 1.082,
+            "medianBps": 1.082,
+            "minBps": -7.265,
             "maxBps": 9.429
           },
           "60": {
@@ -165,68 +165,68 @@
     },
     "byDesk": {
       "demoDesk": {
-        "fills": 11,
+        "fills": 12,
         "atTheBand": 7,
         "vsTouch": {
-          "n": 11,
-          "meanBps": 21.534,
+          "n": 12,
+          "meanBps": 17.208,
           "medianBps": -20.0,
           "minBps": -94.695,
           "maxBps": 156.536
         },
         "poolDev": {
-          "n": 11,
-          "meanBps": 63.952,
-          "medianBps": 130.541,
+          "n": 12,
+          "meanBps": 57.55,
+          "medianBps": 111.814,
           "minBps": -323.407,
           "maxBps": 205.427
         },
         "byHorizon": {
           "5": {
-            "n": 3,
-            "meanBps": -4.734,
+            "n": 5,
+            "meanBps": -2.203,
             "medianBps": 0.637,
             "minBps": -33.575,
             "maxBps": 18.737
           },
           "15": {
-            "n": 2,
-            "meanBps": 26.595,
-            "medianBps": 26.595,
-            "minBps": 9.429,
+            "n": 3,
+            "meanBps": 15.308,
+            "medianBps": 9.429,
+            "minBps": -7.265,
             "maxBps": 43.761
           },
           "60": {
-            "n": 2,
-            "meanBps": 33.827,
-            "medianBps": 33.827,
+            "n": 3,
+            "meanBps": 50.956,
+            "medianBps": 71.229,
             "minBps": -3.575,
-            "maxBps": 71.229
+            "maxBps": 85.213
           }
         },
         "bySide": {
           "buysBase": {
-            "fills": 6,
+            "fills": 7,
             "atTheBand": 5,
             "vsTouch": {
-              "n": 6,
-              "meanBps": -32.449,
+              "n": 7,
+              "meanBps": -32.153,
               "medianBps": -20.0,
               "minBps": -94.695,
               "maxBps": -20.0
             },
             "poolDev": {
-              "n": 6,
-              "meanBps": 154.757,
-              "medianBps": 166.406,
-              "minBps": 63.707,
+              "n": 7,
+              "meanBps": 130.811,
+              "medianBps": 160.827,
+              "minBps": -12.865,
               "maxBps": 205.427
             },
             "byHorizon": {
               "5": {
-                "n": 2,
-                "meanBps": -7.419,
-                "medianBps": -7.419,
+                "n": 3,
+                "meanBps": -4.946,
+                "medianBps": 0.0,
                 "minBps": -33.575,
                 "maxBps": 18.737
               },
@@ -238,11 +238,11 @@
                 "maxBps": 43.761
               },
               "60": {
-                "n": 1,
-                "meanBps": -3.575,
-                "medianBps": -3.575,
+                "n": 2,
+                "meanBps": 40.819,
+                "medianBps": 40.819,
                 "minBps": -3.575,
-                "maxBps": -3.575
+                "maxBps": 85.213
               }
             }
           },
@@ -265,17 +265,17 @@
             },
             "byHorizon": {
               "5": {
-                "n": 1,
-                "meanBps": 0.637,
-                "medianBps": 0.637,
+                "n": 2,
+                "meanBps": 1.912,
+                "medianBps": 1.912,
                 "minBps": 0.637,
-                "maxBps": 0.637
+                "maxBps": 3.187
               },
               "15": {
-                "n": 1,
-                "meanBps": 9.429,
-                "medianBps": 9.429,
-                "minBps": 9.429,
+                "n": 2,
+                "meanBps": 1.082,
+                "medianBps": 1.082,
+                "minBps": -7.265,
                 "maxBps": 9.429
               },
               "60": {
@@ -893,10 +893,13 @@
           "toleranceSeconds": 120
         },
         "60": {
-          "bps": null,
-          "status": "pending",
-          "toleranceSeconds": 360,
-          "nearestLagSeconds": null
+          "bps": 85.213,
+          "status": "ok",
+          "midRaw": 785865.0,
+          "bookAt": 1788879849,
+          "bookBlock": 45367281,
+          "lagSeconds": 27,
+          "toleranceSeconds": 360
         }
       }
     },
@@ -923,10 +926,61 @@
       "vsTouchBps": 20.001,
       "markouts": {
         "5": {
+          "bps": 3.187,
+          "status": "ok",
+          "midRaw": 784305.0,
+          "bookAt": 1788879151,
+          "bookBlock": 45366571,
+          "lagSeconds": 62,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -7.265,
+          "status": "ok",
+          "midRaw": 785125.0,
+          "bookAt": 1788879729,
+          "bookBlock": 45367159,
+          "lagSeconds": 40,
+          "toleranceSeconds": 120
+        },
+        "60": {
           "bps": null,
           "status": "pending",
-          "toleranceSeconds": 120,
+          "toleranceSeconds": 360,
           "nearestLagSeconds": null
+        }
+      }
+    },
+    {
+      "fillId": "0x47d9f81944a487d37b62b3bc42e5b16ece7d7ae582206fa585f3181a00000024",
+      "txHash": "0x47d9f81944a487d37b62b3bc42e5b16ece7d7ae582206fa585f3181a0290f976",
+      "logIndex": 36,
+      "block": 45367181,
+      "at": 1788879751,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "427031",
+      "quoteRaw": "334273494",
+      "bookOk": true,
+      "bidRaw": 785170,
+      "askRaw": 785180,
+      "midRaw": 785175.0,
+      "touchRaw": 785170,
+      "poolDevBps": -12.865,
+      "quietBps": 20,
+      "vsTouchBps": -30.375,
+      "markouts": {
+        "5": {
+          "bps": 0.0,
+          "status": "ok",
+          "midRaw": 785175.0,
+          "bookAt": 1788880089,
+          "bookBlock": 45367525,
+          "lagSeconds": 38,
+          "toleranceSeconds": 120
         },
         "15": {
           "bps": null,
@@ -943,6 +997,31 @@
       }
     }
   ],
-  "postedThisRun": [],
+  "postedThisRun": [
+    {
+      "fillId": "0x5128055c12db2ef95504e500de78539e84583d5976b2c9d2dd0f675500000033",
+      "horizonMinutes": 60,
+      "bps": 85,
+      "txHash": "0x92f918ee7f6e7b13fc4f83ea14860bbb11ccf06a952acb21d690b9c2753a0abc"
+    },
+    {
+      "fillId": "0xc38897c56e6eace9ae5f756cdfc909dec2d5ef80f1422b09fd58e3bf00000014",
+      "horizonMinutes": 5,
+      "bps": 3,
+      "txHash": "0x7963d4e8d22b64be8d8c53a3824e7b6191a9168437d7489345029bb455a63e72"
+    },
+    {
+      "fillId": "0xc38897c56e6eace9ae5f756cdfc909dec2d5ef80f1422b09fd58e3bf00000014",
+      "horizonMinutes": 15,
+      "bps": -7,
+      "txHash": "0x6fdcbb062d776148dec5398693f1e74da57cc31351e98c1ff7980400bd551720"
+    },
+    {
+      "fillId": "0x47d9f81944a487d37b62b3bc42e5b16ece7d7ae582206fa585f3181a00000024",
+      "horizonMinutes": 5,
+      "bps": 0,
+      "txHash": "0x923854a4b85557c49a75a40a87e28fbe165edf94423e80766ed54979759f1391"
+    }
+  ],
   "failedThisRun": []
 }
