@@ -52,5 +52,10 @@ if [ "$STATUS" != "0" ]; then
 fi
 
 SUMMARY=$(printf '%s\n' "$OUT" | grep -E '^[0-9]+ fills over' || true)
-POSTED=$(printf '%s\n' "$OUT" | grep -c '^  post ' || true)
+# Counted out of the artifact, not off the console. The keeper prints a "post …" line for every
+# markout it *would* send, dry run included, so grepping those reported posted=1 on a run that
+# sent nothing — a log that says a thing was written to the chain when it was not is the same
+# failure as a swallowed error, pointing the other way.
+POSTED=$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["postedThisRun"]))' \
+           results/markouts.json 2>/dev/null || echo '?')
 printf '%s\tOK\tposted=%s\t%s\n' "$(date -Is)" "$POSTED" "${SUMMARY:-?}" >>"$LOG"
