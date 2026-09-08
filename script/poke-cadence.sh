@@ -114,7 +114,6 @@ WANT=$(( BASEFEE * 5 / 4 ))
 # Thinning the cadence instead of stopping it keeps the series alive through a spike and keeps the
 # daily cost flat at roughly 0.02 HYPE across every tier — one poke a minute at 0.25 gwei and one
 # every five at 1 gwei cost the same per day. Above the cap nothing is worth it.
-MINUTE=$(( 10#$(date +%M) ))
 if   [ "$WANT" -le 250000000 ];  then EVERY=1
 elif [ "$WANT" -le 600000000 ];  then EVERY=2
 elif [ "$WANT" -le "$MAX_GAS_WEI" ]; then EVERY=5
@@ -124,10 +123,22 @@ else
   echo "base fee $BASEFEE wei; skipping rather than paying $WANT" >&2
   exit 0
 fi
-if [ "$EVERY" -gt 1 ] && [ $(( MINUTE % EVERY )) -ne 0 ]; then
-  printf '%s\tSKIP\tperp=%s\tthinned to 1-in-%s at %s wei\n' "$(date -Is)" "$PERP" "$EVERY" "$WANT" >>"$LOG"
-  echo "gas at $WANT wei; poking one minute in $EVERY" >&2
-  exit 0
+# Thinned by *time since the last poke*, not by minute-of-hour. A modulo rule looks equivalent
+# and is not: the tier is chosen from the instantaneous base fee, so on a flapping fee it changes
+# between runs and the minute never lines up — 15:55 to 15:58 on 8 Sep skipped four in a row,
+# alternating between 1-in-2 and 1-in-5 and matching neither. This says what is actually meant,
+# which is at most one poke per EVERY minutes and at least one.
+if [ "$EVERY" -gt 1 ]; then
+  LAST=$(awk -F'\t' '$2=="OK" {t=$1} END {print t}' "$LOG" 2>/dev/null)
+  if [ -n "$LAST" ]; then
+    AGE=$(( $(date +%s) - $(date -d "$LAST" +%s 2>/dev/null || echo 0) ))
+    if [ "$AGE" -lt $(( EVERY * 60 - 10 )) ]; then
+      printf '%s\tSKIP\tperp=%s\tthinned to 1-in-%s at %s wei; last poke %ss ago\n' \
+        "$(date -Is)" "$PERP" "$EVERY" "$WANT" "$AGE" >>"$LOG"
+      echo "gas at $WANT wei; last poke ${AGE}s ago, want one every ${EVERY}m" >&2
+      exit 0
+    fi
+  fi
 fi
 GAS_PRICE="${WANT}"
 

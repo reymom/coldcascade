@@ -1,5 +1,5 @@
 {
-  "generatedAt": 1788875130,
+  "generatedAt": 1788875406,
   "chainId": 999,
   "source": {
     "provider": "The Graph Market for Substreams",
@@ -7,7 +7,7 @@
     "package": "coldcascade-v0.1.0.spkg",
     "module": "desk_events",
     "startBlock": 45135453,
-    "stopBlock": 45362478
+    "stopBlock": 45362759
   },
   "horizonsMinutes": [
     5,
@@ -20,9 +20,9 @@
     "60": 360
   },
   "books": {
-    "count": 69,
+    "count": 71,
     "firstAt": 1788870223,
-    "lastAt": 1788874745,
+    "lastAt": 1788875258,
     "medianGapSeconds": 60.0
   },
   "summary": {
@@ -335,13 +335,13 @@
       }
     }
   ],
-  "postedThisRun": [],
-  "failedThisRun": [
+  "postedThisRun": [
     {
       "fillId": "0xe765976dd9180bedbb7e3524645e27b4fc4c2cb7a2fdd67b76bc453000000002",
       "horizonMinutes": 5,
       "bps": -34,
-      "error": "cast send failed (1): Error: server returned an error response: error code -32000: replacement transaction underpriced"
+      "txHash": "0x8b7f2ac891d8400a35c3a37946fea01397c2ded225cbb75aa181cc2193292ff4"
     }
-  ]
+  ],
+  "failedThisRun": []
 }
