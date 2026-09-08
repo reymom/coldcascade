@@ -110,6 +110,15 @@ if [ "$JITTER_MAX_SEC" -gt 0 ]; then
   echo "jitter ${J}s"; sleep "$J"
 fi
 
+# The poke cadence signs from a key that may be this one, and HyperEVM rejects a nonce ahead of
+# the account rather than queueing it — two of our own scripts sending at once is a lost
+# transaction, not a delay. Taken after the jitter sleep, so a 40-minute wait here is not a
+# 40-minute hole in the book series.
+# A fixed path, not $XDG_RUNTIME_DIR: cron has no XDG_RUNTIME_DIR and a login shell does, so a
+# variable one is two different locks and no exclusion at all between the cron job and a hand run.
+exec 9>"$HOME/.config/coldcascade/send.lock"
+flock -w 300 9 || { echo "could not take the send lock in 300s" >&2; exit 3; }
+
 # firstswap.sh is the only path that sends: it re-derives the calldata from Swap.s.sol every run,
 # so the order bytes are always the ones the account actually holds. Keep its stderr — a swallowed
 # rate-limit here reads in the log as a desk nobody wanted to take.
