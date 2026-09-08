@@ -3,6 +3,9 @@ pragma solidity 0.8.30;
 
 import { ISwapVM } from "@1inch/swap-vm/src/interfaces/ISwapVM.sol";
 import { IAqua } from "@1inch/aqua/src/interfaces/IAqua.sol";
+import { Aqua } from "@1inch/aqua/src/Aqua.sol";
+import { SwapVM } from "@1inch/swap-vm/src/SwapVM.sol";
+import { MockTaker } from "@1inch/swap-vm/test/mocks/MockTaker.sol";
 
 import { Vm } from "forge-std/Vm.sol";
 
@@ -519,34 +522,69 @@ contract DeskAccountTest is DeskTest {
         assertEq(previewNotional, notional);
     }
 
-    /// @dev What cover costs, in the desk's own transaction, paid by the desk. 42 138 gas before
-    ///      the order leg, measured 2026-09-05; 81 760 with it, with both legs of the position read
-    ///      live, and with the arithmetic delegatecalled into `HedgeOrder` — measured here against
-    ///      the etched mocks. The library costs about 6 250 of that, which is what fitting in a
-    ///      small block is worth paying.
-    ///
-    ///      The leg was `[UNVERIFIED]` against chain 999 until the probe ran on 2026-09-06. Two
-    ///      real transactions from a contract that had never signed anything: a `usdClassTransfer`
-    ///      cost 53 959 gas and a limit order 57 255, both including the 21 000 of an EVM
-    ///      transaction and the contract's own dispatch. So HyperCore's *"~47 000 with 25 000
-    ///      burned"* is a ceiling and not an estimate — the action itself lands nearer 32 000.
-    ///
-    ///      The number here is higher than either because the reads come first: the book, `0x080a`
-    ///      for `szDecimals`, and `0x0800` for the position the desk no longer remembers. That last
-    ///      one costs 8 515 gas on a real node, measured on 999 on 2026-09-06, and it is the price
-    ///      of having no state that can drift. All of it is charged to the desk. **A taker pays
-    ///      none of it, which is the claim this test exists to keep true.**
+    /// @dev **A maker feature is not a taker cost, and the hedge is the maker feature.** Two swaps
+    ///      from one snapshot of the same desk — same inventory, same book, same funded taker — and
+    ///      between them the owner arms the hedge. The taker pays the same gas to the unit, because
+    ///      nothing in the swap path reads the desk's hedge state: `DeskHooks` emits the fill and
+    ///      stops, and Aqua's pull is a `transferFrom` that runs no desk code. A warm-up fill comes
+    ///      first so the taker's token slots and the router's accounts are warm, and both swaps are
+    ///      measured from `GasProbe`'s frame rather than this one, which is what makes two gas
+    ///      numbers comparable to the unit at all.
     function test_cover_costsTheDeskNotTheTaker() public {
-        DeskAccount desk = armed(500_000e6);
+        DeskParams memory p = btcParams();
+        DeskAccount desk = openDesk(alice, "ramon", p, START_BASE, START_QUOTE);
+        ISwapVM.Order memory o = desk.order();
+        GasProbe probe = new GasProbe(aqua, swapVM);
+
+        probedSwap(probe, o, p);   // the warm-up fill
+        uint256 snapshot = vm.snapshotState();
+
+        uint256 disarmed = probedSwap(probe, o, p);
+
+        vm.revertToState(snapshot);
+        vm.prank(alice);
+        desk.armHedge(true, 500_000e6, keeper, HEDGE_SLIP_BPS);
+        uint256 armedGas = probedSwap(probe, o, p);
+
+        emit log_named_uint("taker swap gas, desk disarmed", disarmed);
+        emit log_named_uint("taker swap gas, desk armed", armedGas);
+        assertEq(armedGas, disarmed, "arming the desk changed what a taker pays");
+    }
+
+    /// @dev What cover costs, in the desk's own transaction, paid by the desk: measured and logged,
+    ///      not asserted against a number. 81 641 gas against the etched mocks on the pinned build
+    ///      (forge 1.4.4-nightly, commit 975a456, 2025-11-14), with both legs of the position read
+    ///      live and the arithmetic delegatecalled into `HedgeOrder`. A different forge build
+    ///      reports a different number for the same bytecode — which is why CI pins one, and why a
+    ///      hand-picked ceiling would be a compiler assertion in disguise. The one ceiling asserted
+    ///      is the chain's: a cover is one HyperEVM transaction and has to fit a small block,
+    ///      3 000 000 gas including the 21 000 intrinsic — the bound
+    ///      `test_implementation_fitsOneSmallBlock` uses, measured on 999 at 118 of 120 blocks.
+    ///      The fixture is a fresh desk and nothing else in the transaction, because a cover on
+    ///      chain is its own transaction, and a measurement taken after other calls in the same
+    ///      test finds the precompiles already warm and reads about 26 000 gas lower. It is taken
+    ///      from `GasProbe`'s frame, so that editing this test cannot move it.
+    ///
+    ///      The order leg is real. Two transactions from a contract that had never signed anything,
+    ///      on chain 999, 2026-09-06: a `usdClassTransfer` cost 53 959 gas and a limit order 57 255,
+    ///      both including the 21 000 of an EVM transaction and the contract's own dispatch. So
+    ///      HyperCore's *"~47 000 with 25 000 burned"* is a ceiling and not an estimate. The number
+    ///      here is higher than either because the reads come first: the book, `0x080a` for
+    ///      `szDecimals`, and `0x0800` for the position the desk no longer remembers — 8 515 gas on
+    ///      a real node, measured on 999 on 2026-09-06, and the price of having no state that can
+    ///      drift. All of it is charged to the desk; the test above is what keeps a taker out of it.
+    function test_cover_fitsOneSmallBlock() public {
+        GasProbe probe = new GasProbe(aqua, swapVM);
+        DeskAccount desk = openDesk(alice, "ramon", btcParams(), START_BASE, START_QUOTE);
+        vm.prank(alice);
+        desk.armHedge(true, 500_000e6, address(probe), HEDGE_SLIP_BPS);
         ubtc.mint(address(desk), ONE_UBTC);
 
-        vm.prank(keeper);
-        uint256 before = gasleft();
-        desk.cover();
-        uint256 spent = before - gasleft();
+        uint256 spent = probe.cover(desk);
 
+        assertEq(desk.coverCount(), 1, "the fixture must actually send an order");
         emit log_named_uint("cover gas, paid by the desk", spent);
-        assertLt(spent, 100_000, "one transaction, and no taker is in it");
+        assertLt(spent + 21_000, 3_000_000, "a cover is one transaction and has to fit a small block");
     }
 
     // ---- the order that comes out of a cover ----
@@ -760,4 +798,44 @@ contract DeskAccountTest is DeskTest {
         desk.armHedge(true, maxNotional, keeper, HEDGE_SLIP_BPS);
     }
 
+    /// @dev One bid-side, exact-in fill through the probe's own taker, funded to the quote. The
+    ///      number is the swap as the probe's frame saw it, so two of these are comparable.
+    function probedSwap(GasProbe probe, ISwapVM.Order memory o, DeskParams memory p) internal returns (uint256) {
+        (address tokenIn, address tokenOut) = pair(p, true);
+        (uint256 needed,) = quoteRouter(o, p, ONE_UBTC, true, true);
+        ubtc.mint(address(probe.TAKER()), needed);
+        return probe.measure(o, tokenIn, tokenOut, ONE_UBTC, deskTakerData(address(probe.TAKER()), true, false));
+    }
+}
+
+/// @dev A fixed frame to measure from. Every call starts with fresh memory and runs one code
+///      path, so two measurements can differ only by what the callee did — measured from inside
+///      a test function they also differ by the stack layout at the call site, which is six gas of
+///      nothing between two swaps and nine between two edits of the same test. It owns its taker
+///      because the harness's answers only to the test, and it is named the desk's operator so
+///      that a cover can be measured the same way.
+contract GasProbe {
+    MockTaker public immutable TAKER;
+
+    constructor(Aqua aqua, SwapVM swapVM) {
+        TAKER = new MockTaker(aqua, swapVM, address(this));
+    }
+
+    function cover(DeskAccount desk) external returns (uint256 spent) {
+        uint256 before = gasleft();
+        desk.cover();
+        return before - gasleft();
+    }
+
+    function measure(
+        ISwapVM.Order calldata o,
+        address tokenIn,
+        address tokenOut,
+        uint256 amount,
+        bytes calldata takerData
+    ) external returns (uint256 spent) {
+        uint256 before = gasleft();
+        TAKER.swap(o, tokenIn, tokenOut, amount, takerData);
+        return before - gasleft();
+    }
 }

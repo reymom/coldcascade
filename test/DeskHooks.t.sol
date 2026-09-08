@@ -187,7 +187,8 @@ contract DeskHooksTest is DeskTest {
         emit log_named_uint("swap gas, contract maker", againstContract);
         emit log_named_uint("swap gas, EOA maker", againstEoa);
 
-        // Measured 2026-09-05: 97 966 against the contract, 97 993 against the EOA. The contract is
+        // Measured 2026-09-08 on the pinned build: 98 962 against the contract, 98 989 against the
+        // EOA (97 966 and 97 993 on 2026-09-05, before the map went into the fill). The contract is
         // the cheaper of the two, so there is no callback left in the bill; what is left is calldata
         // noise, the two maker addresses having a different number of zero bytes. Both moved up by
         // ~4 600 from the earlier figure, half of it the optimizer coming down to 200 runs so the

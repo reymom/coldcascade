@@ -91,12 +91,14 @@ a fresh ship, and every ship carries a per-account salt.
 and the liquidation map go into the log beside the amounts, so a markout can be computed from
 indexed data alone. **It emits the fill and stops.** It makes no call to the maker, so a maker
 whose every entry point reverts is still filled — and, more to the point, a maker feature is not a
-taker cost. A swap against a contract maker costs 97 966 gas and one against an EOA maker 97 993:
+taker cost. A swap against a contract maker costs 98 962 gas and one against an EOA maker 98 989:
 the contract is the cheaper of the two, because there is no callback in the bill.
 
 **Cover is a second transaction, sent by the owner or by an operator the owner names in
 `armHedge`.** `DeskAccount.cover()` writes an IOC to CoreWriter from the desk's own margin account
-— 75 510 gas, paid by the desk; a taker pays none of it.
+— 81 641 gas, paid by the desk; a taker pays none of it. `test_cover_costsTheDeskNotTheTaker` fills
+the same desk twice from one snapshot, disarmed and then armed, and the taker's gas is the same to
+the unit.
 
 CoreWriter *queues*: HyperCore executes the action some seconds later, and can reject it or fill it
 partially without failing the EVM transaction that carried it. So `HedgeSent` records an order
@@ -358,7 +360,12 @@ node script/faucet-check.mjs  # the same denials against the live wallet, so the
 python3 -m http.server 8000   # then http://localhost:8000/app/
 ```
 
-- Foundry `nightly`. `@1inch/aqua` and `@1inch/swap-vm` resolve from GitHub at **`v1.0.0` and
+- **Foundry is pinned to one build**, in CI and for every gas figure in this file:
+  `nightly-975a456ef42ab506b8d343df5541a248798c5a27` (forge 1.4.4-nightly, 2025-11-14),
+  installed with `foundryup --install nightly-975a456ef42ab506b8d343df5541a248798c5a27`. The
+  suite asserts gas, and two forge builds do not report the same gas for the same bytecode — the
+  rolling `nightly` is a different compiler on every run. `@1inch/aqua` and `@1inch/swap-vm`
+  resolve from GitHub at **`v1.0.0` and
   `v1.0.2`, which is what is deployed on 999** — not at `main`, whose `quote` and `swap` take
   different arguments. `results/999_router_abi.md` has the selectors and how the difference
   surfaced. `@1inch/solidity-utils` is held at 6.9.10 through `resolutions`, because Aqua's 6.9.7
