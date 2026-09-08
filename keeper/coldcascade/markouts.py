@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import substreams
-from .chain import ChainError, Deployment, desk_params
+from .chain import ChainError, Deployment, desk_params, token_balance_at
 
 HORIZONS_MIN = (5, 15, 60)
 
@@ -199,6 +199,38 @@ def markout_bps(fill: Fill, mid_later: float) -> float:
     return sign * (mid_later - fill.mid) / fill.mid * 10_000.0
 
 
+POOL_DEV_CACHE = Path(__file__).resolve().parents[1] / ".cache" / "pool-dev.json"
+
+
+def pool_dev_bps(dep: Deployment, fill: Fill, base: str, quote: str,
+                 px_num: int, px_den: int) -> float | None:
+    """Where the desk's own constant-product curve sat against L1 *before* this fill, in bps.
+
+    This is the variable that decides which of the two regimes a fill lands in, and it is not in
+    the Fill event. `out = min(curve, bound)`: when the pool prices base above L1 the curve is
+    already the dearer side of a sale and the bound stands aside, while a purchase at that pool
+    would pay over L1 and gets cut back to the band. Below L1 the two swap round. So a fill at
+    ±quietBps and a fill at +156 are not two behaviours, they are one rule seen from two sides,
+    and `poolDevBps` is the side.
+
+    Reserves come from the archive endpoint at `block - 1`; L1 comes from the fill's own oracle
+    word, which is the same number `CoreQuote` priced against and is already in the log. The
+    result is immutable once computed, so it is cached by transaction hash.
+    """
+    if not fill.book_ok or not fill.oracle:
+        return None
+    try:
+        b = token_balance_at(dep, base, fill.maker, fill.block - 1)
+        q = token_balance_at(dep, quote, fill.maker, fill.block - 1)
+    except Exception:
+        # A third-party archive is not something to fail a run over. The markout does not need it.
+        return None
+    if not b or not q:
+        return None
+    l1 = fill.oracle * px_num / px_den
+    return (q / b / l1 - 1) * 10_000.0
+
+
 def vs_touch_bps(fill: Fill, px_num: int, px_den: int) -> float:
     """Where the fill printed against the L1 touch, in bps. Not a P&L — a price statement.
 
@@ -251,6 +283,14 @@ def run(
     print(f"  {len(c.fills)} fills · {len(c.books)} books · {len(c.posted)} markouts already posted")
 
     scale: dict[str, tuple[int, int]] = {}
+    tokens: dict[str, tuple[str, str]] = {}
+    quiet: dict[str, int] = {}
+    dev_cache: dict[str, float | None] = {}
+    if POOL_DEV_CACHE.exists():
+        try:
+            dev_cache = json.loads(POOL_DEV_CACHE.read_text())
+        except json.JSONDecodeError:
+            dev_cache = {}
     rows, to_post = [], []
     # When the book series begins. Before it, `BookCache.poke` had never been called on mainnet:
     # pokedAt(0) was 0 and there was no Booked event on chain 999 at all.
@@ -260,7 +300,15 @@ def run(
         if f.maker not in scale:
             p = desk_params(dep, f.maker)
             scale[f.maker] = (p["pxNum"], p["pxDen"])
+            tokens[f.maker] = (p["base"], p["quote"])
+            quiet[f.maker] = p["quietBps"]
         px_num, px_den = scale[f.maker]
+
+        # Immutable once computed — it is a past block's state — so it is asked for once.
+        if f.tx_hash not in dev_cache:
+            base_tok, quote_tok = tokens[f.maker]
+            d = pool_dev_bps(dep, f, base_tok, quote_tok, px_num, px_den)
+            dev_cache[f.tx_hash] = round(d, 3) if d is not None else None
 
         row = {
             "fillId": f.fill_id,
@@ -280,6 +328,8 @@ def run(
             "askRaw": f.ask,
             "midRaw": f.mid,
             "touchRaw": f.touch,
+            "poolDevBps": dev_cache.get(f.tx_hash),
+            "quietBps": quiet[f.maker],
             "vsTouchBps": None,
             "markouts": {},
         }
@@ -333,6 +383,27 @@ def run(
 
     complete = sum(1 for r in rows if all(bps_of(r, h) is not None for h in HORIZONS_MIN))
 
+    def subset_stats(rs: list[dict]) -> dict:
+        # "At the band" means the bound is what set this price: the fill printed at the desk's own
+        # quietBps, read off its frozen params rather than assumed to be 20.
+        clamped = [
+            r for r in rs
+            if r["vsTouchBps"] is not None and abs(abs(r["vsTouchBps"]) - r["quietBps"]) < 0.5
+        ]
+        return {
+            "fills": len(rs),
+            "atTheBand": len(clamped),
+            "vsTouch": _stats([r["vsTouchBps"] for r in rs if r["vsTouchBps"] is not None]),
+            "poolDev": _stats([r["poolDevBps"] for r in rs if r.get("poolDevBps") is not None]),
+            "byHorizon": {
+                str(h): _stats([bps_of(r, h) for r in rs if bps_of(r, h) is not None])
+                for h in HORIZONS_MIN
+            },
+        }
+
+    def side_stats(buys: bool) -> dict:
+        return subset_stats([r for r in rows if r["makerBuysBase"] is buys])
+
     def horizon_stats(h: int) -> dict:
         st = _stats([bps_of(r, h) for r in rows if bps_of(r, h) is not None])
         for label in ("pending", "gap", "noBook", "beforeSeries"):
@@ -368,6 +439,34 @@ def run(
             "spanDays": round((max(ts) - min(ts)) / 86400, 2) if len(ts) > 1 else 0.0,
             "byHorizon": {str(h): horizon_stats(h) for h in HORIZONS_MIN},
             "vsTouch": _stats([r["vsTouchBps"] for r in rows if r["vsTouchBps"] is not None]),
+            # Split by side, because the two sides are not one population. `out = min(curve,
+            # bound)` binds on whichever side the pool is currently the cheaper one, so pooling
+            # them averages the bound's own signature together with the curve's and reports a
+            # number that describes neither. The pool deviation is carried alongside because it is
+            # what decides which side is which.
+            "bySide": {
+                "buysBase": side_stats(True),
+                "sellsBase": side_stats(False),
+            },
+            # And by desk, because they are not one population either. The demo desk trades a
+            # mintable pair and is the tape; the hedged desk is deliberately lopsided — it absorbed
+            # base and holds mostly quote, so its pool sits *thousands* of bps off L1 and one of
+            # its fills would otherwise drag the aggregate poolDev with it. Medians survive that,
+            # means do not, and a panel that wants one desk should be able to ask for it.
+            "byDesk": {
+                name: {
+                    **subset_stats([r for r in rows if r["deskName"] == name]),
+                    "bySide": {
+                        "buysBase": subset_stats(
+                            [r for r in rows if r["deskName"] == name and r["makerBuysBase"]]
+                        ),
+                        "sellsBase": subset_stats(
+                            [r for r in rows if r["deskName"] == name and not r["makerBuysBase"]]
+                        ),
+                    },
+                }
+                for name in sorted({r["deskName"] for r in rows})
+            },
         },
         "fills": rows,
         "postedThisRun": [],
@@ -402,6 +501,9 @@ def run(
             doc["postedThisRun"].append(
                 {"fillId": f.fill_id, "horizonMinutes": h, "bps": bps, "txHash": tx}
             )
+
+    POOL_DEV_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    POOL_DEV_CACHE.write_text(json.dumps(dev_cache, indent=1) + "\n")
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(doc, indent=2) + "\n")

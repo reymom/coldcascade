@@ -277,23 +277,45 @@ quantity the LVR literature is about. It is **not** the desk's P&L — it ignore
 at the touch, which is reported separately per fill as `vsTouchBps`, and it ignores the perp leg
 entirely, for the reason in *Two measurements* above.
 
-**What exists so far.** Nine fills on chain 999, all of them ours, and they split cleanly in two.
+**What exists so far.** Every fill on chain 999 is one we sent, and they fall into two groups
+that look like two behaviours and are one rule. Some print at exactly ±`quietBps` against the L1
+touch; the rest print well outside it.
 
-| | `vsTouchBps` |
-|---|---|
-| six fills where the bound had something to cut | −20.00, −20.00, −20.00, −20.00, −20.00, +20.00 |
-| three where it did not | +111.16, +123.87, +156.54 |
+The rule is a single line of `CoreQuote`: in the quiet regime the taker receives
+`min(curve, bound)`. The bound caps how *good* the desk's price is allowed to get and never makes
+it better, so it sets the price only when the desk's own constant-product curve wanted to deal
+inside the band. Which of the two happens is decided by where the pool sits against L1 when the
+fill arrives — `poolDevBps` in the artifact, the pool's implied price of base over L1's, in bps:
 
-The first row is `quietBps` to the basis point, on every one of them, including the fill taken
-against the hedged desk's real inventory. The clamp is not one screenshot. The second row is the
-constant-product curve already asking more than L1 plus the band, so there was nothing to cut —
-the same reading the first mainnet swap gets in *Status* below, now with two more instances of it.
+| pool against L1 | the desk buying base | the desk selling base |
+|---|---|---|
+| **above** (base dear in the pool) | curve would overpay → **bound sets it, ±`quietBps`** | curve already dearer than L1 → **curve sets it** |
+| **below** (base cheap in the pool) | curve already cheaper → **curve sets it** | curve would undersell → **bound sets it, ±`quietBps`** |
 
-The split is not a coincidence and it is one line of `CoreQuote`: in the quiet regime the taker
-receives `min(curve, bound)`. The bound caps how *good* the desk's price is allowed to get; it
-never makes it better. So a fill prints at exactly ±`quietBps` when the curve wanted to deal
-inside the band and was pulled back to its edge, and prints outside the band when the curve was
-already further out than the bound would have held it — where there is nothing to pull.
+Two named transactions, both mainnet, both in the artifact:
+[`0xfaf1b6c6…ab20`](https://hyperevmscan.io/tx/0xfaf1b6c68aeae9eaed9ff49acc54d0ac7081f1537b602f5609679238c22dab20)
+is a purchase with the pool 160.8 bps above L1 — the bound bit, and the fill printed at −20.0000 bps.
+[`0x9407579f…537c`](https://hyperevmscan.io/tx/0x9407579f28988f85c0655637d5437476bf5371b59de63602b13936b10993537c)
+is a sale with the pool 46.5 bps above L1 — nothing to cut, and the curve priced it at +111.2.
+
+Size decides how much cushion the table's first column actually has, because a take large enough
+walks the curve *through* L1 inside the trade. One purchase against a pool only 63.7 bps above L1
+printed at −94.7 rather than at the band: 3 327 697 raw base in, 1.65% of the desk's reserve, and
+the 2 568 453 650 quote it paid is `q·Δ/(b+Δ)` on the pre-trade reserves **to the unit**. The plain
+curve, exactly, with the bound standing aside — which is `min(curve, bound)` choosing the curve,
+not the bound failing. It is also why the band is a floor on the desk's edge and not a description
+of it.
+
+`summary.bySide` and `summary.byDesk` in `results/markouts.json` carry the counts and never go
+stale, which is why they are not repeated here. `atTheBand` is measured against each desk's own
+frozen `quietBps`, not against a hardcoded 20. The desks are kept apart because they are not one
+population: the demo desk trades a mintable pair and is the tape, while the hedged desk is
+deliberately lopsided from absorbing base and sits thousands of bps off L1.
+
+Reserves at a past block come from an archive endpoint, because the public node cannot answer:
+`balanceOf` at four blocks 145 000 apart returns the *current* balance every time. The block tag is
+accepted and ignored, exactly as it is for the HyperCore precompiles — the same property that made
+`BookCache` necessary in the first place, met a second time on ordinary contract state.
 
 The `Booked` series began at 12:23:43Z on 8 Sep
 (`0x24dbe446…b60d`, block 45 357 494); before that `pokedAt(0)` was 0 and there was not one
