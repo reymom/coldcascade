@@ -247,7 +247,10 @@ node instead. Every case above is either fully populated or uses calldata that d
 
 `script/cover.mjs` is the sender: it reads `coverPreview()` — the same `HedgeOrder.plan` the
 transaction would run — and sends nothing when the desk is square, which on a cadence is most
-minutes. It builds the whole transaction itself, because a policy is evaluated against the request
+minutes. **The decision is a threshold on inventory, not a view about the market**: spot balance
+against the declared square level, plus the perp position `0x0800` reports, and the order is their
+sum. It reads no history and keeps none — *when* to cover is left to the operator on purpose, and
+today the operator's answer is "whenever the sum is not zero". It builds the whole transaction itself, because a policy is evaluated against the request
 as sent and a request that omits `chain_id` cannot be judged on `chain_id`.
 
 | | | |
@@ -427,7 +430,9 @@ were measured on the live wallet rather than assumed, and each one silently turn
 decoration:
 
 1. **A policy is not enforced until the wallet has an owner.** With `owner_id` null, a rule denying
-   *every* method was attached to this wallet and a send still reached the node.
+   *every* method was attached to this wallet and a send still reached the node. The policy needs
+   one too, for a different reason: it is enforced without one, but the app secret alone can rewrite
+   its rules.
 2. **A partial transaction bypasses every condition.** Privy evaluates a policy against the request
    as sent, before it populates anything, so a condition naming a field the request omits resolves
    to nothing and passes. `{to, value}` — the shape Privy's own quickstart shows — leaves `chain_id`
@@ -439,13 +444,24 @@ decoration:
 gives a visitor gas; the hedge operator holds `hedgeOperator` on a desk and may call `cover()` and
 nothing else, on chain and off it — that is *The operator is a key that can only do this*, above.
 The same two findings apply to it and were re-measured on it rather than assumed to have carried
-over, and it closes a gap this one still has: its policy has an owner too, so the app secret alone
-cannot rewrite the rules it is held under.
+over, and it added a third that this one now has as well: **the policy needs an owner, not just the
+wallet.** A policy whose own `owner_id` is null is enforced, but anything holding the app secret can
+rewrite its rules — an owned wallet under an unowned policy is a lock with its key hanging beside
+it. Both wallets and both policies are owned; `script/faucet-owner.sh` does both in one run and
+refuses to rotate a key that is already in use.
 
 With both in place the two secrets are independent: the app secret authenticates the app, the owner
 key authorizes the request, and an unsigned send is refused with a 401. `node script/faucet-check.mjs`
 re-runs all five cases — the drip, another chain, over the cap, another method, and unsigned —
 against the live wallet and reports which the policy let through.
+
+**What building on that policy engine actually cost, with the requests and the responses, is
+[`FEEDBACK-PRIVY.md`](FEEDBACK-PRIVY.md).** Five findings, and the one worth the sponsor's time is
+that an unpopulated request has its gas estimated *before* the policy answers — so calldata the
+target would revert on comes back `transaction_broadcast_failure`, which is indistinguishable from
+"the policy allowed it and the node refused it". A check script written the obvious way reads that
+as a fail-open. Ours did, for an hour, and was wrong. The document says what would fix it: a
+dry-run endpoint that returns the policy decision and touches no chain.
 
 The read path has no third party in it. `app/src/abi.js` is a hand-written codec so that nothing
 sits between a browser and the calldata going to 1inch's router, and Privy's SDK is vendored rather
