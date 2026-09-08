@@ -1,28 +1,163 @@
-// JSON-RPC against a HyperEVM node, and the state override that lets the page run contracts the
-// chain has never seen.
+// JSON-RPC against HyperEVM nodes: a list of endpoints with failover, a batch transport, and the
+// state override that lets the page run contracts the chain has never seen.
 
-// The default the page reads when `?rpc=` says nothing. It is a URL and not a chain id: what chain
-// this is gets asked of the node with `eth_chainId`, and every address and every signer follows
-// that answer. There is no chain constant in this file.
-export const DEFAULT_RPC = "https://rpc.hyperliquid.xyz/evm";
+/**
+ * The endpoints the page reads when `?rpc=` says nothing, in preference order.
+ *
+ * The official node rate-limits browser traffic without ceremony — HTTP 429, or -32005 on the
+ * method — and a page a judge leaves open cannot depend on one URL's mood. The first endpoint
+ * that complains is put in cooldown and the next one answers instead. All three serve chain 999;
+ * the chain id is asked of whichever answers, never read from this list.
+ */
+export const DEFAULT_RPCS = [
+  "https://rpc.hyperliquid.xyz/evm",
+  "https://rpc.hypurrscan.io",
+  "https://hyperliquid.drpc.org",
+];
 
-/** A read-only client. `overrides` is geth's third eth_call parameter. */
+/** The canonical endpoint, for callers that name a single URL (the wallet's chain entry). */
+export const DEFAULT_RPC = DEFAULT_RPCS[0];
+
+/**
+ * What makes a failure worth failing over: the node complaining about *us* (a throttle, a gateway
+ * error, an unreachable host), never about the call. A revert or a bad parameter is a real answer
+ * and reaches the caller unchanged, from the first endpoint that produced it.
+ */
+const isThrottle = (status, err) =>
+  status === 429 ||
+  (status >= 500 && status < 600) ||
+  err?.code === -32005 ||
+  /rate.?limit|too many|throttl/i.test(err?.message ?? "");
+
+const retryable = (err) =>
+  err instanceof TypeError || // fetch could not reach the host at all
+  err instanceof SyntaxError || // a 200 that was not JSON is a broken node, not a real answer
+  (err instanceof HttpError && isThrottle(err.status)) ||
+  (err instanceof RpcError && isThrottle(undefined, err));
+
+class HttpError extends Error {
+  constructor(status) {
+    super(`HTTP ${status}`);
+    this.status = status;
+  }
+}
+
+/** A node that answers a batch with a single object does not do batches; the calls go one by one. */
+class BatchUnsupported extends Error {}
+
+export class RpcError extends Error {
+  constructor(method, error) {
+    super(`${method}: ${error.message}`);
+    this.data = error.data;
+    this.code = error.code;
+  }
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** A read-only client over a list of endpoints. `overrides` is geth's third eth_call parameter. */
 export class Rpc {
-  constructor(url = DEFAULT_RPC) {
-    this.url = url;
+  constructor(urls = DEFAULT_RPCS) {
+    this.urls = (Array.isArray(urls) ? urls : [urls]).filter(Boolean);
     this.id = 0;
+    this.current = 0;
+    // Per endpoint: consecutive throttles, and the wall-clock moment it may be tried again.
+    this.health = this.urls.map(() => ({ strikes: 0, until: 0 }));
+  }
+
+  /** The endpoint currently in favour — the last one that answered. */
+  get url() {
+    return this.urls[this.current];
   }
 
   async send(method, params) {
-    const res = await fetch(this.url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: ++this.id, method, params }),
+    return this.#run(async (url, nextId) => {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: nextId(), method, params }),
+      });
+      if (!res.ok) throw new HttpError(res.status);
+      const body = await res.json();
+      if (body.error) throw new RpcError(method, body.error);
+      return body.result;
     });
-    if (!res.ok) throw new Error(`${method}: HTTP ${res.status}`);
-    const body = await res.json();
-    if (body.error) throw new RpcError(method, body.error);
-    return body.result;
+  }
+
+  /**
+   * Many calls, one HTTP request, results in the order they were asked for. An entry whose error
+   * is a real answer (a revert, bad params) throws exactly as `send` would have thrown it; an
+   * entry that is the node complaining fails the whole batch on that endpoint so the cascade
+   * re-asks the next one. A node without batch support falls back to one request per call through
+   * the same cascade — slower, and said so nowhere, because the results are identical.
+   */
+  async batch(calls) {
+    if (calls.length === 0) return [];
+    try {
+      return await this.#run(async (url, nextId) => {
+        const reqs = calls.map(({ method, params }) => ({ jsonrpc: "2.0", id: nextId(), method, params }));
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(reqs),
+        });
+        if (!res.ok) throw new HttpError(res.status);
+        const body = await res.json();
+        if (!Array.isArray(body)) {
+          if (body?.error && isThrottle(undefined, body.error)) throw new RpcError("batch", body.error);
+          throw new BatchUnsupported();
+        }
+        const byId = new Map(body.map((r) => [r.id, r]));
+        return reqs.map((q) => {
+          const r = byId.get(q.id);
+          if (!r) throw new BatchUnsupported(); // a node that drops entries is not batching honestly
+          if (r.error) throw new RpcError(q.method, r.error);
+          return r.result;
+        });
+      });
+    } catch (err) {
+      if (!(err instanceof BatchUnsupported)) throw err;
+      const out = [];
+      for (const { method, params } of calls) out.push(await this.send(method, params));
+      return out;
+    }
+  }
+
+  /**
+   * The cascade every call goes through. Endpoints are tried in preference order starting at the
+   * one that last answered; one that throttles earns an exponential cooldown (5s, 10s, 20s… two
+   * minutes) and is skipped until it lapses, so a complaining node is never hammered to be told
+   * it is still complaining. If every endpoint is cooling the call waits out the shortest
+   * cooldown rather than failing — a judge's tab recovers on its own instead of stranding red
+   * text on screen. Errors that are the call's fault propagate on the first endpoint tried.
+   */
+  async #run(execute) {
+    let lastErr = null;
+    for (let round = 0; round < 3; round++) {
+      let soonest = Infinity;
+      for (let k = 0; k < this.urls.length; k++) {
+        const i = (this.current + k) % this.urls.length;
+        const h = this.health[i];
+        const wait = h.until - Date.now();
+        if (wait > 0) {
+          soonest = Math.min(soonest, wait);
+          continue;
+        }
+        try {
+          const result = await execute(this.urls[i], () => ++this.id);
+          this.current = i;
+          h.strikes = 0;
+          return result;
+        } catch (err) {
+          if (!retryable(err)) throw err;
+          lastErr = err;
+          h.strikes += 1;
+          h.until = Date.now() + Math.min(120_000, 2500 * 2 ** h.strikes);
+        }
+      }
+      if (round < 2) await sleep(soonest === Infinity ? 1500 * (round + 1) : Math.min(soonest, 15_000));
+    }
+    throw lastErr ?? new Error("every RPC endpoint is cooling down");
   }
 
   call(tx, overrides, block = "latest") {
@@ -35,14 +170,6 @@ export class Rpc {
 
   async chainId() {
     return Number(BigInt(await this.send("eth_chainId", [])));
-  }
-}
-
-export class RpcError extends Error {
-  constructor(method, error) {
-    super(`${method}: ${error.message}`);
-    this.data = error.data;
-    this.code = error.code;
   }
 }
 

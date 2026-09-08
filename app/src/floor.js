@@ -10,12 +10,15 @@ import {
   Rpc, plant, loadSelectors, readFloor, readOrder, takerTraits, quoteCall, swapCall,
   erc20, mapUpdate, paramsTuple, decode,
 } from "./chain.js";
-import { waitForReceipt, DEFAULT_RPC } from "./rpc.js";
+import { waitForReceipt, DEFAULT_RPCS } from "./rpc.js";
 import { chainFor, explorerTx, injected, openPrivy, privyConfig } from "./signer.js";
 import { drawStrip } from "./bands.js";
 import { roundTrip, bestRoundTrip, bestControlToll } from "./arb.js";
 
-const POLL_MS = 2000;
+// Four seconds, not two: HyperEVM blocks are not twice-a-second events, and nothing a visitor can
+// see changes between two polls that a slightly slower one misses. What the faster cadence did buy
+// was the official node rate-limiting the page itself.
+const POLL_MS = 4000;
 
 /** Where the simulated contracts are planted. Any address with no code will do. */
 const SIMULATED = {
@@ -53,15 +56,18 @@ const STRESS_NOTIONAL = 40_000_000n;
 
 export async function mountFloor(root) {
   const ui = build(root);
-  const rpcUrl = new URLSearchParams(location.search).get("rpc") ?? DEFAULT_RPC;
-  const rpc = new Rpc(rpcUrl);
+  // `?rpc=` pins one endpoint, for debugging against a specific node. Without it the page carries
+  // the list: the first endpoint to answer a throttle with silence (or a 429, or a -32005) is
+  // cooled down and the next one takes over, per the cascade in rpc.js.
+  const forced = new URLSearchParams(location.search).get("rpc");
+  const rpc = new Rpc(forced ? [forced] : DEFAULT_RPCS);
 
   let state;
   try {
-    state = await connectToChain(rpc, rpcUrl);
+    state = await connectToChain(rpc, rpc.url);
   } catch (err) {
     ui.status.className = "status error";
-    ui.status.textContent = `Could not reach ${rpcUrl}.\n\n${err.message}`;
+    ui.status.textContent = `Could not reach any RPC endpoint (${rpc.urls.join(", ")}).\n\n${err.message}`;
     return;
   }
   ui.status.remove();
@@ -87,6 +93,13 @@ export async function mountFloor(root) {
   wireStress(view);
   wireMap(view);
 
+  // A tick is one HTTP request by construction: the loop awaits the read before scheduling the
+  // next, so a slow node makes a slower page, never a pile-up of overlapping eth_calls — which is
+  // what a fixed setInterval produced whenever a read outlived the interval. When the read fails
+  // the page says so (that rule has not moved) and the interval doubles — 4s, 8s, 16s… to a
+  // minute — until an answer comes back, on top of the transport failing over to the next
+  // endpoint underneath. A success resets the cadence to POLL_MS.
+  let failures = 0;
   const tick = async () => {
     try {
       view.floor = await readFloor(rpc, {
@@ -100,13 +113,15 @@ export async function mountFloor(root) {
       });
       render(view);
       ui.error.hidden = true;
+      failures = 0;
     } catch (err) {
+      failures += 1;
       ui.error.hidden = false;
       ui.error.textContent = `read failed: ${err.message}`;
     }
+    setTimeout(tick, failures === 0 ? POLL_MS : Math.min(60_000, POLL_MS * 2 ** failures));
   };
   await tick();
-  setInterval(tick, POLL_MS);
 
   // The expiry line is a wall-clock countdown against the map's own timestamps, so it keeps
   // moving between chain reads. It only paints while a map is live; the next read after the
@@ -634,14 +649,18 @@ function wireTake(view) {
 async function ensureAllowance(view, signer, token, spender, needed, out) {
   const { rpc, state } = view;
   const account = signer.address;
-  const balance = BigInt(await rpc.call({ to: token, data: erc20.balanceOf(state.sel, account) }));
-  if (balance < needed && isDemoToken(state, token)) {
+  // The two reads are independent of each other and of the mint below, so they go as one
+  // JSON-RPC batch: one HTTP request instead of two.
+  const [balanceHex, allowanceHex] = await rpc.batch([
+    { method: "eth_call", params: [{ to: token, data: erc20.balanceOf(state.sel, account) }, "latest"] },
+    { method: "eth_call", params: [{ to: token, data: erc20.allowance(state.sel, account, spender) }, "latest"] },
+  ]);
+  if (BigInt(balanceHex) < needed && isDemoToken(state, token)) {
     say(out, "minting the demo token — 1 of 3");
     const hash = await signer.send({ from: account, to: token, data: erc20.mint(state.sel, account, needed - balance) });
     await waitForReceipt(rpc, hash);
   }
-  const allowance = BigInt(await rpc.call({ to: token, data: erc20.allowance(state.sel, account, spender) }));
-  if (allowance >= needed) return;
+  if (BigInt(allowanceHex) >= needed) return;
   say(out, "approving the router — 2 of 3");
   const hash = await signer.send({ from: account, to: token, data: erc20.approve(state.sel, spender, needed) });
   await waitForReceipt(rpc, hash);
@@ -712,7 +731,7 @@ function createAuth(view) {
   const setSigner = (signer) => {
     view.signer = signer;
     // A resumed session can land before the first read does, and `render` wants a floor to draw.
-    // The next tick is two seconds away and repaints everything anyway.
+    // The next tick is a few seconds away and repaints everything anyway.
     if (view.floor) render(view);
     repaint();
   };

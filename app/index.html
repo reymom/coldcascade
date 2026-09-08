@@ -184,6 +184,28 @@ a .rc-dot { cursor: pointer; }
   letter-spacing: -0.01em; white-space: nowrap; }
 .record-mk-v .neg { color: var(--loss); }
 .record-mk-m { color: var(--muted); font-size: 11px; margin-top: 4px; }
+.rd-run { font-size: 12px; margin: 0 0 8px; }
+.rd-run b { color: var(--ink); font-weight: 500; }
+.rd-run a, .rd-cell a { color: var(--desk); text-decoration: none;
+  border-bottom: 1px solid rgba(95,178,255,0.35); }
+.rd-legend { color: var(--muted); font-size: 11px; line-height: 1.65; max-width: 96ch; margin: 0 0 10px; }
+.rd-legend b { color: var(--ink); font-weight: 500; }
+.rd-head, .rd-row { display: grid; grid-template-columns: minmax(0, 235px) repeat(3, minmax(0, 1fr));
+  gap: 4px 14px; }
+.rd-head { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em;
+  padding-bottom: 5px; border-bottom: 1px solid var(--line); }
+.rd-row { border-bottom: 1px solid var(--line); padding: 6px 0; font-size: 11.5px;
+  font-variant-numeric: tabular-nums; }
+.rd-row > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rd-fill { color: var(--muted); }
+.rd-fill a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--l1-edge); }
+.rd-fill b { font-weight: 500; }
+.rd-mut { color: var(--muted); }
+@media (max-width: 720px) {
+  .rd-head { display: none; }
+  .rd-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .rd-fill { grid-column: 1 / -1; }
+}
 .record-foot { color: var(--muted); font-size: 11px; line-height: 1.7;
   border-top: 1px solid var(--line); padding-top: 12px; margin-top: 8px; }
 .record-foot b { color: var(--ink); font-weight: 500; }
@@ -403,6 +425,7 @@ table.sweep td.now { color: var(--desk); }
         </div>
         <p class="out" id="record-status"></p>
         <p class="record-why" id="record-why"></p>
+        <div id="record-decision"></div>
         <div id="record-markouts"></div>
         <div class="record-foot" id="record-foot"></div>
       </section>
