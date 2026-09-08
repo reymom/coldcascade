@@ -67,6 +67,19 @@ if [ "$BAL" -lt "$FLOOR" ] && [ "$DRY_RUN" != "1" ]; then
 fi
 [ "$BAL" -lt "$FLOOR" ] && echo "note: taker holds $BAL wei, below the $FLOOR floor — a real run would stop here." >&2
 
+# Cron fires on a schedule; a desk does not get taken on one. Sleep a random slice of the interval
+# before touching the chain so the timestamps are irregular.
+#
+# **Before the state is read, not after.** This used to sleep further down, so every decision below
+# was made on reserves and a book up to fifteen minutes old and then acted on — the 16:03 fill was
+# chosen against a pool 58.2 bps off L1 and executed against one 63.7 bps off. Harmless there, and
+# not harmless in general: the side flips at the edge of the band, and the inventory floor is a
+# statement about reserves *now*. A stale read is the one thing a floor cannot be built on.
+if [ "$JITTER_MAX_SEC" -gt 0 ] && [ "$DRY_RUN" != "1" ]; then
+  J=$(( RANDOM * RANDOM % JITTER_MAX_SEC ))
+  echo "jitter ${J}s"; sleep "$J"
+fi
+
 # --- what the pool looks like now, and which way it needs to go ------------------------------
 read -r BASE QUOTE PERP PXNUM PXDEN < <(
   cast call "$DESK" 'params()((address,address,uint32,uint64,uint64,uint16,uint16,uint16,address,uint32,uint128,uint128,uint128))' \
@@ -137,17 +150,10 @@ if [ "$DRY_RUN" = "1" ]; then
   exit 0
 fi
 
-# Cron fires on a schedule; a desk does not get taken on one. Sleep a random slice of the interval
-# before touching the chain so the timestamps are irregular.
-if [ "$JITTER_MAX_SEC" -gt 0 ]; then
-  J=$(( RANDOM * RANDOM % JITTER_MAX_SEC ))
-  echo "jitter ${J}s"; sleep "$J"
-fi
-
 # The poke cadence signs from a key that may be this one, and HyperEVM rejects a nonce ahead of
 # the account rather than queueing it — two of our own scripts sending at once is a lost
-# transaction, not a delay. Taken after the jitter sleep, so a 40-minute wait here is not a
-# 40-minute hole in the book series.
+# transaction, not a delay. Taken after the jitter sleep, so a long wait here is not a long hole
+# in the book series; the poke gives up on a minute after twenty seconds rather than queueing.
 # A fixed path, not $XDG_RUNTIME_DIR: cron has no XDG_RUNTIME_DIR and a login shell does, so a
 # variable one is two different locks and no exclusion at all between the cron job and a hand run.
 exec 9>"$HOME/.config/coldcascade/send.lock"
