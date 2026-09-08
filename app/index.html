@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Vercel serves /app and redirects /app/index.html to it, both without a trailing slash; from
+     that base every relative asset (./src/console.js, ../results/…) resolves one level up and
+     404s. Pinning the base keeps all three URL forms — /app, /app/, /app/index.html — working. -->
+<base href="/app/">
 <title>coldcascade — a maker that reads the book</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
