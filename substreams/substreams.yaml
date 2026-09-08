@@ -1,0 +1,47 @@
+specVersion: v0.1.0
+package:
+  name: coldcascade
+  version: v0.1.0
+  description: Fills, books, maps and markouts from the coldcascade desk on HyperEVM
+  url: https://coldcascade.vercel.app
+
+protobuf:
+  files:
+    - desk.proto
+  importPaths:
+    - ./proto
+
+binaries:
+  default:
+    type: wasm/rust-v1
+    file: ./target/wasm32-unknown-unknown/release/coldcascade_substreams.wasm
+
+modules:
+  - name: index_desk_events
+    kind: blockIndex
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:sf.substreams.index.v1.Keys
+    initialBlock: 45135453
+    doc: |
+      One key per contract that spoke in this block. The desk went live at 45135453 and the
+      chain is at 45.3M, so a full scan is a quarter of a million blocks of which a handful
+      contain anything of ours. The index lets the endpoint skip the rest.
+
+  - name: desk_events
+    kind: map
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:coldcascade.v1.DeskEvents
+    initialBlock: 45135453
+    blockFilter:
+      module: index_desk_events
+      query:
+        string: contract:deskhooks || contract:bookcache || contract:maporacle || contract:markoutledger
+    doc: |
+      Fills, books, maps and markouts from the four coldcascade contracts on chain 999,
+      decoded into one message per block. Blocks with none of them are not emitted.
+
+network: hyperevm

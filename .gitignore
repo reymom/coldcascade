@@ -20,3 +20,8 @@ AGENTS.md
 *.local.md
 tape/.cache/
 .vercel
+
+# the wasm build tree; the .spkg it produces is committed because it is the artifact
+substreams/target/
+# prost output; build.rs regenerates it from proto/desk.proto on every build
+substreams/src/pb/

@@ -33,3 +33,7 @@
 /remappings.txt
 /package.json
 /yarn.lock
+
+# the Substreams package: a Rust crate and a 230KB wasm module. Vercel serves the page, and the
+# page reads results/markouts.json — the keeper's output, not its build tree.
+/substreams/

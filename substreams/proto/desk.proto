@@ -1,0 +1,79 @@
+syntax = "proto3";
+package coldcascade.v1;
+
+// One block's worth of everything the desk said about itself.
+//
+// Four logs, one shape. A judge reading this should be able to see the join the keeper does:
+// a Fill carries the book the quote read *at the instant it filled*, and a Booked carries the
+// book at some later instant. The markout is the difference, and it needs both sides.
+message DeskEvents {
+  uint64 block_number = 1;
+  string block_hash = 2;
+  uint64 timestamp = 3;          // unix seconds, the chain's clock
+
+  repeated Fill fills = 4;
+  repeated Booked books = 5;
+  repeated MapUpdated maps = 6;
+  repeated Markout markouts = 7;
+}
+
+// DeskHooks.Fill — emitted by the maker hook after the router has already paid the taker.
+// The four book words are the ones CoreQuote read while pricing this very swap; a book that
+// could not be read is emitted as four zeros, which is why `book_ok` exists.
+message Fill {
+  string tx_hash = 1;
+  uint64 log_index = 2;
+
+  string order_hash = 3;         // the Aqua strategy hash — which desk program filled
+  string maker = 4;
+  string taker = 5;
+  string token_in = 6;           // in/out are from the *taker's* side, as the router sees them
+  string token_out = 7;
+  string amount_in = 8;          // uint256, decimal string
+  string amount_out = 9;
+
+  uint64 bid = 10;               // raw L1 words, scale 10^(6 - szDecimals)
+  uint64 ask = 11;
+  uint64 mark = 12;
+  uint64 oracle = 13;
+  string map_below = 14;         // uint128 forced notional within 1% of mark
+  string map_above = 15;
+  bool book_ok = 16;             // false when all four words are zero: unreadable, not zero-priced
+}
+
+// BookCache.Booked — the L1 book, written into a log while it was current, because the
+// HyperCore precompiles ignore the block tag and there is no archive read for them.
+message Booked {
+  string tx_hash = 1;
+  uint64 log_index = 2;
+  uint32 perp_index = 3;
+  uint64 bid = 4;
+  uint64 ask = 5;
+  uint64 mark = 6;
+  uint64 oracle = 7;
+  uint64 l1_block = 8;
+  string poker = 9;
+}
+
+// MapOracle.MapUpdated — the one input the desk takes on trust.
+message MapUpdated {
+  string tx_hash = 1;
+  uint64 log_index = 2;
+  uint32 perp_index = 3;
+  string below_notional = 4;
+  string above_notional = 5;
+  uint64 updated_at = 6;
+}
+
+// MarkoutLedger.Markout — the keeper's own decision, written back to the chain. This is the
+// half that closes the loop: the stream is read, a number is computed, and the number lands
+// here where the stream picks it up again.
+message Markout {
+  string tx_hash = 1;
+  uint64 log_index = 2;
+  string order_hash = 3;
+  string fill_id = 4;
+  uint32 horizon_minutes = 5;
+  string bps = 6;                // int256, decimal string, signed from the maker's side
+  uint64 posted_at = 7;
+}
