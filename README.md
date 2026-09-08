@@ -467,6 +467,14 @@ python3 -m http.server 8000   # then http://localhost:8000/app/
   points of the capital deployed. It is a signed margin and not a multiple, because a multiple has
   no denominator once the control loses money on what it absorbed — which is what a maker priced
   before the trade does in a cascade, and what both AMM lines do here.
+- **The same rule as a Uniswap v4 hook, in `test/v4/`, deployed nowhere.** `test/v4/CoreQuoteHook.sol`
+  wraps the deployed `CoreQuote` in a `beforeSwap` with a return delta, `test/v4/PoolManagerStub.sol`
+  reproduces v4's delta accounting around it, and `test/CoreQuoteHook.t.sol` asserts that the hook
+  and the Extruction agree to the unit over a fuzzed book, that the round trip against L1 still
+  never profits, that the same hook without the returns-delta bit leaves the pool's curve paying
+  1 352 bps after the 12% move, and that a feed-shaped reader cannot lean. The rule they share is
+  `src/libs/Regime.sol:49-68` and `src/CoreQuote.sol:60-110`. What the exercise found is in
+  [`FEEDBACK.md`](FEEDBACK.md).
 
 ## Prior art
 
