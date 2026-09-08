@@ -4,6 +4,7 @@ cache/
 broadcast/
 .env
 keeper/.venv/
+keeper/.cache/
 keeper/**/__pycache__/
 subgraph/build/
 subgraph/generated/

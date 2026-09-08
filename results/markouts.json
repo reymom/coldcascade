@@ -1,0 +1,295 @@
+{
+  "generatedAt": 1788873450,
+  "chainId": 999,
+  "source": {
+    "provider": "The Graph Market for Substreams",
+    "endpoint": "hyperevm.substreams.pinax.network:443",
+    "package": "coldcascade-v0.1.0.spkg",
+    "module": "desk_events",
+    "startBlock": 45135453,
+    "stopBlock": 45360770
+  },
+  "horizonsMinutes": [
+    5,
+    15,
+    60
+  ],
+  "toleranceSeconds": 180,
+  "books": {
+    "count": 51,
+    "firstAt": 1788870223,
+    "lastAt": 1788873443,
+    "medianGapSeconds": 60.0
+  },
+  "summary": {
+    "fills": 9,
+    "fillsWithCompleteHorizons": 0,
+    "firstFillAt": 1788708512,
+    "lastFillAt": 1788872591,
+    "spanDays": 1.9,
+    "byHorizon": {
+      "5": {
+        "n": 1,
+        "meanBps": 0.637,
+        "medianBps": 0.637,
+        "minBps": 0.637,
+        "maxBps": 0.637
+      },
+      "15": {
+        "n": 0,
+        "meanBps": null,
+        "medianBps": null,
+        "minBps": null,
+        "maxBps": null
+      },
+      "60": {
+        "n": 0,
+        "meanBps": null,
+        "medianBps": null,
+        "minBps": null,
+        "maxBps": null
+      }
+    },
+    "vsTouch": {
+      "n": 9,
+      "meanBps": 34.618,
+      "medianBps": -20.0,
+      "minBps": -20.0,
+      "maxBps": 156.536
+    }
+  },
+  "fills": [
+    {
+      "fillId": "0x9407579f28988f85c0655637d5437476bf5371b59de63602b13936b100000033",
+      "txHash": "0x9407579f28988f85c0655637d5437476bf5371b59de63602b13936b10993537c",
+      "logIndex": 51,
+      "block": 45193088,
+      "at": 1788708512,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0xfe156a611f84d36b6a697a77c0295a00fbc14169",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "1242236",
+      "quoteRaw": "1000000000",
+      "bookOk": true,
+      "bidRaw": 796140,
+      "askRaw": 796150,
+      "midRaw": 796145.0,
+      "touchRaw": 796150,
+      "vsTouchBps": 111.16,
+      "markouts": {
+        "5": null,
+        "15": null,
+        "60": null
+      }
+    },
+    {
+      "fillId": "0xfaf1b6c68aeae9eaed9ff49acc54d0ac7081f1537b602f560967923800000023",
+      "txHash": "0xfaf1b6c68aeae9eaed9ff49acc54d0ac7081f1537b602f5609679238c22dab20",
+      "logIndex": 35,
+      "block": 45195770,
+      "at": 1788711150,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x9d597ddfb34654592ab9ae6c1185bca7fc4e6e85",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "1000000",
+      "quoteRaw": "795396020",
+      "bookOk": true,
+      "bidRaw": 796990,
+      "askRaw": 797000,
+      "midRaw": 796995.0,
+      "touchRaw": 796990,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": null,
+        "15": null,
+        "60": null
+      }
+    },
+    {
+      "fillId": "0x831e22322346252ef6eeb618f59ef9f1a8e36de9d0e92b0fe3df15ac0000000b",
+      "txHash": "0x831e22322346252ef6eeb618f59ef9f1a8e36de9d0e92b0fe3df15aca47ab431",
+      "logIndex": 11,
+      "block": 45270883,
+      "at": 1788785032,
+      "desk": "0xb4ad3fc0702145fb7a1de72576968f9a30987a7f",
+      "deskName": "hedgedDesk",
+      "taker": "0xfe156a611f84d36b6a697a77c0295a00fbc14169",
+      "orderHash": "0xceabb05f76e516684e08819652fced9bcb708a5c5eb8c58107a1c42846a8c14a",
+      "makerBuysBase": true,
+      "baseRaw": "17000",
+      "quoteRaw": "13478299",
+      "bookOk": true,
+      "bidRaw": 794430,
+      "askRaw": 794440,
+      "midRaw": 794435.0,
+      "touchRaw": 794430,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": null,
+        "15": null,
+        "60": null
+      }
+    },
+    {
+      "fillId": "0xddc403c2d3f25ff95f616c06420f5cb131ad182033e911c87047431c00000012",
+      "txHash": "0xddc403c2d3f25ff95f616c06420f5cb131ad182033e911c87047431c1487c1b0",
+      "logIndex": 18,
+      "block": 45276523,
+      "at": 1788790579,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "423128",
+      "quoteRaw": "340066625",
+      "bookOk": true,
+      "bidRaw": 791300,
+      "askRaw": 791310,
+      "midRaw": 791305.0,
+      "touchRaw": 791310,
+      "vsTouchBps": 156.536,
+      "markouts": {
+        "5": null,
+        "15": null,
+        "60": null
+      }
+    },
+    {
+      "fillId": "0x535b01809bc11ceca3d78941cc438ab0901d55e632509f76c89feb4000000022",
+      "txHash": "0x535b01809bc11ceca3d78941cc438ab0901d55e632509f76c89feb4084283971",
+      "logIndex": 34,
+      "block": 45306959,
+      "at": 1788820516,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "613417",
+      "quoteRaw": "483673084",
+      "bookOk": true,
+      "bidRaw": 790070,
+      "askRaw": 790080,
+      "midRaw": 790075.0,
+      "touchRaw": 790070,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": null,
+        "15": null,
+        "60": null
+      }
+    },
+    {
+      "fillId": "0x3efaaaa85c3da6e5637ca3c80d4c5ff9b9e4586dfbc5a8b2dd71f9ae00000002",
+      "txHash": "0x3efaaaa85c3da6e5637ca3c80d4c5ff9b9e4586dfbc5a8b2dd71f9aed979f513",
+      "logIndex": 2,
+      "block": 45315994,
+      "at": 1788829403,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "514669",
+      "quoteRaw": "413062873",
+      "bookOk": true,
+      "bidRaw": 792750,
+      "askRaw": 792760,
+      "midRaw": 792755.0,
+      "touchRaw": 792760,
+      "vsTouchBps": 123.867,
+      "markouts": {
+        "5": null,
+        "15": null,
+        "60": null
+      }
+    },
+    {
+      "fillId": "0x1b783054c355d19a0610724581fb73af64f1432a6614e7fcaa86095c00000002",
+      "txHash": "0x1b783054c355d19a0610724581fb73af64f1432a6614e7fcaa86095cdf219f1b",
+      "logIndex": 2,
+      "block": 45328508,
+      "at": 1788841712,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "879161",
+      "quoteRaw": "691419632",
+      "bookOk": true,
+      "bidRaw": 788030,
+      "askRaw": 788040,
+      "midRaw": 788035.0,
+      "touchRaw": 788030,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": null,
+        "15": null,
+        "60": null
+      }
+    },
+    {
+      "fillId": "0x05fe5b10bfae0000103b6d8aeb38e338175e5560e5c0f02cc4e0362d00000002",
+      "txHash": "0x05fe5b10bfae0000103b6d8aeb38e338175e5560e5c0f02cc4e0362de59c51b8",
+      "logIndex": 2,
+      "block": 45338605,
+      "at": 1788851643,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "3364111",
+      "quoteRaw": "2631415899",
+      "bookOk": true,
+      "bidRaw": 783770,
+      "askRaw": 783780,
+      "midRaw": 783775.0,
+      "touchRaw": 783770,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": null,
+        "15": null,
+        "60": null
+      }
+    },
+    {
+      "fillId": "0xa6751245c6580a6c05bec1b63a25cc1b8a94a861d9ac4a48e00caf0e00000005",
+      "txHash": "0xa6751245c6580a6c05bec1b63a25cc1b8a94a861d9ac4a48e00caf0e0d9351e7",
+      "logIndex": 5,
+      "block": 45359902,
+      "at": 1788872591,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "2950162",
+      "quoteRaw": "2319918201",
+      "bookOk": true,
+      "bidRaw": 784790,
+      "askRaw": 784800,
+      "midRaw": 784795.0,
+      "touchRaw": 784800,
+      "vsTouchBps": 20.002,
+      "markouts": {
+        "5": {
+          "bps": 0.637,
+          "midRaw": 784745.0,
+          "bookAt": 1788872944,
+          "bookBlock": 45360261,
+          "lagSeconds": 53
+        },
+        "15": null,
+        "60": null
+      }
+    }
+  ],
+  "postedThisRun": []
+}

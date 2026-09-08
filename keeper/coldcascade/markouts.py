@@ -106,7 +106,7 @@ def collect(dep: Deployment, start_block: int, stop_block: int) -> Corpus:
     c = Corpus(stop_block=stop_block)
     base_of: dict[str, str] = {}
 
-    for blk in substreams.stream(start_block, stop_block):
+    for blk in substreams.cached_stream(start_block, stop_block):
         t = int(blk["timestamp"])
         block = int(blk["blockNumber"])
 
@@ -197,14 +197,17 @@ def vs_touch_bps(fill: Fill, px_num: int, px_den: int) -> float:
 # --- the loop ---------------------------------------------------------------------------------
 
 def _stats(xs: list[float]) -> dict:
+    """min and max, not worst and best. For a markout the minimum *is* the worst, but the same
+    helper describes `vsTouch`, where a large positive number is the curve winning rather than
+    the desk doing well, and a label that picks a side there would be editorialising."""
     if not xs:
-        return {"n": 0, "meanBps": None, "medianBps": None, "worstBps": None, "bestBps": None}
+        return {"n": 0, "meanBps": None, "medianBps": None, "minBps": None, "maxBps": None}
     return {
         "n": len(xs),
         "meanBps": round(statistics.fmean(xs), 3),
         "medianBps": round(statistics.median(xs), 3),
-        "worstBps": round(min(xs), 3),
-        "bestBps": round(max(xs), 3),
+        "minBps": round(min(xs), 3),
+        "maxBps": round(max(xs), 3),
     }
 
 
@@ -280,6 +283,9 @@ def run(
                 "lagSeconds": b.t - (f.t + h * 60),
             }
             if (f.fill_id, h) not in c.posted:
+                # `post` takes int256 bps and the ledger's unit is a basis point, so the number
+                # that reaches the chain is rounded. The unrounded one stays in this artifact:
+                # the chain is where the decision is recorded, not where the precision lives.
                 to_post.append((f, h, int(round(bps))))
 
         rows.append(row)

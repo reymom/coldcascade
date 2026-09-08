@@ -78,7 +78,7 @@ def main(argv: list[str] | None = None) -> int:
             st = s["byHorizon"][str(h)]
             if st["n"]:
                 print(f"  {h:>2}m  n={st['n']:<4} mean {st['meanBps']:+.2f} bps  "
-                      f"median {st['medianBps']:+.2f}  worst {st['worstBps']:+.2f}")
+                      f"median {st['medianBps']:+.2f}  worst {st['minBps']:+.2f}")
             else:
                 print(f"  {h:>2}m  no fill yet has a book that close to it")
         return 0

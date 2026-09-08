@@ -83,3 +83,50 @@ def stream(start_block: int, stop_block: int, spkg: Path | None = None) -> Itera
     if p.returncode != 0:
         # Keep it. A swallowed auth failure here is indistinguishable from a desk nobody traded.
         raise StreamError(f"substreams run exited {p.returncode}: {(p.stderr.read() or '').strip()}")
+
+
+# --- the cache --------------------------------------------------------------------------------
+
+CACHE = ROOT / "keeper" / ".cache" / "desk_events.jsonl"
+
+# Blocks this far behind the head are re-streamed on every run rather than trusted from cache.
+# HyperEVM finalises fast, but a cache is a claim about history and the cheap way to keep that
+# claim true is to stop making it about the last few minutes.
+REORG_MARGIN_BLOCKS = 400
+
+
+def cached_stream(start_block: int, stop_block: int, cache: Path | None = None) -> list[dict]:
+    """The same blocks as `stream`, but only the new ones cross the network.
+
+    A full scan is a quarter of a million blocks, four minutes and eighty megabytes of egress.
+    Run on a twenty-minute cadence that is most of a day of traffic to re-derive a corpus that
+    did not change. What did change is the tail, and the tail is what this re-reads.
+    """
+    cache = cache or CACHE
+    kept: dict[int, dict] = {}
+    if cache.exists():
+        for line in cache.read_text().splitlines():
+            if not line.strip():
+                continue
+            try:
+                blk = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            n = int(blk["blockNumber"])
+            if start_block <= n <= stop_block:
+                kept[n] = blk
+
+    frontier = max(kept) if kept else start_block - 1
+    resume = max(start_block, min(frontier + 1, stop_block - REORG_MARGIN_BLOCKS))
+    for n in [n for n in kept if n >= resume]:
+        del kept[n]
+
+    if resume <= stop_block:
+        print(f"  cache holds {len(kept)} blocks; streaming {resume} -> {stop_block}")
+        for blk in stream(resume, stop_block):
+            kept[int(blk["blockNumber"])] = blk
+
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    ordered = [kept[n] for n in sorted(kept)]
+    cache.write_text("".join(json.dumps(b, separators=(",", ":")) + "\n" for b in ordered))
+    return ordered

@@ -151,7 +151,7 @@ def send(
         cmd += ["--password-file", password_file]
 
     if dry_run:
-        print("  would send: " + " ".join(cmd[1:5]) + " " + " ".join(args))
+        print(f"  would send: {sig} {' '.join(args)} -> {to}")
         return None
 
     p = subprocess.run(cmd, capture_output=True, text=True)
