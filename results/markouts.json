@@ -1,5 +1,5 @@
 {
-  "generatedAt": 1788873901,
+  "generatedAt": 1788874110,
   "chainId": 999,
   "source": {
     "provider": "The Graph Market for Substreams",
@@ -7,7 +7,7 @@
     "package": "coldcascade-v0.1.0.spkg",
     "module": "desk_events",
     "startBlock": 45135453,
-    "stopBlock": 45361228
+    "stopBlock": 45361442
   },
   "horizonsMinutes": [
     5,
@@ -16,9 +16,9 @@
   ],
   "toleranceSeconds": 180,
   "books": {
-    "count": 58,
+    "count": 62,
     "firstAt": 1788870223,
-    "lastAt": 1788873844,
+    "lastAt": 1788874084,
     "medianGapSeconds": 60
   },
   "summary": {

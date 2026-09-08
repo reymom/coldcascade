@@ -14,6 +14,9 @@
 # 2. This file does NOT inherit .gitignore, and `vercel --prod` uploads the working
 #    directory rather than the git tree. So a secret git never sees still reaches a
 #    public host unless it is named here.
+# The CLI excludes it by default, but this file is the one that has to be right: the repo is
+# private until submission and `vercel --prod` uploads the working directory, not the git tree.
+/.git
 /.env*
 /.vercel
 /deployments/31337.json
