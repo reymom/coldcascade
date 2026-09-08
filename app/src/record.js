@@ -25,10 +25,21 @@ const CH = 240;   // the chart's height
 const DATES = 26; // the date axis row
 const SPINE = 34; // the book-series row
 
+// Out of the chart, by name. 0x17f1ab16… is the operatorDesk take that built the exposure the
+// hedge then covered: its price came from the reserves the strategy was shipped with — poolDev
+// +167,764 bps, another regime entirely — not from a quote the bound held against the book, so it
+// says nothing about the dead zone this chart exists to show. Left in place it just reads as the
+// desk handing a taker 84% under the book, when the taker was us. It stays in the artifact and in
+// the keeper's decision below; only the picture excludes it, and it says so next to the picture.
+const NOT_A_CLAMP_FILL = new Set([
+  "0x17f1ab1670e3175cf738e16efc7156e341253f13f9ec054a55de87c0150b3799",
+]);
+
 export async function mountRecord(root) {
   const ui = {
     chart: root.querySelector("#record-chart"),
     why: root.querySelector("#record-why"),
+    excluded: root.querySelector("#record-excluded"),
     decision: root.querySelector("#record-decision"),
     markouts: root.querySelector("#record-markouts"),
     foot: root.querySelector("#record-foot"),
@@ -71,7 +82,11 @@ export async function mountRecord(root) {
 }
 
 function render(ui, doc, ledger) {
-  const fills = (doc.fills ?? []).filter((f) => Number.isFinite(f.vsTouchBps) && Number.isFinite(f.at));
+  // allFills is the artifact — every fill the desks have signed, every desk included. fills is
+  // the chart — the ones whose price a quote set, which are the ones that speak about the clamp.
+  const allFills = (doc.fills ?? []).filter((f) => Number.isFinite(f.vsTouchBps) && Number.isFinite(f.at));
+  const excluded = allFills.filter((f) => NOT_A_CLAMP_FILL.has(f.txHash.toLowerCase()));
+  const fills = allFills.filter((f) => !NOT_A_CLAMP_FILL.has(f.txHash.toLowerCase()));
   const books = doc.books ?? {};
   const sum = doc.summary ?? {};
   const chain = chainFor(doc.chainId ?? 999, "");
@@ -175,11 +190,24 @@ function render(ui, doc, ledger) {
   ui.chart.innerHTML =
     `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="every fill the desk has signed against the book's touch, over days">${parts.join("")}</svg>`;
 
+  // What the picture leaves out, said next to the picture. The fill stays in the artifact and in
+  // the keeper's decision below — the exclusion is only about what the chart can claim.
+  if (ui.excluded) {
+    ui.excluded.innerHTML = excluded.map((f) => {
+      const link = tx(f.txHash);
+      const hash = link ? `<a href="${link}" target="_blank" rel="noreferrer">${short(f.txHash)}</a>` : short(f.txHash);
+      return `Out of the chart by name: ${hash}, the <b>${escape(f.deskName)}</b> take that built ` +
+        `the exposure the hedge then covered — priced from the reserves the strategy was shipped ` +
+        `with (poolDev ${fmtDev(f.poolDevBps)} bps), not from a quote the bound held against the ` +
+        `book. It stays in the file, and in the keeper's decision below.`;
+    }).join(" ");
+  }
+
   // Why the series exists, and why it is young. The framing is precise because the imprecise
   // version — "the only archive of the book" — is false: this is four words a minute, not the
   // book, and Hyperliquid publishes its own L2 archive. What nothing else reproduces is the join:
   // the same stream, the same clock, the fill and the book five, fifteen and sixty minutes later.
-  const before = Number.isFinite(books.firstAt) ? fills.filter((f) => f.at < books.firstAt).length : 0;
+  const before = Number.isFinite(books.firstAt) ? allFills.filter((f) => f.at < books.firstAt).length : 0;
   ui.why.innerHTML = Number.isFinite(books.firstAt)
     ? `The book this quote reads is not HyperEVM state: the precompiles answer with the present ` +
       `whatever block tag you ask for — the official RPC documents the latest block only, and asking ` +
@@ -187,14 +215,14 @@ function render(ui, doc, ledger) {
       `contract logs, so the floor logs the book itself: permissionless, four words — bid, ask, mark, ` +
       `oracle — one poke a minute: <b>${books.count ?? "—"} pokes</b> so far, median gap ` +
       `${books.medianGapSeconds ?? "—"} s, started ${when(books.firstAt)}. That is why the record ` +
-      `begins there, and why ${before} of the ${fills.length} fills are marked <b>before the ` +
+      `begins there, and why ${before} of the ${allFills.length} fills are marked <b>before the ` +
       `series</b> rather than given a number they cannot have. The same stream then joins each fill ` +
       `to the book five, fifteen and sixty minutes later — that join is what the series is for. It ` +
       `cannot be reconstructed from Hyperliquid's S3 archive or its WebSocket: another domain, ` +
       `another scale, another clock.`
     : "";
 
-  renderDecision(ui, doc, fills, ledger, chain);
+  renderDecision(ui, doc, allFills, ledger, chain);
 
   // The markouts: post-fill drift, small n written as the count, every missing horizon named.
   // Not adverse selection — the flow is this repository's own, so there is no informed taker to
@@ -226,14 +254,20 @@ function render(ui, doc, ledger) {
     `carries no information and this is drift, not adverse selection and not an edge claim.</p>` +
     `<div class="record-mk-grid">${cells.join("")}</div>`;
 
-  // The file's own freshness and provenance — saying what the artifact is costs zero.
+  // The file's own freshness and provenance — saying what the artifact is costs zero. The desks
+  // are named as they are in the file, all of them, with their counts: naming only the first
+  // fill's desk while plotting the rest was the label lying about the picture.
   const age = Math.max(0, Math.round(now - (doc.generatedAt ?? now)));
-  const deskName = fills[0]?.deskName ?? "—";
-  const deskAddr = fills[0]?.desk ? short(fills[0].desk) : "";
+  const byDesk = new Map();
+  for (const f of allFills) byDesk.set(f.deskName, (byDesk.get(f.deskName) ?? 0) + 1);
+  const desksLine = [...byDesk.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([name, n]) => `<b>${escape(name)}</b> ${n}`)
+    .join(" · ");
   ui.foot.innerHTML =
     `generated <b>${ageText(age)}</b> · fills streamed by Substreams on The Graph Market (Pinax) · ` +
     `module ${escape(doc.source?.module ?? "—")} · blocks ${num(doc.source?.startBlock)}–${num(doc.source?.stopBlock)} · ` +
-    `desk <b>${escape(deskName)}</b>${deskAddr ? ` ${deskAddr}` : ""} · a mock pair · chain ${doc.chainId ?? "—"}`;
+    `desks ${desksLine || "—"} · a mock pair · chain ${doc.chainId ?? "—"}`;
 }
 
 // The keeper's decision, made visible. The scatter is the price claim; this panel is the loop the
@@ -350,6 +384,7 @@ const fmtBps = (v) =>
   : `<span>+${v.toFixed(2)}</span>`;
 
 const fmtVs = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(2)}`;
+const fmtDev = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(Math.round(v)).toLocaleString("en-US")}`;
 const fmtZone = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(2));
 const when = (t) =>
   new Date(t * 1000).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });

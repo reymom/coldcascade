@@ -468,18 +468,20 @@ table.sweep td.now { color: var(--desk); }
       <section class="record" id="record">
         <h2>the record — the same band, over days</h2>
         <p class="strip-caption" style="max-width:78ch">The Floor's strip is one block; this is the
-          same distance — a fill's price against the book's own touch — for every fill the desk has
+          same distance — a fill's price against the book's own touch — for every fill the desks have
           signed. The grey band is the dead zone: the desk's price is <b>min(curve, bound)</b>, the
           bound never improves on the book, so nothing can land inside it, and when the pool drifts
           the curve is already outside and rules. The dots pinned on the edge are the bound doing
-          its work. Fills of the <b>demo desk</b>, over a mock pair, sent on a schedule by this repository — each dot is one fill; click it
-          for the transaction.</p>
+          its work. The <b>demo desk</b>'s fills are sent on a schedule by this repository; the
+          <b>hedged desk</b>'s is the take the cover then hedged. All over a mock pair — each dot
+          is one fill; click it for the transaction.</p>
         <div class="record-chart" id="record-chart"></div>
         <div class="legend">
           <span><i class="swatch sw-bid"></i>the desk bought base</span>
           <span><i class="swatch sw-ask"></i>the desk sold base</span>
           <span><i class="swatch sw-l1"></i>the dead zone</span>
         </div>
+        <p class="out" id="record-excluded"></p>
         <p class="out" id="record-status"></p>
         <p class="record-why" id="record-why"></p>
         <div id="record-decision"></div>
