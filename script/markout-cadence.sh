@@ -11,6 +11,11 @@
 # it just does not send. That is deliberate: the page should never go stale because a keystore
 # password is missing.
 #
+# It refreshes results/markouts.json **on disk**. The copy the deployed page serves is whatever
+# was in the working tree at the last `vercel --prod`, so the live artifact is as old as the last
+# deploy, not as old as the last pass. Deliberate: a cron that deploys would push whatever happens
+# to be uncommitted at the time.
+#
 #   ./script/markout-cadence.sh
 #   DRY_RUN=1 ./script/markout-cadence.sh     # never send, whatever keys are present
 set -euo pipefail
