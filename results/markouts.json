@@ -1,5 +1,5 @@
 {
-  "generatedAt": 1788874206,
+  "generatedAt": 1788875130,
   "chainId": 999,
   "source": {
     "provider": "The Graph Market for Substreams",
@@ -7,18 +7,22 @@
     "package": "coldcascade-v0.1.0.spkg",
     "module": "desk_events",
     "startBlock": 45135453,
-    "stopBlock": 45361539
+    "stopBlock": 45362478
   },
   "horizonsMinutes": [
     5,
     15,
     60
   ],
-  "toleranceSeconds": 180,
+  "toleranceSeconds": {
+    "5": 120,
+    "15": 120,
+    "60": 360
+  },
   "books": {
-    "count": 63,
+    "count": 69,
     "firstAt": 1788870223,
-    "lastAt": 1788874144,
+    "lastAt": 1788874745,
     "medianGapSeconds": 60.0
   },
   "summary": {
@@ -29,10 +33,10 @@
     "spanDays": 1.92,
     "byHorizon": {
       "5": {
-        "n": 1,
-        "meanBps": 0.637,
-        "medianBps": 0.637,
-        "minBps": 0.637,
+        "n": 2,
+        "meanBps": -16.469,
+        "medianBps": -16.469,
+        "minBps": -33.575,
         "maxBps": 0.637
       },
       "15": {
@@ -284,14 +288,16 @@
           "midRaw": 784745.0,
           "bookAt": 1788872944,
           "bookBlock": 45360261,
-          "lagSeconds": 53
+          "lagSeconds": 53,
+          "toleranceSeconds": 120
         },
         "15": {
           "bps": 9.429,
           "midRaw": 784055.0,
           "bookAt": 1788873545,
           "bookBlock": 45360872,
-          "lagSeconds": 54
+          "lagSeconds": 54,
+          "toleranceSeconds": 120
         },
         "60": null
       }
@@ -316,11 +322,26 @@
       "touchRaw": 783310,
       "vsTouchBps": -20.0,
       "markouts": {
-        "5": null,
+        "5": {
+          "bps": -33.575,
+          "midRaw": 780685.0,
+          "bookAt": 1788874578,
+          "bookBlock": 45361922,
+          "lagSeconds": 113,
+          "toleranceSeconds": 120
+        },
         "15": null,
         "60": null
       }
     }
   ],
-  "postedThisRun": []
+  "postedThisRun": [],
+  "failedThisRun": [
+    {
+      "fillId": "0xe765976dd9180bedbb7e3524645e27b4fc4c2cb7a2fdd67b76bc453000000002",
+      "horizonMinutes": 5,
+      "bps": -34,
+      "error": "cast send failed (1): Error: server returned an error response: error code -32000: replacement transaction underpriced"
+    }
+  ]
 }

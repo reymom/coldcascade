@@ -32,11 +32,21 @@ from .chain import ChainError, Deployment, desk_params
 
 HORIZONS_MIN = (5, 15, 60)
 
-# The book series is written one poke a minute. A horizon is honest only if a book landed close
-# to it: the first Booked at or after t+h, and no later than this. Without the bound, a fill from
-# before the cadence started would be "marked out at 5 minutes" against a book five hours later,
-# which is not a five-minute markout — it is an arbitrary one wearing the label.
-TOLERANCE_S = 180
+# The book series is written one poke a minute. A horizon is honest only if a book landed close to
+# it: the first Booked at or after t+h, and no later than the tolerance. Without the bound, a fill
+# from before the cadence started would be "marked out at 5 minutes" against a book five hours
+# later, which is not a five-minute markout — it is an arbitrary one wearing the label.
+#
+# The tolerance scales with the horizon, because a flat one does not mean the same thing at both
+# ends: three minutes late on a five-minute markout is a 60% error and on a sixty-minute markout
+# it is 5%. So: never more than a tenth of the horizon, and never tighter than two poke intervals,
+# since demanding better than the series can supply only throws away fills.
+TOLERANCE_FLOOR_S = 120
+TOLERANCE_FRACTION = 0.10
+
+
+def tolerance_s(horizon_min: int) -> int:
+    return max(TOLERANCE_FLOOR_S, int(horizon_min * 60 * TOLERANCE_FRACTION))
 
 
 @dataclass(frozen=True)
@@ -163,11 +173,11 @@ def collect(dep: Deployment, start_block: int, stop_block: int) -> Corpus:
     return c
 
 
-def book_at(books: list[Book], target_t: int, tolerance_s: int = TOLERANCE_S) -> Book | None:
+def book_at(books: list[Book], target_t: int, tolerance: int) -> Book | None:
     """The first book at or after `target_t`, if one landed inside the tolerance."""
     for b in books:                       # sorted; the corpus is small enough that this is honest
         if b.t >= target_t:
-            return b if b.t - target_t <= tolerance_s else None
+            return b if b.t - target_t <= tolerance else None
     return None
 
 
@@ -270,7 +280,7 @@ def run(
             row["vsTouchBps"] = round(vs_touch_bps(f, px_num, px_den), 3)
 
         for h in HORIZONS_MIN:
-            b = book_at(c.books, f.t + h * 60) if f.book_ok else None
+            b = book_at(c.books, f.t + h * 60, tolerance_s(h)) if f.book_ok else None
             if b is None:
                 row["markouts"][str(h)] = None
                 continue
@@ -281,6 +291,7 @@ def run(
                 "bookAt": b.t,
                 "bookBlock": b.block,
                 "lagSeconds": b.t - (f.t + h * 60),
+                "toleranceSeconds": tolerance_s(h),
             }
             if (f.fill_id, h) not in c.posted:
                 # `post` takes int256 bps and the ledger's unit is a basis point, so the number
@@ -306,7 +317,7 @@ def run(
             "stopBlock": stop_block,
         },
         "horizonsMinutes": list(HORIZONS_MIN),
-        "toleranceSeconds": TOLERANCE_S,
+        "toleranceSeconds": {str(h): tolerance_s(h) for h in HORIZONS_MIN},
         "books": {
             "count": len(c.books),
             "firstAt": c.books[0].t if c.books else None,
@@ -327,20 +338,33 @@ def run(
         },
         "fills": rows,
         "postedThisRun": [],
+        "failedThisRun": [],
     }
 
     if limit is not None:
         to_post = to_post[:limit]
     print(f"  {complete}/{len(rows)} fills carry a complete 5/15/60 · {len(to_post)} markouts to post")
 
+    # Posting is best effort; writing the artifact is not. A send that fails must not take the
+    # page's data down with it — the join already happened, the numbers are already correct, and
+    # whatever did not get posted is simply still unposted on the next pass, which the stream
+    # itself will confirm. Failing the whole run here once lost an artifact update to one
+    # `replacement transaction underpriced`.
     for f, h, bps in to_post:
         print(f"  post {f.fill_id[:14]}… h={h:>2}m bps={bps:>5}")
-        tx = send(
-            dep, dep.markout_ledger,
-            "post(bytes32,bytes32,uint8,int256)",
-            [f.order_hash, f.fill_id, str(h), str(bps)],
-            account=account, password_file=password_file, dry_run=dry_run,
-        )
+        try:
+            tx = send(
+                dep, dep.markout_ledger,
+                "post(bytes32,bytes32,uint8,int256)",
+                [f.order_hash, f.fill_id, str(h), str(bps)],
+                account=account, password_file=password_file, dry_run=dry_run,
+            )
+        except ChainError as e:
+            print(f"    ! not posted: {e}")
+            doc["failedThisRun"].append(
+                {"fillId": f.fill_id, "horizonMinutes": h, "bps": bps, "error": str(e)}
+            )
+            continue
         if tx:
             doc["postedThisRun"].append(
                 {"fillId": f.fill_id, "horizonMinutes": h, "bps": bps, "txHash": tx}

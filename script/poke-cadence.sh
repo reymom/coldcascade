@@ -29,7 +29,18 @@ RPC="${HYPEREVM_RPC_URL:-https://rpc.hyperliquid.xyz/evm}"
 PERP="${PERP:-0}"
 LOG="${POKE_LOG:-$HOME/.config/coldcascade/poke.log}"
 DRY_RUN="${DRY_RUN:-0}"
-GAS_PRICE="${POKE_GAS_PRICE:-0.15gwei}"     # base fee on 999 is a flat 0.1 gwei; this is the margin
+# **Do not pin this.** 999's base fee sits at its 0.1 gwei floor almost all the time, which is
+# what made a flat 0.15 gwei look safe — and then at 15:27 on 8 Sep it went to 2.17 gwei for a few
+# minutes. A legacy transaction priced under the base fee is not rejected: it is *accepted into
+# the mempool and never mined*, so the nonce jams, every following minute resubmits a byte-identical
+# transaction, the node answers "already known", and the book series stops. It stopped for
+# nineteen minutes before anyone noticed, and nothing in the log said "gas".
+#
+# So: pay a quarter over the live base fee, never less than the floor, and above the cap decline
+# to poke at all. A gap in the series is recoverable; 1 440 pokes a day at 2 gwei is 0.15 HYPE a
+# day against a poster holding 0.147, and that is not.
+MIN_GAS_WEI="${POKE_MIN_GAS_WEI:-150000000}"      # 0.15 gwei
+MAX_GAS_WEI="${POKE_MAX_GAS_WEI:-1000000000}"     # 1 gwei; above this the minute is skipped
 ATTEMPTS="${POKE_ATTEMPTS:-3}"
 
 # The poster pays if its password is on disk, the taker otherwise. Both work — poke() is
@@ -53,7 +64,11 @@ POKER=$(cast wallet address --account "$ACCOUNT" --password-file "$PASSFILE")
 BAL=$(cast balance "$POKER" --rpc-url "$RPC")
 # ~1000 warm pokes of headroom at the pinned price. Below it, stop rather than starve whatever
 # else that account is for — on the taker, that is the fill cadence.
-FLOOR=8000000000000
+# 0.02 HYPE held back. Not "enough for one more poke" — enough that the markout keeper, which
+# signs from the same account, still has gas to post with after the book series has spent itself.
+# The first version of this line was 8e12 wei and its comment claimed a thousand pokes; 8e12 wei
+# is one poke.
+FLOOR=20000000000000000
 if [ "$BAL" -lt "$FLOOR" ]; then
   printf '%s\tSKIP\tperp=%s\tpoker=%s\tbalance=%s below floor %s\n' \
     "$(date -Is)" "$PERP" "$POKER" "$BAL" "$FLOOR" >>"$LOG"
@@ -90,6 +105,46 @@ fi
 #
 # And it retries: at one send a minute against a public RPC, a transient -32602 is a normal
 # Tuesday. A book series with a hole in it is worth five seconds of sleep.
+# What the network is charging right now, and whether it is worth paying.
+BASEFEE=$(cast base-fee --rpc-url "$RPC" 2>/dev/null || echo "")
+case "$BASEFEE" in ''|*[!0-9]*) BASEFEE="$MIN_GAS_WEI" ;; esac
+WANT=$(( BASEFEE * 5 / 4 ))
+[ "$WANT" -lt "$MIN_GAS_WEI" ] && WANT="$MIN_GAS_WEI"
+# Cron fires every minute; how many of those minutes are worth spending depends on the price.
+# Thinning the cadence instead of stopping it keeps the series alive through a spike and keeps the
+# daily cost flat at roughly 0.02 HYPE across every tier — one poke a minute at 0.25 gwei and one
+# every five at 1 gwei cost the same per day. Above the cap nothing is worth it.
+MINUTE=$(( 10#$(date +%M) ))
+if   [ "$WANT" -le 250000000 ];  then EVERY=1
+elif [ "$WANT" -le 600000000 ];  then EVERY=2
+elif [ "$WANT" -le "$MAX_GAS_WEI" ]; then EVERY=5
+else
+  printf '%s\tSKIP\tperp=%s\tgas too dear: base %s, would pay %s, cap %s\n' \
+    "$(date -Is)" "$PERP" "$BASEFEE" "$WANT" "$MAX_GAS_WEI" >>"$LOG"
+  echo "base fee $BASEFEE wei; skipping rather than paying $WANT" >&2
+  exit 0
+fi
+if [ "$EVERY" -gt 1 ] && [ $(( MINUTE % EVERY )) -ne 0 ]; then
+  printf '%s\tSKIP\tperp=%s\tthinned to 1-in-%s at %s wei\n' "$(date -Is)" "$PERP" "$EVERY" "$WANT" >>"$LOG"
+  echo "gas at $WANT wei; poking one minute in $EVERY" >&2
+  exit 0
+fi
+GAS_PRICE="${WANT}"
+
+# The lock stops two of our scripts *signing* at once. It does not stop one of them having left a
+# transaction in the mempool: a `cast send` that errors after the node accepted it releases the
+# lock with the nonce still in flight, and the next signer computes the same nonce and is told
+# `replacement transaction underpriced`. The node's own pending-vs-latest count is the answer to
+# "is there anything of mine still out there", and this minute is cheap to skip.
+PEND=$(cast rpc eth_getTransactionCount "$POKER" pending --rpc-url "$RPC" 2>/dev/null | tr -d '"')
+LAST=$(cast rpc eth_getTransactionCount "$POKER" latest  --rpc-url "$RPC" 2>/dev/null | tr -d '"')
+if [ -n "$PEND" ] && [ -n "$LAST" ] && [ "$PEND" != "$LAST" ]; then
+  printf '%s\tSKIP\tperp=%s\t%s has a transaction pending (%s vs %s)\n' \
+    "$(date -Is)" "$PERP" "$POKER" "$PEND" "$LAST" >>"$LOG"
+  echo "poker has a transaction pending; skipping this minute" >&2
+  exit 0
+fi
+
 # What was already true before this ran, so "did the poke land" is answerable afterwards.
 WAS=$(cast call "$BOOKCACHE" 'pokedAt(uint32)(uint64)' "$PERP" --rpc-url "$RPC" 2>/dev/null | awk '{print $1}')
 WAS="${WAS:-0}"

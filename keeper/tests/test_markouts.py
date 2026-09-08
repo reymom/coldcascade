@@ -14,7 +14,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from coldcascade.markouts import Fill, fill_id, markout_bps, vs_touch_bps  # noqa: E402
+from coldcascade.markouts import (  # noqa: E402
+    Fill, book_at, Book, fill_id, markout_bps, tolerance_s, vs_touch_bps,
+)
 
 
 def fill(maker_buys_base: bool, bid: int, ask: int, base: int = 1, quote: int = 1) -> Fill:
@@ -73,6 +75,37 @@ class VsTouchSign(unittest.TestCase):
         f = fill(maker_buys_base=True, bid=796_990, ask=797_000,
                  base=1_000_000, quote=795_396_020)
         self.assertAlmostEqual(vs_touch_bps(f, 1, 1000), -20.0, places=3)
+
+
+class Tolerance(unittest.TestCase):
+    """A horizon is only that horizon if a book landed near it."""
+
+    def test_isTheLargerOfTheFloorAndATenth(self):
+        """Not "never more than a tenth" — for short horizons the floor is larger and wins, which
+        is the honest bound: the series is one poke a minute and cannot do better."""
+        for h in (1, 5, 15, 60, 240):
+            self.assertEqual(tolerance_s(h), max(120, int(h * 60 * 0.10)))
+
+    def test_theTenthBindsOnceTheHorizonIsLongEnough(self):
+        self.assertEqual(tolerance_s(60), 360)      # a tenth of an hour
+        self.assertEqual(tolerance_s(5), 120)       # the floor, which is 40% of five minutes
+
+    def test_neverTighterThanTwoPokeIntervals(self):
+        """The series is one poke a minute; asking for better than it can supply only drops fills."""
+        for h in (1, 5, 15, 60):
+            self.assertGreaterEqual(tolerance_s(h), 120)
+
+    def test_bookAt_takesTheFirstOneInside(self):
+        books = [Book(t=t, block=t, bid=100, ask=102, mark=101, oracle=101) for t in (1000, 1060, 1120)]
+        self.assertEqual(book_at(books, 1050, 120).t, 1060)
+
+    def test_bookAt_refusesOneOutside(self):
+        books = [Book(t=t, block=t, bid=100, ask=102, mark=101, oracle=101) for t in (1000, 1400)]
+        self.assertIsNone(book_at(books, 1050, 120))
+
+    def test_bookAt_isNoneWhenTheSeriesHasNotReachedIt(self):
+        books = [Book(t=1000, block=1, bid=100, ask=102, mark=101, oracle=101)]
+        self.assertIsNone(book_at(books, 5000, 360))
 
 
 class FillId(unittest.TestCase):

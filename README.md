@@ -253,9 +253,17 @@ python -m coldcascade markouts            # stream, join, write results/markouts
 python -m coldcascade markouts --post     # and send what is new
 ```
 
-A horizon counts only if a book landed within 180 seconds of it. Without that bound a fill from
-before the series started would be marked out against a book five hours later and labelled a
-five-minute markout, which it is not.
+A horizon counts only if a book landed inside its tolerance, which is **the larger of two poke
+intervals and a tenth of the horizon**: 120 s at 5 and 15 minutes, 360 s at 60. A flat bound does
+not mean the same thing at both ends — three minutes late is a 60% error on a five-minute markout
+and 5% on a sixty-minute one — so the tenth is what binds once the horizon is long enough, and
+below that the floor binds, because the series is written one poke a minute and asking for better
+than it can supply only discards fills. At five minutes the floor is 40% of the horizon; the
+*actual* lag is normally under a minute, and every horizon in the artifact carries its own
+`lagSeconds` and `toleranceSeconds` so this is checkable rather than promised.
+
+Without the bound at all, a fill from before the series started would be marked out against a book
+five hours later and labelled five-minute, which it is not.
 
 **What the number is.** Adverse selection: the move of L1 mid from the side the desk ended up
 holding, in basis points, signed so that negative is the desk having been picked off. That is the

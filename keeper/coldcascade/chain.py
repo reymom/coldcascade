@@ -12,6 +12,7 @@ import json
 import os
 import shutil
 import subprocess
+import time
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -126,6 +127,55 @@ def desk_params(dep: Deployment, desk: str) -> dict:
 
 # --- the one write ----------------------------------------------------------------------------
 
+MIN_GAS_WEI = 150_000_000        # 0.15 gwei
+MAX_GAS_WEI = 1_000_000_000      # 1 gwei; above this a markout is not worth posting this minute
+
+
+def base_fee_wei(dep: Deployment) -> int:
+    block = rpc(dep, "eth_getBlockByNumber", ["latest", False])
+    return int(block["baseFeePerGas"], 16)
+
+
+def gas_price_wei(dep: Deployment) -> int:
+    """A quarter over the live base fee, never under the floor.
+
+    It **raises** above the cap rather than returning the cap. Clamping the price down is the
+    exact mistake that jams the account: a legacy transaction priced under the base fee is
+    accepted into the mempool and never mined, and every later send from that key is then
+    `already known`. Declining to send is recoverable; underpaying is not.
+    """
+    try:
+        base = base_fee_wei(dep)
+    except (ChainError, KeyError, TypeError):
+        base = MIN_GAS_WEI
+    want = max(MIN_GAS_WEI, base * 5 // 4)
+    if want > MAX_GAS_WEI:
+        raise ChainError(
+            f"base fee {base} wei would need {want}, above the {MAX_GAS_WEI} cap — not sending"
+        )
+    return want
+
+
+def wait_for_nonce_settled(dep: Deployment, address: str, timeout_s: int = 45) -> bool:
+    """Block until the account has nothing pending, or give up.
+
+    The send lock stops two of our scripts *signing* at once. It does not stop one of them from
+    having left a transaction in the mempool: a `cast send` that errors after the node accepted it
+    releases the lock with the nonce still in flight, and the next signer computes the same nonce
+    and is told `replacement transaction underpriced`. Comparing the pending and latest counts is
+    the node's own answer to "is there anything of mine still out there".
+    """
+    deadline = time.monotonic() + timeout_s
+    while True:
+        pending = int(rpc(dep, "eth_getTransactionCount", [address, "pending"]), 16)
+        latest = int(rpc(dep, "eth_getTransactionCount", [address, "latest"]), 16)
+        if pending == latest:
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(3)
+
+
 def send(
     dep: Deployment,
     to: str,
@@ -134,25 +184,39 @@ def send(
     account: str,
     password_file: str | None = None,
     dry_run: bool = True,
-    gas_price: str = "0.15gwei",
+    gas_price: str | None = None,
 ) -> str | None:
     """Signs with the named foundry keystore. Returns the tx hash, or None on a dry run.
 
     Delegated to `cast` rather than reimplemented: the key never leaves the keystore, the
     signing path is the same one every other script in this repository uses, and `--legacy` is
     required because the node otherwise supplies a priority fee above its own max fee.
+
+    The price is read off the chain unless one is passed. 999's base fee sits at its 0.1 gwei
+    floor almost all the time and then briefly does not — 2.17 gwei on 8 Sep — and a legacy
+    transaction priced under the base fee is not rejected, it is accepted into the mempool and
+    never mined. The nonce then jams and every later send is `already known`.
     """
     cast = shutil.which("cast") or str(Path.home() / ".foundry/bin/cast")
     if not Path(cast).exists():
         raise ChainError("cast not found (looked on PATH and in ~/.foundry/bin)")
+    price = gas_price or f"{gas_price_wei(dep)}"
     cmd = [cast, "send", to, sig, *args, "--rpc-url", dep.rpc_url,
-           "--legacy", "--gas-price", gas_price, "--account", account]
+           "--legacy", "--gas-price", price, "--account", account]
     if password_file:
         cmd += ["--password-file", password_file]
 
     if dry_run:
         print(f"  would send: {sig} {' '.join(args)} -> {to}")
         return None
+
+    sender = subprocess.run(
+        [cast, "wallet", "address", "--account", account]
+        + (["--password-file", password_file] if password_file else []),
+        capture_output=True, text=True,
+    ).stdout.strip()
+    if sender and not wait_for_nonce_settled(dep, sender):
+        raise ChainError(f"{sender} still has a transaction pending after 45s; not sending")
 
     p = subprocess.run(cmd, capture_output=True, text=True)
     if p.returncode != 0:
