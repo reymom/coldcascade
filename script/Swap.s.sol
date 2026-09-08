@@ -70,6 +70,11 @@ contract SwapScript is Addresses {
 
         string memory rpc = vm.envOr("CAST_RPC", string("$HYPEREVM_RPC_URL"));
         string memory auth = vm.envOr("CAST_AUTH", string("--account $DEPLOYER_ACCOUNT"));
+        // Pricing, kept separate from auth so a caller can pin it without pretending it is a
+        // credential. `--legacy` matters on 999: cast otherwise builds a 1559 transaction, takes
+        // maxPriorityFeePerGas from the node's own suggestion, and the node then rejects it as
+        // higher than the maxFeePerGas it was given.
+        string memory gas = vm.envOr("CAST_GAS", string("--legacy --gas-price 0.15gwei"));
 
         console.log("# 1. what the desk pays, priced off the live book");
         console.log(
@@ -98,7 +103,9 @@ contract SwapScript is Addresses {
                     " --rpc-url ",
                     rpc,
                     " ",
-                    auth
+                    auth,
+                    " ",
+                    gas
                 )
             );
             console.log("");
@@ -116,7 +123,9 @@ contract SwapScript is Addresses {
                 " --rpc-url ",
                 rpc,
                 " ",
-                auth
+                auth,
+                " ",
+                gas
             )
         );
         console.log("");
@@ -131,7 +140,9 @@ contract SwapScript is Addresses {
                 " --rpc-url ",
                 rpc,
                 " ",
-                auth
+                auth,
+                " ",
+                gas
             )
         );
     }

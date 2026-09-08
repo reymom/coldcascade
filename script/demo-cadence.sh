@@ -14,7 +14,8 @@
 #   DRY_RUN=1 ./script/demo-cadence.sh    # decide and print, send nothing
 #   JITTER_MAX_SEC=0 ./script/demo-cadence.sh
 #
-# Cycle cost is ~292k gas over three sends (mint 51k, approve 46k, swap 194k).
+# Cycle cost is ~262k gas over three sends (mint 34k, approve 46k, swap 182k), pinned by
+# Swap.s.sol to 0.15 gwei legacy: 3.9e-5 HYPE a cycle, measured on 999 on 8 Sep.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -30,7 +31,9 @@ RPC="${HYPEREVM_RPC_URL:-https://rpc.hyperliquid.xyz/evm}"
 ACCOUNT="${TAKER_ACCOUNT:-coldcascade-taker}"
 PASSFILE="${TAKER_PASSFILE:-$HOME/.config/coldcascade/taker.pass}"
 LOG="${CADENCE_LOG:-$HOME/.config/coldcascade/cadence.log}"
-JITTER_MAX_SEC="${JITTER_MAX_SEC:-2400}"   # cron fires on the hour; a take does not have to
+# Cron fires on the interval; a take does not have to. Kept below the 20-minute interval with
+# room to spare, so a jittered run cannot still be sleeping when the next one starts.
+JITTER_MAX_SEC="${JITTER_MAX_SEC:-900}"
 DRIFT_BAND_BPS="${DRIFT_BAND_BPS:-150}"    # beyond this the side is chosen to walk the pool back
 DRY_RUN="${DRY_RUN:-0}"
 

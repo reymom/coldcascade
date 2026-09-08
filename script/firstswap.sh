@@ -38,14 +38,29 @@ echo
 
 # Keep the script's own output: when it prints no commands the reason is in there, and a version of
 # this that sent stderr to /dev/null reported "no commands" for a PATH that had no forge on it.
-PRINTED=$(
-  DESK="$DESK" SELL_BASE="${SELL_BASE:-false}" AMOUNT="${AMOUNT:-1000000000}" TAKER="$TAKER" \
-  CAST_RPC="$RPC" CAST_AUTH="$AUTH" \
-  forge script script/Swap.s.sol --rpc-url "$RPC" 2>&1
-)
+# `|| RC=$?` and not a bare assignment. Under `set -e` a command substitution that exits non-zero
+# kills the script *at the assignment*, so the diagnostic below — which exists precisely for this
+# — could never run: the 8 Sep 12:30 cadence failure logged one header line and nothing else, and
+# the reason it died is not recoverable from the log. Same lesson as never sending stderr to
+# /dev/null, one layer up: a diagnostic you cannot reach is a diagnostic you do not have.
+#
+# forge script forks the node to run run(), so a transient RPC error is a normal failure mode
+# here rather than a broken program. Try twice before giving up on the cycle.
+RC=0
+for attempt in 1 2; do
+  RC=0
+  PRINTED=$(
+    DESK="$DESK" SELL_BASE="${SELL_BASE:-false}" AMOUNT="${AMOUNT:-1000000000}" TAKER="$TAKER" \
+    CAST_RPC="$RPC" CAST_AUTH="$AUTH" \
+    forge script script/Swap.s.sol --rpc-url "$RPC" 2>&1
+  ) || RC=$?
+  [ "$RC" = "0" ] && break
+  [ "$attempt" = "1" ] && { echo "Swap.s.sol exited $RC; retrying once in 10s" >&2; sleep 10; }
+done
+
 mapfile -t CMDS < <(printf '%s\n' "$PRINTED" | sed -n 's/^  \(cast [a-z]* .*\)$/\1/p')
-if [ "${#CMDS[@]}" -lt 3 ]; then
-  echo "Swap.s.sol printed no commands. What it did print:" >&2
+if [ "$RC" != "0" ] || [ "${#CMDS[@]}" -lt 3 ]; then
+  echo "Swap.s.sol exited $RC and printed ${#CMDS[@]} commands. What it did print:" >&2
   printf '%s\n' "$PRINTED" >&2
   exit 1
 fi
