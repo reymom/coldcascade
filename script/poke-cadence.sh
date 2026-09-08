@@ -70,8 +70,18 @@ fi
 # sending at once from the same key is a lost transaction, not a delay. Both take this lock.
 # A fixed path, not $XDG_RUNTIME_DIR: cron has no XDG_RUNTIME_DIR and a login shell does, so a
 # variable one is two different locks and no exclusion at all between the cron job and a hand run.
+#
+# **Twenty seconds, and then give up on this minute.** The first version waited 300, and on 8 Sep
+# at 15:34 that turned one held lock into a pile-up: five cron minutes queued behind the markout
+# keeper's sends, all took the lock within ninety seconds of each other, all computed the same
+# nonce, and four came back "already known" while the book went 319 seconds without a poke. A
+# skipped minute is a 120-second gap, inside the 180-second horizon tolerance. A queue is not.
 exec 9>"$HOME/.config/coldcascade/send.lock"
-flock -w 300 9 || { echo "could not take the send lock in 300s" >&2; exit 3; }
+if ! flock -w "${POKE_LOCK_WAIT:-20}" 9; then
+  printf '%s\tSKIP\tperp=%s\tanother sender holds the lock\n' "$(date -Is)" "$PERP" >>"$LOG"
+  echo "another sender holds the send lock; skipping this minute" >&2
+  exit 0
+fi
 
 # `--legacy` is not cosmetic. Without it cast builds a 1559 transaction, sets maxFeePerGas from
 # --gas-price, and takes maxPriorityFeePerGas from the node's own suggestion — which on 999 is
@@ -80,19 +90,44 @@ flock -w 300 9 || { echo "could not take the send lock in 300s" >&2; exit 3; }
 #
 # And it retries: at one send a minute against a public RPC, a transient -32602 is a normal
 # Tuesday. A book series with a hole in it is worth five seconds of sleep.
-STATUS=1; OUT=""
+# What was already true before this ran, so "did the poke land" is answerable afterwards.
+WAS=$(cast call "$BOOKCACHE" 'pokedAt(uint32)(uint64)' "$PERP" --rpc-url "$RPC" 2>/dev/null | awk '{print $1}')
+WAS="${WAS:-0}"
+
+STATUS=1; OUT=""; TRIED=0
 for i in $(seq 1 "$ATTEMPTS"); do
+  TRIED=$i
   OUT=$(cast send "$BOOKCACHE" 'poke(uint32)' "$PERP" \
           --account "$ACCOUNT" --password-file "$PASSFILE" \
           --legacy --gas-price "$GAS_PRICE" --rpc-url "$RPC" 2>&1) && { STATUS=0; break; }
   STATUS=$?
-  [ "$i" -lt "$ATTEMPTS" ] && sleep 5
+
+  # Not every failure means nothing was sent, and resending the ones that did is how you get four
+  # "already known" in a row for one poke that worked. These say the transaction is already in
+  # flight; the chain is then the thing to ask, not the RPC again.
+  case "$OUT" in
+    *"already known"*|*"nonce too low"*|*"replacement transaction underpriced"*)
+      NOW=$(cast call "$BOOKCACHE" 'pokedAt(uint32)(uint64)' "$PERP" --rpc-url "$RPC" 2>/dev/null | awk '{print $1}')
+      if [ -n "${NOW:-}" ] && [ "$NOW" -gt "$WAS" ]; then
+        printf '%s\tOK\tperp=%s\tin flight from another attempt; pokedAt %s -> %s\n' \
+          "$(date -Is)" "$PERP" "$WAS" "$NOW" >>"$LOG"
+        echo "poke already in flight and the book moved on ($WAS -> $NOW)"
+        exit 0
+      fi
+      break ;;
+  esac
+
+  # The public RPC does rate-limit us, and five seconds is not a pause it notices.
+  case "$OUT" in
+    *"rate limited"*|*-32005*) [ "$i" -lt "$ATTEMPTS" ] && sleep 20 ;;
+    *)                         [ "$i" -lt "$ATTEMPTS" ] && sleep 5 ;;
+  esac
 done
 
 # Keep stderr. A swallowed rate-limit error reads in a log as a book that would not move.
 HASH=$(printf '%s\n' "$OUT" | awk '/^transactionHash/ { print $2 }')
 if [ "$STATUS" != "0" ] || [ -z "$HASH" ]; then
-  { printf '%s\tFAIL\tperp=%s\tpoker=%s\tattempts=%s\texit=%s\n' "$(date -Is)" "$PERP" "$POKER" "$ATTEMPTS" "$STATUS"
+  { printf '%s\tFAIL\tperp=%s\tpoker=%s\ttried=%s\texit=%s\n' "$(date -Is)" "$PERP" "$POKER" "$TRIED" "$STATUS"
     printf '%s\n' "$OUT" | sed 's/^/\t/'; } >>"$LOG"
   exit "${STATUS:-1}"
 fi

@@ -34,11 +34,12 @@ ACCOUNT="${MARKOUT_ACCOUNT:-${DEPLOYER_ACCOUNT:-coldcascade-deployer}}"
 PASSFILE="${MARKOUT_PASSFILE:-$HOME/.config/coldcascade/deployer.pass}"
 DRY_RUN="${DRY_RUN:-0}"
 
-# Bounded per pass. A run that comes back after an outage has every matured horizon waiting, and
-# three hundred sends would hold the send lock for twenty minutes — which is twenty minutes of
-# holes in the book series the markouts are computed from. The backlog drains over the next few
-# passes instead; nothing is lost, because what has been posted is read back off the chain.
-LIMIT="${MARKOUT_LIMIT:-30}"
+# Bounded per pass, and the bound is about the *lock*, not the gas. Every send here is a send the
+# poke cannot make: the poke skips a minute rather than queue behind this, so a long pass is a
+# long gap in the very book series these markouts are computed from. Twelve sends is roughly
+# forty seconds of held lock, three times an hour. Generation is about nine markouts an hour
+# (three fills, three horizons), so a limit of twelve still drains a backlog while it does it.
+LIMIT="${MARKOUT_LIMIT:-12}"
 
 ARGS=()
 if [ "$DRY_RUN" != "1" ] && [ -f "$PASSFILE" ]; then
