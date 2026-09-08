@@ -257,12 +257,32 @@ as sent and a request that omits `chain_id` cannot be judged on `chain_id`.
 |---|---|---|
 | opened | a second desk, 1 000 UBTC-raw and 2 USDT0, so the hedged desk's live position is not the test subject | [`0x6ae81751…f7f8`](https://hyperevmscan.io/tx/0x6ae817512ba1d5a36b1552e36f30b74f2a0bc12b5f79a2b113490bd4bb20f7f8) |
 | armed | `armHedge(true, $20, 0xf33c1145…7da3, 30 bps)` — the owner's signature, naming the key | [`0x15d44e34…603e`](https://hyperevmscan.io/tx/0x15d44e3483a0b038f98f358556b79785fd8b5107bb72fa643b13e9e8ccc9603e) |
-| fired | the operator sent `cover()`. The desk was square, so it wrote `HedgeSkipped(1, Flat)` and sent no order — the cadence's ordinary case, and the first cover on this project the owner did not sign | [`0x62432604…34d8`](https://hyperevmscan.io/tx/0x62432604b1d74c4304fc6357822a2dba9d1bb4399f33432f0577bb62d3ae34d8) |
+| absorbed | a taker sold **15 000 UBTC-raw**; the desk holds 16 000 against a square level of 1 000 | [`0x17f1ab16…3799`](https://hyperevmscan.io/tx/0x17f1ab1670e3175cf738e16efc7156e341253f13f9ec054a55de87c0150b3799) |
+| **covered, unattended** | five minutes later the cadence read `coverPreview()`, decided *sell 15 000 base, $11.81 at mark*, and sent `cover()`. 146 793 gas, out of the operator's own HYPE | [`0x932aeaa5…e6b7`](https://hyperevmscan.io/tx/0x932aeaa549b09de47a819287f6cbf77a327046164a38cbee5c228ed26207e6b7) |
 
-The cover that produced a real IOC, further up, was sent by the owner; this one was sent by a key
-that cannot send anything else. What the two together establish is the shape of the control, not a
-larger claim about the hedge: a receipt still is not a fill, and what a cover actually did is read
-back from `0x0800`.
+**Nobody signed the last row.** The owner armed the desk and went away, the fill arrived from a
+taker, and the order came out of a cadence. What HyperCore did with it was read ten seconds later
+off `0x0800` and the exchange's own endpoint, not off the receipt:
+
+```
+szi           -0.00015 BTC          dir "Open Short", crossed, fee 0.005314 USDC
+entryPx       78 730.0              positionValue 11.81085
+accountValue  2.993336              liquidationPx 97 476  (+24% on the mark)
+cloid         0x…0003
+```
+
+**`cloid 3` is the claim in one number.** It is the desk's `coverCount`, it is the `coverId` indexed
+on both `HedgeIntent` and `HedgeSent` in that transaction, and the transaction was signed by a
+wallet that can call `cover()` on one address and is refused everything else. `HedgeSent` recorded a
+`limitPx` of **78 493** — the bid less its 30 bps of room — and the fill came back at 78 730, at the
+book, above the backstop it was given.
+
+The fill in the third row is there to create the exposure, and its price is the desk's own curve on
+the 1 000 raw it was shipped with. The bound is measured in `0xfaf1b6c6…dab20`, above.
+
+Two live shorts now stand on chain 999, from two desks: one the owner sent by hand on 7 September,
+one an automation key sent on 8 September under a policy that permits nothing else. The pair is the
+argument about who is trusted with what, in the only form that can be checked.
 
 ## Two measurements, and why they do not add
 
@@ -529,7 +549,8 @@ contracts on chain 999 since 6 September, four desks shipped and open, and the c
 real UBTC and USD₮0. The taker path is live end to end from an email address, and the CoreWriter
 cover leg has been sent from a desk and filled on HyperCore. A desk can hand that trigger to an
 automation key that may call `cover()` and nothing else — on chain and under a policy — and one on
-999 has. The desk's own record is indexed off Substreams and the keeper posts markouts back to the
+999 did: it absorbed a fill, and five minutes later a cadence covered it with no signature from
+anyone. The desk's own record is indexed off Substreams and the keeper posts markouts back to the
 chain, described below.
 
 Every fill on chain so far is one we sent; there is no external flow yet.
