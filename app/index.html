@@ -244,23 +244,16 @@ footer { color: var(--muted); font-size: 12px; line-height: 1.7; border-top: 1px
 footer code { color: var(--ink); }
 
 /* ================= Evidence tab ================= */
-#panel-evidence h2.big { font: 400 clamp(24px, 3.4vw, 34px)/1.25 var(--serif);
-  text-transform: none; letter-spacing: -0.015em; color: var(--ink); margin: 40px 0 10px; }
-#panel-evidence .sub { color: var(--muted); margin: 0 0 32px; font-size: 13px; max-width: 76ch; }
 #panel-evidence section.chart { margin-bottom: 30px; }
 #panel-evidence h2 { margin: 0 0 4px; }
 .note { color: var(--muted); font-size: 12px; margin: 0 0 10px; max-width: 80ch; line-height: 1.65; }
 .note b { color: var(--ink); font-weight: 500; }
 .note code { color: var(--ink); }
 
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1px;
-  background: var(--line); border: 1px solid var(--line); overflow: hidden; margin-bottom: 20px; }
-.stat { background: var(--bg); padding: 14px 16px; }
-.stat-label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; }
-.stat-value { font-size: 26px; font-weight: 500; margin-top: 4px; letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums; }
-.stat-sub { color: var(--muted); font-size: 11px; }
 #stat-lvr-desk, #stat-toxic-desk, #stat-edge-desk { color: var(--desk); }
+.fig { font-size: 12px; color: var(--muted); margin: 0 0 10px; line-height: 1.7; }
+.fig b { color: var(--ink); font-weight: 500; font-size: 14px; font-variant-numeric: tabular-nums; }
+#panel-evidence .statement a { color: var(--desk); text-decoration: none; border-bottom: 1px solid var(--l1-edge); }
 
 .chart { position: relative; }
 .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
@@ -530,75 +523,44 @@ table.sweep td.now { color: var(--desk); }
   </section>
 
   <section id="panel-evidence" role="tabpanel" hidden>
-  <h2 class="big">10 October 2025, minute by minute</h2>
-  <p class="sub">The Floor asks what an arbitrageur would get for trying <b>right now</b>. This asks
-    what they got for trying all through the cascade and the hour after it: the same claim, 123
-    minutes instead of one block. A reproduction from a frozen tape, not a live reading.</p>
+  <div class="statement evidence-statement">
+    <p class="kicker">the same zero, over 123 minutes of a real cascade</p>
+    <p>10 October 2025. The book breaks, the forced sellers come, and <em>the desk keeps
+      quoting a price it read that second.</em></p>
+    <p class="tail">A frozen tape, replayed. Every fill below settles through 1inch's official
+      router, and every number on this page is computed from
+      <a href="../results/oct10_replay.csv">the same file</a> you can download.</p>
+  </div>
 
   <pre id="status" class="status">loading results/oct10_replay.csv…</pre>
 
   <div id="page" hidden>
-    <div class="stats">
-      <div class="stat"><div class="stat-label">taken by arbitrageurs, desk</div>
-        <div class="stat-value" id="stat-lvr-desk">—</div><div class="stat-sub" id="stat-lvr-desk-sub"></div></div>
-      <div class="stat"><div class="stat-label">the same, from the control</div>
-        <div class="stat-value" id="stat-lvr-control">—</div><div class="stat-sub" id="stat-lvr-control-sub"></div></div>
-      <div class="stat"><div class="stat-label">arbitrage share of flow, desk</div>
-        <div class="stat-value" id="stat-toxic-desk">—</div><div class="stat-sub" id="stat-toxic-desk-sub"></div></div>
-      <div class="stat"><div class="stat-label">the same, the AMMs</div>
-        <div class="stat-value" id="stat-toxic-amm">—</div><div class="stat-sub" id="stat-toxic-amm-sub"></div></div>
+    <div class="hero">
+      <div>
+        <p class="hero-k">what arbitrageurs took from the desk, closing at the book's own touch</p>
+        <div class="zero" id="stat-lvr-desk">—</div>
+        <p class="hero-sub"><span id="stat-lvr-desk-sub"></span> · through a 640 bps drawdown</p>
+        <p class="hero-sub" style="margin-top:8px">arbitrageurs were
+          <b><span id="stat-toxic-desk">—</span></b> <span id="stat-toxic-desk-sub"></span> — on the
+          two AMMs they were <b><span id="stat-toxic-amm">—</span></b> of it,
+          <span id="stat-toxic-amm-sub"></span> in notional</p>
+      </div>
+      <div class="hero-toll">
+        <span>The same search, against the two ordinary AMMs next to it:</span>
+        <b>$6,258</b>
+        <span><span id="stat-lvr-control">—</span> from
+          <span id="stat-lvr-control-sub"></span></span>
+        <span>one of them is the desk's own program with the bound removed</span>
+      </div>
     </div>
-
-    <div class="stats">
-      <div class="stat"><div class="stat-label">edge per $ absorbed</div>
-        <div class="stat-value" id="stat-edge-desk">—</div><div class="stat-sub" id="stat-edge-desk-sub"></div></div>
-      <div class="stat"><div class="stat-label">the same, at L1's touch</div>
-        <div class="stat-value" id="stat-edge-touch">—</div><div class="stat-sub" id="stat-edge-touch-sub"></div></div>
-      <div class="stat"><div class="stat-label">minutes leaning</div>
-        <div class="stat-value" id="stat-lean">—</div><div class="stat-sub" id="stat-lean-sub"></div></div>
-      <div class="stat"><div class="stat-label">trough</div>
-        <div class="stat-value" id="stat-trough">—</div><div class="stat-sub" id="stat-trough-sub"></div></div>
-    </div>
-
-    <p class="note"><b>No arbitrageur closing at L1's own touch got anything out of the desk.</b>
-      Zero, for 123 minutes, both directions, through a 640 bps drawdown, against an arbitrageur
-      that chose its own size — while the same search took $6,258 out of the two AMMs on this page.
-      The <span class="k-l1">grey band</span> below is Hyperliquid's own best bid and offer; the
-      <span class="k-desk">blue band</span> is where this desk is willing to trade. In the quiet it
-      sits <b>outside</b> on both sides. When the book breaks, one side crosses <b>inside</b> and the
-      wedge lights up — <span class="k-bid">amber</span> buying from forced sellers,
-      <span class="k-ask">teal</span> selling to forced buyers.</p>
 
     <div id="panels">
-      <section class="chart" id="wrap-spot">
-        <h2>spot</h2>
-        <p class="note">Coinbase BTC-USD, one minute closes.</p>
-        <div id="chart-spot"></div>
-      </section>
-
-      <section class="chart" id="wrap-bands">
-        <h2>the two books</h2>
-        <p class="note">Distance from L1's mid, in basis points — the only scale on which a
-          25 bps quote and a $7 000 crash fit in one picture.</p>
-        <div id="chart-bands"></div>
-        <div class="legend">
-          <span><i class="swatch sw-l1"></i>L1 bid–ask</span>
-          <span><i class="swatch sw-desk"></i>desk bid–ask</span>
-          <span><i class="swatch sw-bid"></i>desk inside L1, buying</span>
-          <span><i class="swatch sw-ask"></i>desk inside L1, selling</span>
-        </div>
-      </section>
-
-      <section class="chart" id="wrap-lean">
-        <h2>lean</h2>
-        <p class="note">Which side is absorbing, minute by minute.</p>
-        <div id="chart-lean"></div>
-      </section>
-
       <section class="chart" id="wrap-lvr">
-        <h2>if you had tried to arbitrage this desk against L1, all day</h2>
-        <p class="note">Running total of the profit an arbitrageur actually extracted from each
-          maker, closed at L1's own touch — the maker's loss-versus-rebalancing, in dollars.</p>
+        <h2>if you had tried to arbitrage these makers against the book, all day</h2>
+        <p class="note">Running total of what an arbitrageur actually extracted from each maker,
+          closed at the book's own touch. The desk's line is flat on zero because there was never a
+          size that worked — the same search ran against all three and put $1.3m of notional through
+          the other two.</p>
         <div id="chart-lvr"></div>
         <div class="legend">
           <span><i class="swatch" style="background:var(--desk)"></i>desk</span>
@@ -609,13 +571,13 @@ table.sweep td.now { color: var(--desk); }
           <summary>what the flat line counts</summary>
           <p class="caveat"><b>The flat line is the point, and it is not flat because nothing
             happened.</b> One routine ran against all three makers, both directions, every minute,
-            searching for the size that maximised a round trip closed at L1's touch. It put $775,364
-            of size through the plain curve and $530,267 through the fee'd one, taking $3,558 and
-            $2,700. Against the desk it found nothing, because <code>CoreQuote</code> reads L1's book
-            inside the call that settles the swap and clamps itself to what crossing L1 would have
-            paid — there is no earlier price to be wrong about.
-            <code>test_gate_deskIsNeverArbitraged</code> fails if this line ever leaves zero, and also
-            if the other two never leave it.
+            searching for the size that maximised a round trip closed at the book's touch. It put
+            $775,364 of size through the plain curve and $530,267 through the fee'd one, taking
+            $3,558 and $2,700. Against the desk it found nothing, because <code>CoreQuote</code>
+            reads the book inside the call that settles the swap and clamps itself to what crossing
+            it would have paid — there is no earlier price to be wrong about.
+            <code>test_gate_deskIsNeverArbitraged</code> fails if this line ever leaves zero, and
+            also if the other two never leave it.
             <br><br>
             <b>What the line counts.</b> This arbitrageur, closing against this book, in the same
             minute — the channel of the loss the clamp is aimed at. A taker who is right about the
@@ -624,11 +586,50 @@ table.sweep td.now { color: var(--desk); }
         </details>
       </section>
 
+      <section class="chart" id="wrap-spot">
+        <h2>the day itself</h2>
+        <p class="note">Coinbase BTC-USD, one-minute closes. Every book, fill and line on this page
+          is derived from the shape of this path — the sweep fold at the bottom prices that
+          derivation.</p>
+        <p class="fig">trough <b id="stat-trough">—</b> <span id="stat-trough-sub"></span>,
+          640 bps under the session's open</p>
+        <div id="chart-spot"></div>
+      </section>
+
+      <section class="chart" id="wrap-bands">
+        <h2>the two books</h2>
+        <p class="note">Distance from the book's mid, in basis points — the only scale on which a
+          25 bps quote and a $7,000 crash fit in one picture. The <span class="k-l1">grey band</span>
+          is Hyperliquid's own best bid and offer; the <span class="k-desk">blue band</span> is where
+          the desk trades. In the quiet it sits outside on both sides. When the book breaks, one side
+          crosses inside and the wedge lights up — <span class="k-bid">amber</span> buying from
+          forced sellers, <span class="k-ask">teal</span> selling to forced buyers.</p>
+        <div id="chart-bands"></div>
+        <div class="legend">
+          <span><i class="swatch sw-l1"></i>book bid–ask</span>
+          <span><i class="swatch sw-desk"></i>desk bid–ask</span>
+          <span><i class="swatch sw-bid"></i>desk inside the book, buying</span>
+          <span><i class="swatch sw-ask"></i>desk inside the book, selling</span>
+        </div>
+      </section>
+
+      <section class="chart" id="wrap-lean">
+        <h2>lean</h2>
+        <p class="note">Which side is absorbing, minute by minute.</p>
+        <p class="fig"><b id="stat-lean">—</b> <span id="stat-lean-sub"></span> with a side
+          inside the book</p>
+        <div id="chart-lean"></div>
+      </section>
+
       <section class="chart" id="wrap-edge">
         <h2>what the absorbing was worth</h2>
         <p class="note">Each minute's 60 minute markout applied to the notional that maker actually
           absorbed, run forward over the session, in dollars. The line to beat is the dashed one:
           Hyperliquid's own touch.</p>
+        <p class="fig"><b id="stat-edge-desk">—</b> per dollar —
+          <span id="stat-edge-desk-sub"></span><br>
+          the venue's own touch: <b id="stat-edge-touch">—</b> per dollar —
+          <span id="stat-edge-touch-sub"></span></p>
         <div id="chart-edge"></div>
         <div class="legend">
           <span><i class="swatch" style="background:var(--desk)"></i>desk</span>
@@ -647,8 +648,8 @@ table.sweep td.now { color: var(--desk); }
             inventory and never arbitraged.
             <br><br>
             <b>The desk clears the venue on a smaller book.</b> It ends above L1's touch while
-            absorbing a third less notional — 356 bps per dollar against 215 — because it is in the
-            six minutes that paid and absent from every quiet one.
+            absorbing a third less notional — 355 bps per dollar against 215 — because it is in the
+            seven minutes that paid and absent from every quiet one.
             <br><br>
             <b>The desk still quotes worse per fill, on purpose.</b> Leaning inside the spread means
             paying up, so on a minute where both fill its markout <i>rate</i> is at or behind the

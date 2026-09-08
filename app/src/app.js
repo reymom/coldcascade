@@ -135,8 +135,10 @@ function drawHeadline(rows, edge, lvr) {
 
   // The zero first. It is the same claim the Floor makes about this block, held for 123 of them.
   set("stat-lvr-desk", fmtUsd(last(lvr.desk)), `over ${rows.length} minutes, both directions`);
+  // The value is the plain curve's take alone; the fee'd one rides in the sub so the hero rail
+  // can show them as "$3,558 from a plain XYCSwap · $2,700 at 30 bps".
   set("stat-lvr-control", fmtUsd(last(lvr.control)),
-    `plain XYCSwap · ${fmtUsd(last(lvr.hard))} at 30 bps`);
+    `a plain XYCSwap · ${fmtUsd(last(lvr.hard))} at 30 bps`);
   set("stat-toxic-desk", fmtPct(toxicPct(t.arb.desk, t.absorbed.desk)),
     "of everything the desk traded");
   set("stat-toxic-amm", fmtPct(toxicPct(ammArb, ammAbsorbed)),
