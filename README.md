@@ -406,6 +406,38 @@ The `Booked` series began at 12:23:43Z on 8 Sep
 `Booked` event on the chain. **Every fill older than that series has no right-hand side to join
 to, and carries no markout.** The record starts where the series starts, and it is short.
 
+## Serving it: an MCP server over the stream
+
+`mcp/` is a Model Context Protocol server over the same package. It exposes two things.
+
+**The book archive**, which is the part no RPC can serve. `get_book_at_time` and
+`get_book_at_block` answer *what Hyperliquid's BBO was* at a past moment on chain 999 — the
+question the HyperCore precompiles refuse, since they accept a block tag and return the present.
+That instant is queryable only because `poke` wrote it into a log while it was true.
+
+**The desk's record**: `get_fill` returns one fill with the book it met, `vsTouchBps`,
+`poolDevBps`, the desk's `quietBps`, its markouts, and a sentence saying whether the bound or the
+curve set that price. `list_fills` filters by desk, side and which rule priced them;
+`get_markouts` returns the keeper's decisions with their statuses and whether each is on chain;
+`describe_coverage` states the extent, the density, the holes, and what the server cannot answer.
+
+Three properties are load-bearing and are what the tests pin:
+
+- **Nothing is interpolated.** A moment between two pokes returns both neighbours with their
+  distances and `interpolated: false`, plus a warning when the bracket is wider than the cadence.
+  The truth is inside the bracket; the server does not guess where.
+- **Absence keeps its four names** — `beforeSeries`, `gap`, `pending`, `noBook` — because they
+  mean different things and only one of them ever resolves.
+- **Every response carries `provenance`** with a `reproduce` command that regenerates it from the
+  stream and a `cast` command that checks it against the chain.
+
+It returns observations and their limits, and it says in its own instructions that it does not
+produce trading advice. Standard library only, so it runs with a stock Python and no install
+step. `mcp/SKILL.md` is the manual, and the server serves it at `coldcascade://skill`.
+
+`results/book-archive.json` is the same series as a static file, so the console can answer the
+same question in the browser from the same numbers.
+
 ## The console
 
 One URL. The Floor leads with the round trip above — recomputed off the live book every two

@@ -50,3 +50,9 @@ Written out rather than generated. All four events are static ABI — no dynamic
 them — so the decode is fixed offsets, and a codegen step would be one more thing that can
 silently disagree with the contracts in `src/`. The topic hashes are `keccak` of the signatures
 and are checked against `cast keccak` output in the same session they were written.
+
+## The MCP server
+
+`mcp/` serves this package over the Model Context Protocol: the book archive as a
+queryable archive, and the desk record with its derived fields. `mcp/SKILL.md` is the manual for
+both, and the server serves it as a resource at `coldcascade://skill`.

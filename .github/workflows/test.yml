@@ -30,3 +30,7 @@ jobs:
       # Python. These are the two functions that fail *quietly* — a flipped sign is a plausible
       # number in the right range, and MarkoutLedger.post deliberately cannot restate one.
       - run: python -m unittest discover -s keeper/tests -v
+      # The MCP server is standard library too, so the properties that would fail quietly — the
+      # bracket never becoming a midpoint, the four kinds of absence never collapsing into one —
+      # are checked with nothing but a Python.
+      - run: python -m unittest discover -s mcp/tests -v

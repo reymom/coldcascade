@@ -5,7 +5,8 @@ broadcast/
 .env
 keeper/.venv/
 keeper/.cache/
-keeper/**/__pycache__/
+mcp/.cache/
+**/__pycache__/
 subgraph/build/
 subgraph/generated/
 app/node_modules/

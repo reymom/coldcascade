@@ -18,19 +18,23 @@ DEPLOY=1; [ "${1:-}" = "--no-deploy" ] && DEPLOY=0
 
 [ -f results/markouts.json ] || { echo "no results/markouts.json — run the keeper first" >&2; exit 1; }
 
-if git diff --quiet -- results/markouts.json; then
-  echo "results/markouts.json is unchanged since the last publish."
+if git diff --quiet -- results/markouts.json results/book-archive.json; then
+  echo "results/ is unchanged since the last publish."
 else
   read -r FILLS COMPLETE BOOKS SPAN < <(python3 -c "
 import json; d=json.load(open('results/markouts.json')); s=d['summary']
 print(s['fills'], s['fillsWithCompleteHorizons'], d['books']['count'], s['spanDays'])")
-  git add results/markouts.json
-  git commit -q -m "markouts: $FILLS fills over $SPAN days, $COMPLETE with a complete 5/15/60, $BOOKS books"
+  # `--only` and an explicit pathspec, not `git add` then `git commit`. A bare commit takes
+  # everything already in the index, and on 8 Sep this script swept a staged file deletion into a
+  # commit whose message said "markouts: 21 fills". A script that promises to publish one file
+  # must be unable to publish anything else.
+  git commit -q --only -- results/markouts.json results/book-archive.json \
+    -m "markouts: $FILLS fills over $SPAN days, $COMPLETE with a complete 5/15/60, $BOOKS books"
   echo "committed: $FILLS fills, $COMPLETE complete, $BOOKS books"
 fi
 
-# Anything else staged is somebody else's commit to make; this script only ever publishes the one
-# file, so a half-finished change cannot be swept into a deploy by accident.
+# Anything else staged is somebody else's commit to make. The commit above cannot take it, but
+# `vercel --prod` uploads the working tree rather than the git tree, so it still ships.
 if ! git diff --quiet || ! git diff --cached --quiet; then
   echo "note: the working tree has other uncommitted changes; they will still be uploaded by vercel." >&2
 fi

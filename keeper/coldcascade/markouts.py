@@ -541,4 +541,31 @@ def run(
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(doc, indent=2) + "\n")
     print(f"  wrote {out}")
+
+    # The book series as its own artifact, so the page and the MCP server answer the same
+    # question from the same numbers. It is the only file here a browser can use to say what the
+    # BBO was at a past moment, because the node it would otherwise ask returns the present.
+    archive = out.parent / "book-archive.json"
+    archive.write_text(json.dumps({
+        "generatedAt": doc["generatedAt"],
+        "chainId": dep.chain_id,
+        "perpIndex": 0,
+        "instrument": "BTC perp BBO on Hyperliquid (HyperCore), as CoreQuote reads it",
+        "source": doc["source"],
+        "contract": dep.book_cache,
+        "event": "BookCache.Booked(uint32,uint64,uint64,uint64,uint64,uint64,address)",
+        "rawPriceScale": "USD * 10^(6 - szDecimals); BTC szDecimals 5, so divide by 10",
+        "limits": {
+            "interpolation": "none — consecutive observations bound the truth between them",
+            "depth": "four uint64 (bid, ask, mark, oracle), not an order book",
+            "beforeFirstObservation": "never written down; unrecoverable from any endpoint",
+        },
+        "count": len(c.books),
+        "observations": [
+            {"t": b.t, "block": b.block, "bid": b.bid, "ask": b.ask,
+             "mark": b.mark, "oracle": b.oracle}
+            for b in c.books
+        ],
+    }, separators=(",", ":")) + "\n")
+    print(f"  wrote {archive} ({len(c.books)} observations)")
     return doc
