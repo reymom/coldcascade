@@ -277,9 +277,16 @@ function renderVerdict(view, best) {
       `<span>The same search against a plain curve on the same reserves:</span>` +
       `<b>+$${toll.usd.toFixed(2)} · +${toll.bps.toFixed(1)} bps</b>` +
       `<span>the toll, collected this block</span>`;
-  } else {
+  } else if (toll) {
     ui.toll.innerHTML =
-      `<span>The same search against a plain curve on the same reserves: <b>nothing to take either</b> — this block.</span>`;
+      `<span>The same search against a plain curve on the same reserves:</span>` +
+      `<b>nothing to take either — this block</b>`;
+  } else {
+    // A null toll is not a zero toll: every desk's reserves were too thin for the search to quote
+    // a rate on. Say which, rather than let the empty panel read as "no arbitrage".
+    ui.toll.innerHTML =
+      `<span>The same search against a plain curve on the same reserves:</span>` +
+      `<b>reserves too thin to quote a rate</b>`;
   }
 
   // The two legs, for whoever opens the fold: why the zero is arithmetic and not a promise.

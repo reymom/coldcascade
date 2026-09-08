@@ -6,6 +6,7 @@
 // something else.
 
 import { mountFloor } from "./floor.js";
+import { mountRecord } from "./record.js";
 
 const tabs = [
   { button: "tab-floor", panel: "panel-floor" },
@@ -38,3 +39,5 @@ document.getElementById("go-evidence")?.addEventListener("click", () => {
 });
 
 mountFloor(document);
+// The record reads its own file on its own cadence; it neither waits for the chain nor blocks it.
+mountRecord(document);

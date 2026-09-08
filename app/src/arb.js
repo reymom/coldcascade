@@ -75,6 +75,12 @@ export function controlToll(book, desk) {
   const ask = Number(book.ask) / 10;
   if (!(B > 0 && Q > 0 && bid > 0 && ask > 0)) return null;
 
+  // Dust is not a curve. The toll is a rate, and a rate needs a reserve the clip can be measured
+  // against: below a few dollars the bps denominator collapses and the number reads thousands of
+  // basis points on cents of profit — true and meaningless at once. The smallest clip searched is
+  // half a percent of the base reserve; under $10 of notional there is no rate to quote.
+  if (B * 0.005 * ask < 10) return null;
+
   let best = { usd: 0, bps: 0 };
   for (const f of [0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.4]) {
     const x = B * f;

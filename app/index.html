@@ -151,6 +151,43 @@ button.go.ghost:hover { color: var(--ink); }
 .out-error { color: var(--loss); }
 .out a { color: var(--desk); text-decoration: none; border-bottom: 1px solid rgba(95,178,255,0.4); }
 
+/* ---- the record ---- */
+.record { margin: 56px 0 64px; }
+.record-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.rc-grid { stroke: var(--line); stroke-width: 1; }
+.rc-touch { stroke: var(--l1-edge); stroke-width: 1; stroke-dasharray: 1 3; }
+.rc-zone { fill: var(--l1); fill-opacity: 0.22; }
+.rc-zone-edge { stroke: var(--l1-edge); stroke-width: 1; }
+.rc-divider { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.rc-lab { fill: var(--muted); font: 10px var(--mono); }
+.rc-dot { stroke: var(--bg); stroke-width: 1.2; }
+a .rc-dot { cursor: pointer; }
+.rc-buy { fill: var(--bid); }
+.rc-sell { fill: var(--ask); }
+.rc-nobook.rc-buy { fill: none; stroke: var(--bid); }
+.rc-nobook.rc-sell { fill: none; stroke: var(--ask); }
+.rc-spine-base { stroke: var(--line); stroke-width: 1; }
+.rc-spine { stroke: var(--muted); stroke-width: 2; }
+.rc-poke { stroke: var(--muted); stroke-width: 1.5; }
+.record-why { color: var(--muted); font-size: 12px; line-height: 1.65; max-width: 78ch;
+  margin: 14px 0 24px; }
+.record-why b { color: var(--ink); font-weight: 500; }
+.record-mk-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em;
+  color: var(--muted); margin: 0 0 4px; }
+.record-mk-sub { color: var(--muted); font-size: 11.5px; margin: 0 0 12px; }
+.record-mk-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
+  margin-bottom: 20px; }
+@media (max-width: 700px) { .record-mk-grid { grid-template-columns: 1fr; } }
+.record-mk-h { font: 11px var(--mono); letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 5px; }
+.record-mk-v { font: 500 15px var(--mono); font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em; white-space: nowrap; }
+.record-mk-v .neg { color: var(--loss); }
+.record-mk-m { color: var(--muted); font-size: 11px; margin-top: 4px; }
+.record-foot { color: var(--muted); font-size: 11px; line-height: 1.7;
+  border-top: 1px solid var(--line); padding-top: 12px; margin-top: 8px; }
+.record-foot b { color: var(--ink); font-weight: 500; }
+
 /* ---- the desks ---- */
 h2 { font: 11px var(--mono); font-weight: 400; text-transform: uppercase; letter-spacing: 0.2em;
   color: var(--muted); margin: 0 0 14px; }
@@ -352,11 +389,32 @@ table.sweep td.now { color: var(--desk); }
       </div>
       <p class="out" id="strip-note"></p>
 
-      <p class="strip-caption" style="margin-bottom:56px"><button class="linky" id="go-evidence">The same zero, held for 123 minutes through a real cascade →</button>
+      <p class="strip-caption"><button class="linky" id="go-evidence">The same zero, held for 123 minutes through a real cascade →</button>
         the Evidence tab replays 10 October 2025 against an arbitrageur that chose its own size,
         while the same search took $6,258 out of two ordinary AMMs standing next to it.</p>
 
-      <h2 style="margin-top:56px">desks</h2>
+      <section class="record" id="record">
+        <h2>the record — the same band, over days</h2>
+        <p class="strip-caption" style="max-width:78ch">The Floor's strip is one block; this is the
+          same distance — a fill's price against the book's own touch — for every fill the desk has
+          signed. The grey band is the dead zone: the desk's price is <b>min(curve, bound)</b>, the
+          bound never improves on the book, so nothing can land inside it, and when the pool drifts
+          the curve is already outside and rules. The dots pinned on the edge are the bound doing
+          its work. Fills of the <b>demo desk</b>, over a mock pair, sent on a schedule by this repository — each dot is one fill; click it
+          for the transaction.</p>
+        <div class="record-chart" id="record-chart"></div>
+        <div class="legend">
+          <span><i class="swatch sw-bid"></i>the desk bought base</span>
+          <span><i class="swatch sw-ask"></i>the desk sold base</span>
+          <span><i class="swatch sw-l1"></i>the dead zone</span>
+        </div>
+        <p class="out" id="record-status"></p>
+        <p class="record-why" id="record-why"></p>
+        <div id="record-markouts"></div>
+        <div class="record-foot" id="record-foot"></div>
+      </section>
+
+      <h2>desks</h2>
       <table class="desks">
         <thead><tr>
           <th>desk</th><th>bid / ask now</th><th>round trip</th>
