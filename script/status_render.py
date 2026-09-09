@@ -31,6 +31,7 @@ MM = 1 / (2 * MAX_LEVERAGE)
 
 FAILED: list[str] = []
 UNKNOWN: list[str] = []
+BRIEF: dict[str, str] = {}      # the one-line summary, assembled where the numbers already are
 
 
 def read(d: Path, name: str) -> str | None:
@@ -96,8 +97,14 @@ def last_log(path: Path, needle: str | None = None) -> tuple[float, str] | None:
 
 
 def main() -> int:
-    d = Path(sys.argv[1])
-    hedged, opdesk, operator = sys.argv[2], sys.argv[3], (sys.argv[4] or "")
+    # `--brief` prints the same state as one line. The monitor uses it, so the wording of "healthy"
+    # lives here and cannot drift from what the full screen says.
+    brief = "--brief" in sys.argv
+    argv = [a for a in sys.argv if a != "--brief"]
+    if brief:
+        sys.stdout = open(os.devnull, "w")
+    d = Path(argv[1])
+    hedged, opdesk, operator = argv[2], argv[3], (argv[4] if len(argv) > 4 else "")
     now = time.time()
 
     head = read(d, "head")
@@ -116,6 +123,7 @@ def main() -> int:
         # 25 minutes, not 15: the cadence thins as gas rises (EVERY = price / 0.25 gwei), so a
         # long interval during a spike is the rule working rather than a failure.
         line(age < 1500, "poke", f"hetzner   last {ago(age):<12} pokedAt(0) on chain")
+        BRIEF["poke"] = f"poke {ago(age)}"
 
     for label, path, needle, limit, extra in (
         ("fills",  CFG / "cadence.log",  "\tOK\t", 2700, None),
@@ -153,8 +161,10 @@ def main() -> int:
         # One keeper pass is twenty minutes, so a lag under that is the cadence, not staleness.
         if lag <= 1200:
             line(True, "artifact", f"deployed copy is current ({ago(lag) if lag > 0 else 'identical'})")
+            BRIEF["page"] = "page current"
         else:
             line(False, "artifact", f"deployed copy is {ago(lag).replace(' ago','')} behind disk")
+            BRIEF["page"] = f"page {ago(lag).replace(' ago','')} behind"
             print("               -> run ./script/publish-results.sh")
     print()
 
@@ -177,6 +187,8 @@ def main() -> int:
         hype = int(raw.split()[0]) / 1e18
         rate = BURN[label]
         days = hype / rate if rate else float("inf")
+        if label == "poker":
+            BRIEF["poker"] = f"poker {hype:.4f} HYPE ({days:.1f}d)"
         note = "" if label != "operator" else ("   DESK NOT ARMED" if disarmed else "   armed")
         line(days >= days_needed, label,
              f"{hype:8.4f} HYPE   ~{days:5.1f} days at {rate:.3f}/day{note}")
@@ -220,6 +232,7 @@ def main() -> int:
         s = m["summary"]
         fills, complete, span = s["fills"], s["fillsWithCompleteHorizons"], s["spanDays"]
         line(True, "fills", f"{fills} fills over {span} days · {complete} with a complete 5/15/60")
+        BRIEF["corpus"] = f"{fills} fills / {complete} complete"
     except Exception:
         line(None, "fills", "results/markouts.json unreadable")
     try:
@@ -233,6 +246,14 @@ def main() -> int:
     except Exception:
         line(None, "books", "results/book-archive.json unreadable")
     print()
+
+    if brief:
+        sys.stdout.close(); sys.stdout = sys.__stdout__
+        bits = " · ".join(BRIEF.get(k, f"{k}?") for k in ("poke", "page", "poker", "corpus"))
+        verdict = ("NOT HEALTHY: " + ", ".join(FAILED)) if FAILED else (
+                  ("NOT VERIFIED: " + ", ".join(UNKNOWN)) if UNKNOWN else "all green")
+        print(f"{verdict} — {bits}")
+        return 1 if FAILED else (2 if UNKNOWN else 0)
 
     if FAILED:
         extra = f"; {len(UNKNOWN)} not checked" if UNKNOWN else ""

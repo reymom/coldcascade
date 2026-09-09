@@ -13,6 +13,7 @@
 #     held 0.128 HYPE. An unknown is not a value.
 #
 #   ./script/status.sh
+#   ./script/status.sh --brief    # the same verdict as one line, for a watcher
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -65,4 +66,4 @@ wait
 OPERATOR=$(cat "$D/op" 2>/dev/null | tr -d '\n')
 [ -n "$OPERATOR" ] && two "$D/bal.operator" balance "$OPERATOR"
 
-python3 script/status_render.py "$D" "$HEDGED" "$OPDESK" "$OPERATOR"
+python3 script/status_render.py "$D" "$HEDGED" "$OPDESK" "$OPERATOR" ${1:+"$1"}
