@@ -125,22 +125,35 @@ def main() -> int:
         line(age < 1500, "poke", f"hetzner   last {ago(age):<12} pokedAt(0) on chain")
         BRIEF["poke"] = f"poke {ago(age)}"
 
-    for label, path, needle, limit, extra in (
-        ("fills",  CFG / "cadence.log",  "\tOK\t", 2700, None),
-        ("keeper", CFG / "markout.log",  "\tOK\t", 2400, None),
-        ("cover",  CFG / "cover.log",    None,      900, "state"),
+    # Liveness is the last *decision*, not the last success. A cadence that ran and declined —
+    # demo-cadence skipping because gas is over its cap — is working exactly as designed, and
+    # reporting it as dead is the same mistake as failing the artifact line for a twenty-minute
+    # lag. Whether it is producing anything is a separate question, asked separately below,
+    # because a long run of skips is a supply problem and not a malfunction.
+    for label, path, needle, limit, dry_limit, extra in (
+        ("fills",  CFG / "cadence.log",  "\tOK\t", 2700, 4 * 3600, None),
+        ("keeper", CFG / "markout.log",  "\tOK\t", 2400, 4 * 3600, None),
+        ("cover",  CFG / "cover.log",    None,      900,  None,     "state"),
     ):
-        got = last_log(path, needle)
-        if got is None:
+        alive = last_log(path)                 # any line at all
+        got = last_log(path, needle)           # the last one that did something
+        if alive is None:
             line(None, label, f"{path} unreadable or empty")
             continue
-        t, row = got
-        age = now - t
+        t_any, row_any = alive
+        age_any = now - t_any
         tail = ""
         if extra == "state":
-            tail = "square" if "SQUARE" in row else row.split("\t")[-1][:38]
-        line(age < limit, label, f"laptop    last {ago(age):<12} {tail}")
-        BRIEF[label] = f"{label} {ago(age)}"
+            tail = "square" if "SQUARE" in row_any else row_any.split("\t")[-1][:38]
+        elif "\tSKIP\t" in row_any:
+            tail = "last run skipped: " + row_any.split("\tSKIP\t")[-1][:44]
+        line(age_any < limit, label, f"laptop    last {ago(age_any):<12} {tail}")
+        BRIEF[label] = f"{label} {ago(age_any)}"
+        # Alive but producing nothing for hours is worth a line of its own.
+        if dry_limit and got is not None and (now - got[0]) > dry_limit and age_any < limit:
+            line(False, f"{label}!",
+                 f"alive, but nothing has succeeded for {ago(now - got[0]).replace(' ago', '')}"
+                 + (" — gas over its cap" if "gas too dear" in row_any else ""))
     print()
 
     # 2 --- is the page serving what the keeper computed? --------------------------------------
@@ -252,8 +265,17 @@ def main() -> int:
         gaps = [b - x for x, b in zip(ts, ts[1:])]
         worst = max(gaps) if gaps else 0
         med = sorted(gaps)[len(gaps) // 2] if gaps else 0
-        line(worst < 1800, "books",
-             f"{a['count']} observations · {med}s median gap · {worst}s worst")
+        # Judged on the last six hours, not on the whole series. An all-time worst never improves,
+        # so a threshold against it goes red once and stays red for ever — the same always-on
+        # alarm the artifact line had. The ceiling is 2400s rather than 1800 because the poke
+        # stretches its interval with the gas price and tops out near 32 minutes by design; a gap
+        # that size is the rule working, and only a *recent* one says the series is in trouble.
+        cut = now - 6 * 3600
+        recent = [b - x for x, b in zip(ts, ts[1:]) if b >= cut]
+        rworst = max(recent) if recent else 0
+        line(rworst < 2400, "books",
+             f"{a['count']} observations · {med}s median · {rworst}s worst in 6h"
+             + (f" · {worst}s all-time" if worst > rworst else ""))
     except Exception:
         line(None, "books", "results/book-archive.json unreadable")
     print()
