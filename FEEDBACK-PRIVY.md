@@ -1,10 +1,11 @@
 # Feedback for Privy
 
 Written from putting two server wallets under policies and then trying to *prove* the policies bind.
-Everything below was measured against the live API on 2026-09-06 and 2026-09-08, with the request and
-the response kept. Nothing here is a complaint about the product working: both wallets do what they
+Everything below was measured against the live API on 2026-09-06, 2026-09-08 and 2026-09-09, with the
+request and the response kept. Nothing here is a complaint about the product working: both wallets do what they
 are held to. It is about the distance between a policy that is attached and a policy that refuses,
-and about one error path that actively misleads whoever tries to measure the difference.
+and about one error path that actively misleads whoever tries to measure the difference. Finding 6 is
+the one we would most want a vendor to tell us before a customer did.
 
 ## What was built
 
@@ -132,13 +133,90 @@ ours are owned now, by the same P-256 key as their wallets.
 in the dashboard, or as a field on the wallet response. It is the one case where the two ownership
 settings are visibly inconsistent with each other.
 
+## 6. A `value` cap binds one execution domain, and a wallet can hold assets in two
+
+This is the one we would most want to know before a customer told us, so it is written out in full.
+
+Our faucet policy was a single ALLOW, and its five assertions all passed:
+
+```json
+{ "method": "eth_sendTransaction", "action": "ALLOW", "conditions": [
+  { "field_source": "ethereum_transaction", "field": "chain_id", "operator": "eq",  "value": "999" },
+  { "field_source": "ethereum_transaction", "field": "value",    "operator": "lte", "value": "0x71afd498d0000" }]}
+```
+
+Read as English that is *"this key can send at most 0.002 HYPE, on one chain, and nothing else"*, and
+on 2026-09-09 that wallet had 0.25 HYPE — about $21, a hundred and twenty-five times the cap —
+which the policy could not stop it sending anywhere.
+
+**Why.** HyperEVM (chain 999) and HyperCore, Hyperliquid's exchange, are two execution domains that
+share one address space: `0x1BC6…` is an EVM account and a Core account, and they hold separate
+balances. A system contract at `0x3333333333333333333333333333333333333333` forwards actions from
+the EVM to Core on behalf of `msg.sender`. So this is an ordinary `eth_sendTransaction`:
+
+```
+to     0x3333333333333333333333333333333333333333
+value  0x0                       <- satisfies `value lte 0x71afd498d0000`
+chain  999                       <- satisfies `chain_id eq 999`
+data   0x17938e13… (sendRawAction, action 6 `spotSend`, 0.25 HYPE -> the withdrawal address)
+```
+
+Every condition passes, because on the EVM nothing of value moves. Core moves the balance. Measured:
+two such calls, [`0x0e86ccb6…`][t1] and [`0x2e38826d…`][t2], took 0.01 and then 0.24 HYPE out of that
+wallet's Core balance under the policy exactly as written above. (In our case that was the intended
+recovery — the funds had arrived on the wrong side and had to be bridged. It worked because the
+policy did not stop it, which is the point.)
+
+**The general shape, which is not Hyperliquid-specific.** `value` and `chain_id` describe a transfer
+of the chain's own gas token on one chain. They say nothing about what a call *causes* elsewhere, and
+"elsewhere" is not hypothetical any more: any chain with a system contract or precompile that moves
+assets held under the same address in another domain — an exchange, a staking module, a bridge — has
+this shape. A policy that reads as a spending limit is a spending limit on one domain only, and the
+docs give a reader no reason to suspect the qualifier.
+
+**What closes it,** and it is worth showing because the schema makes only one form available:
+
+```json
+{ "method": "eth_sendTransaction", "action": "DENY", "conditions": [
+  { "field_source": "ethereum_transaction", "field": "to", "operator": "eq",
+    "value": "0x3333333333333333333333333333333333333333" }]}
+```
+
+`to` is the only field that can express it: there is no `data` on `ethereum_transaction` (finding 2)
+and no `neq` (finding 3), so *"any target except the system contract"* cannot be written — the rule
+has to name the door and DENY it, and rely on DENY beating ALLOW. That works, and our faucet has run
+that rule since; `script/faucet-check.mjs` asserts the denial as its sixth case. But it only works
+for doors you know about, and enumerating them is the customer's problem under the current schema.
+
+**The asks, in the order we would want them:**
+
+1. **Say what `value` means.** One sentence in the condition reference — *"`value` is the native
+   token transferred by this transaction on this chain; it does not bound assets the transaction
+   causes to move"* — turns a silent gap into a known one.
+2. **A `neq`, or a `not_in`, on `to`.** With it, an allowlist of destinations is one rule and the
+   enumeration problem disappears. Without it, every policy that wants "only these addresses" is
+   written inside out.
+3. Longer term, the thing customers will actually ask for: a way to express *"this key may not
+   reach a system contract"* without naming each one, since the set is chain-specific and grows.
+
+Our second wallet was unaffected, and the reason is instructive: the hedge operator's ALLOW names
+`to` **and** a decoded `function_name`, so everything that is not that one call on that one contract
+was already refused, CoreWriter included — measured, not assumed, as the "Core door" case in
+`script/hedge-check.mjs`. **A policy written as an allowlist of calls survived this; a policy written
+as a spending limit did not.** That distinction is not visible to someone reading the condition
+reference and choosing which shape to write.
+
+[t1]: https://hyperevmscan.io/tx/0x0e86ccb6169e250a98db8ecd590ca12c471c2f94578972981ffe4a9aba52cd46
+[t2]: https://hyperevmscan.io/tx/0x2e38826d65d5919f5c096bd088760bc6bcdb09ab49a55d41f4c491204b3179b3
+
 ## Reproducing any of this
 
 Two scripts in this repository send these exact requests to the live API and print what came back:
 
 ```
-node script/faucet-check.mjs   # five cases: the drip, another chain, over the cap, another method, unsigned
-node script/hedge-check.mjs    # twelve: cover() allowed, and eleven ways of being refused
+node script/faucet-check.mjs   # six cases: the drip, another chain, over the cap, another method,
+                              #   unsigned, and CoreWriter — finding 6, now denied
+node script/hedge-check.mjs    # thirteen: cover() allowed, and twelve ways of being refused
 ```
 
 Both are written so that an allowed request cannot land, and both assert the wallet's and the

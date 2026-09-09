@@ -213,6 +213,16 @@ the calldata decodes to `cover()`; denies outright anything carrying value; and 
 rule allows. The wallet holds HYPE for its own gas and there is no transaction it can sign that
 sends any of it anywhere.
 
+**That the allowlist names a call and not a ceiling is what makes it hold across both domains.** A
+HyperEVM address is also a HyperCore account, and `CoreWriter` at `0x3333…3333` forwards actions to
+the exchange on behalf of whoever calls it — inside an ordinary `eth_sendTransaction` whose `value`
+is zero, so a rule written as a spending limit does not see it. This policy names the destination and
+the decoded function, so the door is closed by the same clause that closes every other one, and
+`hedge-check.mjs` asks it directly rather than inferring it. The operator has also never held a
+HyperCore account: no spot balance, no margin, an empty ledger. The desk's collateral sits under the
+*desk's* address, and `CoreWriter` acts for its caller, so an operator that could reach it would be
+spending its own nothing.
+
 Both halves are owned by the same P-256 key, and that is the second lock rather than a detail: a
 Privy policy is not enforced at all on a wallet whose `owner_id` is null, and a policy whose own
 `owner_id` is null can be rewritten by anything holding the app secret. An owned wallet under an
@@ -228,6 +238,7 @@ each of these and reports what came back:
 | `close()`, which returns the desk's inventory to its owner | `policy_violation` |
 | `armHedge()`, which is the operator rewriting its own ceiling | `policy_violation` |
 | `transfer()` of the desk's UBTC | `policy_violation` |
+| `spotSend` through `CoreWriter`, which moves a HyperCore balance | `policy_violation` |
 | `personal_sign` | `policy_violation` |
 | the same `cover()` on Ethereum mainnet | `policy_violation` |
 | `cover()` with 1 wei attached | `policy_violation` |
@@ -484,11 +495,11 @@ this way holds no HYPE and Privy's gas sponsorship does not cover chain 999, so 
 drips 0.002 HYPE once per Privy user — keyed on the identity in the access token rather than on the
 address, because an address is free to mint and a faucet keyed on one is empty within the hour. It
 signs with a Privy server wallet held under a policy that allows `eth_sendTransaction` on chain 999
-up to that amount and nothing else, so the worst case if every line of that file is wrong is one
-drip. The policy is `keeper/policy.json`, as Privy returns it, and `test/api/faucet.test.mjs`
+up to that amount, denies `CoreWriter` outright, and permits nothing else — so the worst case if
+every line of that file is wrong is one drip, on either side of the chain. The policy is `keeper/policy.json`, as Privy returns it, and `test/api/faucet.test.mjs`
 asserts what the endpoint refuses.
 
-**Two things have to be true before such a policy means anything, and neither is documented.** Both
+**Three things have to be true before such a policy means anything, and none is documented.** All
 were measured on the live wallet rather than assumed, and each one silently turns the policy into
 decoration:
 
@@ -502,6 +513,14 @@ decoration:
    unresolvable and the chain restriction is a no-op. A rule denying the exact destination address
    did not stop a send until the transaction carried all of its fields, which is why `api/faucet.mjs`
    builds nonce, gas, fees and chain id itself instead of letting Privy fill them in.
+3. **A ceiling on `value` is a ceiling in one execution domain, and this wallet has assets in two.**
+   A HyperEVM address is also a HyperCore account with its own balances, and `CoreWriter` at
+   `0x3333…3333` forwards actions to the exchange for whoever calls it — an `eth_sendTransaction`
+   carrying zero value, which every rule written against `value` admits while HyperCore moves the
+   money. So the policy denies `to == 0x3333…3333` outright. `to` is the only field that can say it:
+   `ethereum_transaction` exposes no `data` and the schema has no `neq`, so *"anywhere but the
+   system contract"* is unwriteable and the door has to be named. That DENY is what makes the
+   ceiling a bound on what this wallet **holds**, and not only on what it can send on the EVM.
 
 **There are two policy-held wallets here, and the second is the more interesting one.** The faucet
 gives a visitor gas; the hedge operator holds `hedgeOperator` on a desk and may call `cover()` and
@@ -515,16 +534,18 @@ refuses to rotate a key that is already in use.
 
 With both in place the two secrets are independent: the app secret authenticates the app, the owner
 key authorizes the request, and an unsigned send is refused with a 401. `node script/faucet-check.mjs`
-re-runs all five cases — the drip, another chain, over the cap, another method, and unsigned —
-against the live wallet and reports which the policy let through.
+re-runs all six cases — the drip, another chain, over the cap, another method, unsigned, and the
+`CoreWriter` call — against the live wallet and reports which the policy let through.
 
 **What building on that policy engine actually cost, with the requests and the responses, is
-[`FEEDBACK-PRIVY.md`](FEEDBACK-PRIVY.md).** Five findings, and the one worth the sponsor's time is
-that an unpopulated request has its gas estimated *before* the policy answers — so calldata the
-target would revert on comes back `transaction_broadcast_failure`, which is indistinguishable from
-"the policy allowed it and the node refused it". A check script written the obvious way reads that
-as a fail-open. Ours did, for an hour, and was wrong. The document says what would fix it: a
-dry-run endpoint that returns the policy decision and touches no chain.
+[`FEEDBACK-PRIVY.md`](FEEDBACK-PRIVY.md).** Six findings, with the requests and the responses. The
+one worth the sponsor's time is the sixth, because it is not specific to this chain: a policy whose
+conditions are `value` and `chain_id` reads as a spending limit and is one only where the chain's own
+gas token is the only thing the key controls. Any system contract that moves assets held under the
+same address in another domain — an exchange, a staking module, a bridge — is outside what those two
+fields can see, and the schema offers no `neq` with which to exclude a set of them. A policy written
+as an allowlist of calls survives that; one written as a ceiling does not, and nothing in the
+condition reference tells a reader which shape they are choosing.
 
 The read path has no third party in it. `app/src/abi.js` is a hand-written codec so that nothing
 sits between a browser and the calldata going to 1inch's router, and Privy's SDK is vendored rather

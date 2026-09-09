@@ -140,6 +140,7 @@ def main() -> int:
         if extra == "state":
             tail = "square" if "SQUARE" in row else row.split("\t")[-1][:38]
         line(age < limit, label, f"laptop    last {ago(age):<12} {tail}")
+        BRIEF[label] = f"{label} {ago(age)}"
     print()
 
     # 2 --- is the page serving what the keeper computed? --------------------------------------
@@ -259,7 +260,8 @@ def main() -> int:
 
     if brief:
         sys.stdout.close(); sys.stdout = sys.__stdout__
-        bits = " · ".join(BRIEF.get(k, f"{k}?") for k in ("poke", "page", "poker", "corpus"))
+        bits = " · ".join(BRIEF.get(k, f"{k}?")
+                          for k in ("poke", "cover", "page", "poker", "corpus"))
         verdict = ("NOT HEALTHY: " + ", ".join(FAILED)) if FAILED else (
                   ("NOT VERIFIED: " + ", ".join(UNKNOWN)) if UNKNOWN else "all green")
         print(f"{verdict} — {bits}")

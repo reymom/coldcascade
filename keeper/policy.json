@@ -4,7 +4,21 @@
     "chain_type": "ethereum",
     "rules": [
         {
-            "id": "af61sdgnk1seo28h5hkwpgmt",
+            "id": "w3ozih9vmm00syc7ysgx7h0d",
+            "name": "no CoreWriter: Core assets are not capped",
+            "method": "eth_sendTransaction",
+            "conditions": [
+                {
+                    "field_source": "ethereum_transaction",
+                    "field": "to",
+                    "operator": "eq",
+                    "value": "0x3333333333333333333333333333333333333333"
+                }
+            ],
+            "action": "DENY"
+        },
+        {
+            "id": "gq1na0pr89uni8ctdndnaq0q",
             "name": "drip at most 0.002 HYPE on chain 999",
             "method": "eth_sendTransaction",
             "conditions": [

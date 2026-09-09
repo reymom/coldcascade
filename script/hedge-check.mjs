@@ -53,9 +53,27 @@ const DEAD = "0x000000000000000000000000000000000000dEaD";
 const word = (v) => BigInt(v).toString(16).padStart(64, "0");
 const addr = (a) => a.toLowerCase().replace(/^0x/, "").padStart(64, "0");
 const COVER = "0xe7d931e4";                                              // cover()
+const CORE_WRITER = "0x3333333333333333333333333333333333333333";
 const CLOSE = "0x43d726d6";                                              // close()
 const ARM = `0x6c18b037${word(1)}${word(20_000_000)}${addr(OPERATOR ?? DEAD)}${word(30)}`;
 const XFER = `0xa9059cbb${addr(DEAD)}${word(1)}`;                        // transfer(address,uint256)
+
+/**
+ * `CoreWriter.sendRawAction` carrying action 6, `spotSend` — the call that moves a wallet's
+ * *HyperCore* balance while touching nothing on the EVM.
+ *
+ * It is here because it broke the faucet's policy on 2026-09-09: 0.25 HYPE left that wallet's Core
+ * balance under a policy whose five cases all passed, because a cap on `value` caps one execution
+ * domain and a HyperEVM address is also a HyperCore account. The operator's policy stops it for a
+ * different and better reason — its ALLOW names `to` and a function, so everything not that call is
+ * already refused — and this case is here to keep that true rather than incidental.
+ *
+ * `0xf33c1145…` has never had a HyperCore account at all (no spot, no margin, an empty ledger on
+ * 2026-09-09), so there is nothing behind the door either. Both facts are worth holding: the desk's
+ * margin lives under the *desk's* address, and CoreWriter acts for its caller, so an operator that
+ * could reach CoreWriter still could not spend the desk's collateral — it would be spending its own.
+ */
+const SPOT_SEND = `0x17938e13${word(0x20)}${word(0x64)}01000006${addr("0x2222222222222222222222222222222222222222")}${word(150)}${word(10_000)}${"0".repeat(56)}`;
 
 const basic = {
   authorization: "Basic " + Buffer.from(`${APP}:${SECRET}`).toString("base64"),
@@ -134,6 +152,9 @@ const results = [
   ["a token transfer",
     await attempt("transfer() of UBTC, the plain theft case",
       send(full({ to: UBTC, data: XFER }))), false],
+  ["the Core door",
+    await attempt("spotSend through CoreWriter, which the faucet's own cap did not stop",
+      send(full({ to: CORE_WRITER, data: SPOT_SEND }))), false],
   ["personal_sign",
     await attempt("personal_sign, which the policy never allows",
       { method: "personal_sign", params: { message: "drain me", encoding: "utf-8" } }), false],
@@ -178,5 +199,6 @@ console.log(bad
   ? `\n${bad} wrong. A policy that does not refuse is not a control. Check the wallet and the policy\n` +
     "both have an owner, and that the transaction above carries every field the conditions name."
   : `\nthe policy is enforced: ${DESK} only, cover() only, chain 999 only, value 0 only,\n` +
-    "and only signed by the operator's own key. Everything else is a policy_violation.");
+    "and only signed by the operator's own key. Everything else is a policy_violation —\n" +
+    "CoreWriter included, so the restriction covers HyperCore and not only the EVM.");
 process.exit(bad ? 1 : 0);
