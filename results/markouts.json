@@ -1,5 +1,5 @@
 {
-  "generatedAt": 1788965415,
+  "generatedAt": 1788984629,
   "chainId": 999,
   "source": {
     "provider": "The Graph Market for Substreams",
@@ -7,7 +7,7 @@
     "package": "coldcascade-v0.1.0.spkg",
     "module": "desk_events",
     "startBlock": 45135453,
-    "stopBlock": 45454260,
+    "stopBlock": 45473779,
     "demand": {
       "scripted": true,
       "generator": "script/demo-cadence.sh",
@@ -26,14 +26,14 @@
     "60": 360
   },
   "books": {
-    "count": 1439,
+    "count": 1594,
     "firstAt": 1788870223,
-    "lastAt": 1788965352,
-    "medianGapSeconds": 60.0
+    "lastAt": 1788984551,
+    "medianGapSeconds": 60
   },
   "summary": {
     "fills": 80,
-    "fillsWithCompleteHorizons": 64,
+    "fillsWithCompleteHorizons": 66,
     "firstFillAt": 1788708512,
     "lastFillAt": 1788964945,
     "spanDays": 2.97,
@@ -50,23 +50,23 @@
         "beforeSeries": 8
       },
       "15": {
-        "n": 67,
-        "meanBps": 2.127,
-        "medianBps": 2.286,
+        "n": 68,
+        "meanBps": 2.583,
+        "medianBps": 2.288,
         "minBps": -57.286,
         "maxBps": 43.761,
-        "pending": 1,
+        "pending": 0,
         "gap": 4,
         "noBook": 0,
         "beforeSeries": 8
       },
       "60": {
-        "n": 69,
-        "meanBps": -1.11,
+        "n": 71,
+        "meanBps": -0.709,
         "medianBps": -3.694,
         "minBps": -81.766,
         "maxBps": 85.213,
-        "pending": 2,
+        "pending": 0,
         "gap": 1,
         "noBook": 0,
         "beforeSeries": 8
@@ -113,9 +113,9 @@
             "maxBps": 43.761
           },
           "60": {
-            "n": 40,
-            "meanBps": 0.312,
-            "medianBps": -3.11,
+            "n": 41,
+            "meanBps": -0.747,
+            "medianBps": -3.16,
             "minBps": -81.766,
             "maxBps": 85.213
           }
@@ -147,16 +147,16 @@
             "maxBps": 39.309
           },
           "15": {
-            "n": 30,
-            "meanBps": 3.542,
-            "medianBps": 2.966,
+            "n": 31,
+            "meanBps": 4.496,
+            "medianBps": 3.647,
             "minBps": -20.374,
             "maxBps": 40.77
           },
           "60": {
-            "n": 29,
-            "meanBps": -3.071,
-            "medianBps": -9.526,
+            "n": 30,
+            "meanBps": -0.657,
+            "medianBps": -9.146,
             "minBps": -78.482,
             "maxBps": 76.594
           }
@@ -190,15 +190,15 @@
             "maxBps": 39.309
           },
           "15": {
-            "n": 66,
-            "meanBps": 2.198,
-            "medianBps": 2.288,
+            "n": 67,
+            "meanBps": 2.659,
+            "medianBps": 2.291,
             "minBps": -57.286,
             "maxBps": 43.761
           },
           "60": {
-            "n": 68,
-            "meanBps": -0.566,
+            "n": 70,
+            "meanBps": -0.175,
             "medianBps": -3.635,
             "minBps": -81.766,
             "maxBps": 85.213
@@ -238,9 +238,9 @@
                 "maxBps": 43.761
               },
               "60": {
-                "n": 39,
-                "meanBps": 1.297,
-                "medianBps": -3.059,
+                "n": 40,
+                "meanBps": 0.187,
+                "medianBps": -3.11,
                 "minBps": -81.766,
                 "maxBps": 85.213
               }
@@ -272,16 +272,16 @@
                 "maxBps": 39.309
               },
               "15": {
-                "n": 30,
-                "meanBps": 3.542,
-                "medianBps": 2.966,
+                "n": 31,
+                "meanBps": 4.496,
+                "medianBps": 3.647,
                 "minBps": -20.374,
                 "maxBps": 40.77
               },
               "60": {
-                "n": 29,
-                "meanBps": -3.071,
-                "medianBps": -9.526,
+                "n": 30,
+                "meanBps": -0.657,
+                "medianBps": -9.146,
                 "minBps": -78.482,
                 "maxBps": 76.594
               }
@@ -4471,10 +4471,13 @@
           "toleranceSeconds": 120
         },
         "60": {
-          "bps": null,
-          "status": "pending",
-          "toleranceSeconds": 360,
-          "nearestLagSeconds": null
+          "bps": -43.125,
+          "status": "ok",
+          "midRaw": 789615.0,
+          "bookAt": 1788965681,
+          "bookBlock": 45454543,
+          "lagSeconds": 78,
+          "toleranceSeconds": 360
         }
       }
     },
@@ -4510,16 +4513,22 @@
           "toleranceSeconds": 120
         },
         "15": {
-          "bps": null,
-          "status": "pending",
-          "toleranceSeconds": 120,
-          "nearestLagSeconds": null
+          "bps": 33.104,
+          "status": "ok",
+          "midRaw": 788825.0,
+          "bookAt": 1788965891,
+          "bookBlock": 45454757,
+          "lagSeconds": 46,
+          "toleranceSeconds": 120
         },
         "60": {
-          "bps": null,
-          "status": "pending",
-          "toleranceSeconds": 360,
-          "nearestLagSeconds": null
+          "bps": 69.367,
+          "status": "ok",
+          "midRaw": 785955.0,
+          "bookAt": 1788968771,
+          "bookBlock": 45457685,
+          "lagSeconds": 226,
+          "toleranceSeconds": 360
         }
       }
     }
@@ -4527,9 +4536,9 @@
   "postedThisRun": [
     {
       "fillId": "0x84a768f8d50b19a0e4a05c9f4c309b861527830267ce91366c821b3f00000005",
-      "horizonMinutes": 5,
-      "bps": 13,
-      "txHash": "0xf09b6a1824f32216d27d126dfb00215b9adc4bcce634ba020ce05d4b5a452beb"
+      "horizonMinutes": 60,
+      "bps": 69,
+      "txHash": "0xdc90191984fb59dfaf8b3a1ca2516618d977828e64016e236acf14a10f5a1b37"
     }
   ],
   "failedThisRun": []
