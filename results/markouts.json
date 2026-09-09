@@ -1,5 +1,5 @@
 {
-  "generatedAt": 1788984629,
+  "generatedAt": 1788989412,
   "chainId": 999,
   "source": {
     "provider": "The Graph Market for Substreams",
@@ -7,7 +7,7 @@
     "package": "coldcascade-v0.1.0.spkg",
     "module": "desk_events",
     "startBlock": 45135453,
-    "stopBlock": 45473779,
+    "stopBlock": 45478660,
     "demand": {
       "scripted": true,
       "generator": "script/demo-cadence.sh",
@@ -26,115 +26,115 @@
     "60": 360
   },
   "books": {
-    "count": 1594,
+    "count": 1665,
     "firstAt": 1788870223,
-    "lastAt": 1788984551,
-    "medianGapSeconds": 60
+    "lastAt": 1788989351,
+    "medianGapSeconds": 60.0
   },
   "summary": {
-    "fills": 80,
+    "fills": 84,
     "fillsWithCompleteHorizons": 66,
     "firstFillAt": 1788708512,
-    "lastFillAt": 1788964945,
-    "spanDays": 2.97,
+    "lastFillAt": 1788989178,
+    "spanDays": 3.25,
     "byHorizon": {
       "5": {
-        "n": 71,
-        "meanBps": 1.814,
-        "medianBps": 0.636,
+        "n": 74,
+        "meanBps": 1.893,
+        "medianBps": 0.573,
         "minBps": -33.575,
         "maxBps": 39.309,
-        "pending": 0,
+        "pending": 1,
         "gap": 1,
         "noBook": 0,
         "beforeSeries": 8
       },
       "15": {
-        "n": 68,
-        "meanBps": 2.583,
+        "n": 70,
+        "meanBps": 2.52,
         "medianBps": 2.288,
         "minBps": -57.286,
         "maxBps": 43.761,
-        "pending": 0,
-        "gap": 4,
+        "pending": 1,
+        "gap": 5,
         "noBook": 0,
         "beforeSeries": 8
       },
       "60": {
-        "n": 71,
-        "meanBps": -0.709,
-        "medianBps": -3.694,
+        "n": 72,
+        "meanBps": -0.744,
+        "medianBps": -3.635,
         "minBps": -81.766,
         "maxBps": 85.213,
-        "pending": 0,
+        "pending": 3,
         "gap": 1,
         "noBook": 0,
         "beforeSeries": 8
       }
     },
     "vsTouch": {
-      "n": 80,
-      "meanBps": -92.14,
+      "n": 84,
+      "meanBps": -88.228,
       "medianBps": -20.0,
       "minBps": -8412.255,
       "maxBps": 269.801
     },
     "bySide": {
       "buysBase": {
-        "fills": 46,
-        "atTheBand": 34,
+        "fills": 49,
+        "atTheBand": 37,
         "vsTouch": {
-          "n": 46,
-          "meanBps": -226.576,
+          "n": 49,
+          "meanBps": -213.929,
           "medianBps": -20.0,
           "minBps": -8412.255,
           "maxBps": -20.0
         },
         "poolDev": {
-          "n": 46,
-          "meanBps": 5762.564,
-          "medianBps": 186.358,
+          "n": 49,
+          "meanBps": 5413.671,
+          "medianBps": 183.865,
           "minBps": -139.137,
           "maxBps": 167764.234
         },
         "byHorizon": {
           "5": {
-            "n": 40,
-            "meanBps": 0.562,
-            "medianBps": 0.128,
+            "n": 43,
+            "meanBps": 0.785,
+            "medianBps": 0.255,
             "minBps": -33.575,
             "maxBps": 19.611
           },
           "15": {
-            "n": 37,
-            "meanBps": 0.98,
+            "n": 39,
+            "meanBps": 0.95,
             "medianBps": 0.758,
             "minBps": -57.286,
             "maxBps": 43.761
           },
           "60": {
-            "n": 41,
-            "meanBps": -0.747,
-            "medianBps": -3.16,
+            "n": 42,
+            "meanBps": -0.806,
+            "medianBps": -3.178,
             "minBps": -81.766,
             "maxBps": 85.213
           }
         }
       },
       "sellsBase": {
-        "fills": 34,
-        "atTheBand": 17,
+        "fills": 35,
+        "atTheBand": 18,
         "vsTouch": {
-          "n": 34,
-          "meanBps": 89.745,
-          "medianBps": 60.956,
+          "n": 35,
+          "meanBps": 87.752,
+          "medianBps": 20.024,
           "minBps": 20.001,
           "maxBps": 269.801
         },
         "poolDev": {
-          "n": 34,
-          "meanBps": -70.945,
-          "medianBps": -39.467,
+          "n": 35,
+          "meanBps": -69.97,
+          "medianBps": -38.904,
           "minBps": -344.453,
           "maxBps": 150.914
         },
@@ -165,101 +165,101 @@
     },
     "byDesk": {
       "demoDesk": {
-        "fills": 78,
-        "atTheBand": 50,
+        "fills": 82,
+        "atTheBand": 54,
         "vsTouch": {
-          "n": 78,
-          "meanBps": 13.603,
+          "n": 82,
+          "meanBps": 12.452,
           "medianBps": -20.0,
           "minBps": -232.487,
           "maxBps": 269.801
         },
         "poolDev": {
-          "n": 78,
-          "meanBps": 54.43,
-          "medianBps": 82.68,
+          "n": 82,
+          "meanBps": 53.667,
+          "medianBps": 79.344,
           "minBps": -344.453,
           "maxBps": 421.158
         },
         "byHorizon": {
           "5": {
-            "n": 70,
-            "meanBps": 1.798,
-            "medianBps": 0.573,
+            "n": 73,
+            "meanBps": 1.879,
+            "medianBps": 0.509,
             "minBps": -33.575,
             "maxBps": 39.309
           },
           "15": {
-            "n": 67,
-            "meanBps": 2.659,
+            "n": 69,
+            "meanBps": 2.593,
             "medianBps": 2.291,
             "minBps": -57.286,
             "maxBps": 43.761
           },
           "60": {
-            "n": 70,
-            "meanBps": -0.175,
-            "medianBps": -3.635,
+            "n": 71,
+            "meanBps": -0.217,
+            "medianBps": -3.575,
             "minBps": -81.766,
             "maxBps": 85.213
           }
         },
         "bySide": {
           "buysBase": {
-            "fills": 44,
-            "atTheBand": 33,
+            "fills": 47,
+            "atTheBand": 36,
             "vsTouch": {
-              "n": 44,
-              "meanBps": -45.233,
+              "n": 47,
+              "meanBps": -43.623,
               "medianBps": -20.0,
               "minBps": -232.487,
               "maxBps": -20.0
             },
             "poolDev": {
-              "n": 44,
-              "meanBps": 151.311,
-              "medianBps": 184.48,
+              "n": 47,
+              "meanBps": 145.737,
+              "medianBps": 171.984,
               "minBps": -139.137,
               "maxBps": 421.158
             },
             "byHorizon": {
               "5": {
-                "n": 39,
-                "meanBps": 0.502,
-                "medianBps": 0.0,
+                "n": 42,
+                "meanBps": 0.734,
+                "medianBps": 0.128,
                 "minBps": -33.575,
                 "maxBps": 19.611
               },
               "15": {
-                "n": 36,
-                "meanBps": 1.077,
+                "n": 38,
+                "meanBps": 1.041,
                 "medianBps": 1.524,
                 "minBps": -57.286,
                 "maxBps": 43.761
               },
               "60": {
-                "n": 40,
-                "meanBps": 0.187,
-                "medianBps": -3.11,
+                "n": 41,
+                "meanBps": 0.104,
+                "medianBps": -3.16,
                 "minBps": -81.766,
                 "maxBps": 85.213
               }
             }
           },
           "sellsBase": {
-            "fills": 34,
-            "atTheBand": 17,
+            "fills": 35,
+            "atTheBand": 18,
             "vsTouch": {
-              "n": 34,
-              "meanBps": 89.745,
-              "medianBps": 60.956,
+              "n": 35,
+              "meanBps": 87.752,
+              "medianBps": 20.024,
               "minBps": 20.001,
               "maxBps": 269.801
             },
             "poolDev": {
-              "n": 34,
-              "meanBps": -70.945,
-              "medianBps": -39.467,
+              "n": 35,
+              "meanBps": -69.97,
+              "medianBps": -38.904,
               "minBps": -344.453,
               "maxBps": 150.914
             },
@@ -4531,14 +4531,212 @@
           "toleranceSeconds": 360
         }
       }
+    },
+    {
+      "fillId": "0x8b107bc3b803ab3a09a17209aee6119a2d24fc600e3a04c0002922c600000009",
+      "txHash": "0x8b107bc3b803ab3a09a17209aee6119a2d24fc600e3a04c0002922c658d54ca1",
+      "logIndex": 9,
+      "block": 45474134,
+      "at": 1788984951,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "928060",
+      "quoteRaw": "724541509",
+      "bookOk": true,
+      "bidRaw": 782270,
+      "askRaw": 782280,
+      "midRaw": 782275.0,
+      "touchRaw": 782270,
+      "poolDevBps": 140.058,
+      "quietBps": 20,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": {
+          "bps": 0.383,
+          "status": "ok",
+          "midRaw": 782305.0,
+          "bookAt": 1788985271,
+          "bookBlock": 45474460,
+          "lagSeconds": 20,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": null,
+          "status": "gap",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 261
+        },
+        "60": {
+          "bps": -3.196,
+          "status": "ok",
+          "midRaw": 782025.0,
+          "bookAt": 1788988571,
+          "bookBlock": 45477815,
+          "lagSeconds": 20,
+          "toleranceSeconds": 360
+        }
+      }
+    },
+    {
+      "fillId": "0xcc6805037c30a37b1ab9ae1337893864ec0bfa07245e1ba77694c9910000002d",
+      "txHash": "0xcc6805037c30a37b1ab9ae1337893864ec0bfa07245e1ba77694c991df795ca6",
+      "logIndex": 45,
+      "block": 45476316,
+      "at": 1788987097,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "529837",
+      "quoteRaw": "413144300",
+      "bookOk": true,
+      "bidRaw": 781320,
+      "askRaw": 781330,
+      "midRaw": 781325.0,
+      "touchRaw": 781320,
+      "poolDevBps": 59.892,
+      "quietBps": 20,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": {
+          "bps": 14.207,
+          "status": "ok",
+          "midRaw": 782435.0,
+          "bookAt": 1788987491,
+          "bookBlock": 45476717,
+          "lagSeconds": 94,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": 16.254,
+          "status": "ok",
+          "midRaw": 782595.0,
+          "bookAt": 1788988031,
+          "bookBlock": 45477266,
+          "lagSeconds": 34,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": null,
+          "status": "pending",
+          "toleranceSeconds": 360,
+          "nearestLagSeconds": null
+        }
+      }
+    },
+    {
+      "fillId": "0x7f2e1a41a6c14425e1ac1094db63da97a6789ab80f34bfcfc8dc47ef00000021",
+      "txHash": "0x7f2e1a41a6c14425e1ac1094db63da97a6789ab80f34bfcfc8dc47ef95771b5c",
+      "logIndex": 33,
+      "block": 45477106,
+      "at": 1788987874,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "291668",
+      "quoteRaw": "227776660",
+      "bookOk": true,
+      "bidRaw": 782510,
+      "askRaw": 782520,
+      "midRaw": 782515.0,
+      "touchRaw": 782510,
+      "poolDevBps": -8.002,
+      "quietBps": 20,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": {
+          "bps": -3.323,
+          "status": "ok",
+          "midRaw": 782255.0,
+          "bookAt": 1788988211,
+          "bookBlock": 45477449,
+          "lagSeconds": 37,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -15.463,
+          "status": "ok",
+          "midRaw": 781305.0,
+          "bookAt": 1788988811,
+          "bookBlock": 45478059,
+          "lagSeconds": 37,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": null,
+          "status": "pending",
+          "toleranceSeconds": 360,
+          "nearestLagSeconds": null
+        }
+      }
+    },
+    {
+      "fillId": "0x31bafe8cb4d55a4ae3bb2d5400bcdb2bc2a7150aef8a59690ebf27b30000000e",
+      "txHash": "0x31bafe8cb4d55a4ae3bb2d5400bcdb2bc2a7150aef8a59690ebf27b31e6bdbea",
+      "logIndex": 14,
+      "block": 45478432,
+      "at": 1788989178,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "449908",
+      "quoteRaw": "352757392",
+      "bookOk": true,
+      "bidRaw": 782490,
+      "askRaw": 782500,
+      "midRaw": 782495.0,
+      "touchRaw": 782500,
+      "poolDevBps": -36.815,
+      "quietBps": 20,
+      "vsTouchBps": 20.008,
+      "markouts": {
+        "5": {
+          "bps": null,
+          "status": "pending",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": null
+        },
+        "15": {
+          "bps": null,
+          "status": "pending",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": null
+        },
+        "60": {
+          "bps": null,
+          "status": "pending",
+          "toleranceSeconds": 360,
+          "nearestLagSeconds": null
+        }
+      }
     }
   ],
   "postedThisRun": [
     {
-      "fillId": "0x84a768f8d50b19a0e4a05c9f4c309b861527830267ce91366c821b3f00000005",
+      "fillId": "0x8b107bc3b803ab3a09a17209aee6119a2d24fc600e3a04c0002922c600000009",
       "horizonMinutes": 60,
-      "bps": 69,
-      "txHash": "0xdc90191984fb59dfaf8b3a1ca2516618d977828e64016e236acf14a10f5a1b37"
+      "bps": -3,
+      "txHash": "0x5624436b659a397384265b598d22138bbd1f00f787a4824d2aa1622dac021879"
+    },
+    {
+      "fillId": "0x7f2e1a41a6c14425e1ac1094db63da97a6789ab80f34bfcfc8dc47ef00000021",
+      "horizonMinutes": 5,
+      "bps": -3,
+      "txHash": "0x8fd6c25f46ea7b20e55444fc74c39a811ea57dc4f510f4d30085ef5df5ea6b6b"
+    },
+    {
+      "fillId": "0x7f2e1a41a6c14425e1ac1094db63da97a6789ab80f34bfcfc8dc47ef00000021",
+      "horizonMinutes": 15,
+      "bps": -15,
+      "txHash": "0xdd99b0f4720a6469881b5121d87627729b838ab485132247f5a107077060afc2"
     }
   ],
   "failedThisRun": []
