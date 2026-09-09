@@ -158,14 +158,24 @@ def main() -> int:
         line(None, "artifact", f"unreadable {which}")
     else:
         lag = local - deployed
-        # One keeper pass is twenty minutes, so a lag under that is the cadence, not staleness.
-        if lag <= 1200:
-            line(True, "artifact", f"deployed copy is current ({ago(lag) if lag > 0 else 'identical'})")
+        # The keeper rewrites the artifact every twenty minutes and only a hand-run publish moves
+        # the deployed copy, so *some* lag is the normal resting state and not a fault. The first
+        # version failed the whole screen above twenty minutes, which meant it went red within one
+        # keeper pass of every publish and stayed red — an alarm that is always on is an alarm
+        # nobody reads. Six hours is where the page stops being a fair picture of the desk.
+        #
+        # The hint prints from the first minute of drift either way: knowing there is something to
+        # run is useful long before it becomes a problem.
+        stale = lag > 6 * 3600
+        if lag <= 60:
+            line(True, "artifact", "deployed copy is current")
             BRIEF["page"] = "page current"
         else:
-            line(False, "artifact", f"deployed copy is {ago(lag).replace(' ago','')} behind disk")
-            BRIEF["page"] = f"page {ago(lag).replace(' ago','')} behind"
-            print("               -> run ./script/publish-results.sh")
+            behind = ago(lag).replace(" ago", "")
+            line(not stale, "artifact", f"deployed copy is {behind} behind disk"
+                 + ("" if stale else "  (fine; publish when convenient)"))
+            BRIEF["page"] = f"page {behind} behind"
+            print("               -> ./script/publish-results.sh")
     print()
 
     # 3 --- balances, and how long each lasts --------------------------------------------------
