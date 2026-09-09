@@ -9,15 +9,18 @@ not-for-trading line never falling off a response.
 """
 
 import json
+import os
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from coldcascade_mcp.server import Server, _tools  # noqa: E402
-from coldcascade_mcp.store import Book, Store, parse_time  # noqa: E402
+from coldcascade_mcp.store import CORPUS_SNAPSHOT, Book, Store, parse_time  # noqa: E402
+from coldcascade_mcp.sync import _keeper  # noqa: E402
 
 
 def book(t, blk, bid, ask):
@@ -29,7 +32,9 @@ class FakeStore(Store):
     """A store with a series we control: pokes at t=1000, 1060, then a hole, then 1600."""
 
     def __init__(self):
+        self.corpus_override = Path("/nonexistent")
         self.corpus_path = Path("/nonexistent")
+        self.corpus_kind = "explicit"
         self.artifact_path = Path("/nonexistent")
         self.books = [book(1000, 10, 100_000, 100_010),
                       book(1060, 20, 100_100, 100_110),
@@ -117,10 +122,15 @@ class EveryResponseCarriesItsLimits(unittest.TestCase):
             "list_fills": {"limit": 2},
             "get_markouts": {"horizon": 60},
             "describe_coverage": {},
+            # No token in the environment, so this returns notConfigured without touching the
+            # network. That is the case under test: the tool must answer, not raise.
+            "sync_stream": {},
         }
         self.assertEqual(set(args), {t["name"] for t in _tools()})
+        cleared = {k: "" for k in ("SUBSTREAMS_API_TOKEN", "PINAX_JWT")}
         for name, a in args.items():
-            body = self.server.call_tool(name, a)
+            with mock.patch.dict(os.environ, cleared):
+                body = self.server.call_tool(name, a)
             self.assertIn("provenance", body, name)
             self.assertIn("notForTrading", body["limits"], name)
             self.assertEqual(body["provenance"]["chainId"], 999, name)
@@ -130,6 +140,42 @@ class EveryResponseCarriesItsLimits(unittest.TestCase):
         p = body["provenance"]
         self.assertIn("substreams run", p["reproduce"])
         self.assertIn("cast logs", p["verifyAgainstTheChain"])
+
+
+class TheCorpusIsReachable(unittest.TestCase):
+    """The finding this closes: on a clone the server must hold data and must say where from.
+
+    Without these, `describe_coverage` on a fresh clone answers with zero observations and every
+    book query answers `beforeSeries` — the stream is real and the server cannot reach it, which
+    is indistinguishable from a static dataset with a provider's name on it.
+    """
+
+    def setUp(self):
+        self.server = Server()
+
+    def test_theCommittedSnapshotIsThereAndIsNotEmpty(self):
+        self.assertTrue(CORPUS_SNAPSHOT.exists(), f"{CORPUS_SNAPSHOT} is not in the repository")
+        s = Store(corpus=CORPUS_SNAPSHOT)
+        self.assertGreater(len(s.books), 0, "the committed snapshot holds no Booked events")
+
+    def test_coverageNamesWhichCorpusItRead(self):
+        body = self.server.call_tool("describe_coverage", {})
+        self.assertIn(body["corpus"]["kind"], ("live", "snapshot"))
+        self.assertIsNotNone(body["corpus"]["lastBlock"])
+
+    def test_withoutAKeyTheSyncSaysWhatIsMissingRatherThanFailingSilently(self):
+        with mock.patch.dict(os.environ, {"SUBSTREAMS_API_TOKEN": "", "PINAX_JWT": ""}):
+            body = self.server.call_tool("sync_stream", {})
+        self.assertEqual(body["status"], "notConfigured")
+        self.assertTrue(any("thegraph.market" in m for m in body["missing"]))
+        # and it must still say what is being served in the meantime, with its last block
+        self.assertIsNotNone(body["servingMeanwhile"]["lastBlock"])
+
+    def test_theSyncReusesTheKeepersOwnStreamerRatherThanACopy(self):
+        substreams = _keeper("substreams")
+        self.assertTrue(hasattr(substreams, "cached_stream"))
+        self.assertEqual(substreams.MODULE, "desk_events")
+        self.assertIn("pinax", substreams.ENDPOINT)
 
 
 class Protocol(unittest.TestCase):

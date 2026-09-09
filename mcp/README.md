@@ -18,7 +18,7 @@ Standard library only. No SDK, no `pip install`, stock Python 3.11+.
 }
 ```
 
-Seven tools, three resources, three prompts. **`mcp/SKILL.md` is the manual** and the server
+Eight tools, three resources, three prompts. **`mcp/SKILL.md` is the manual** and the server
 serves it at `coldcascade://skill`.
 
 Smoke test without a client:
@@ -34,13 +34,26 @@ Tests: `python3 -m unittest discover -s mcp/tests`.
 
 ## Where the data comes from
 
-The server reads the corpus the keeper maintains from the Substreams stream
-(`keeper/.cache/desk_events.jsonl`) and what the keeper derived from it
-(`results/markouts.json`). **It never falls back to an RPC** — the whole point of the book archive
-is that the RPC cannot answer, so a fallback would silently answer a different question.
+Decoded Substreams output, by either of two routes, and every answer says which:
 
-Run the keeper to refresh both:
+- **`results/desk-events.jsonl`** — a committed snapshot of the corpus, so a fresh clone answers
+  with no credentials and no network. `describe_coverage` reports `corpus.kind: "snapshot"` and
+  the block it stops at.
+- **`keeper/.cache/desk_events.jsonl`** — the live corpus, written either by the keeper's cadence
+  or by this server's own `sync_stream`, which runs the package against The Graph Market (Pinax)
+  and streams the tail on top of the snapshot. Set `SUBSTREAMS_API_TOKEN` (a free key from
+  https://thegraph.market) and install the `substreams` CLI; without them `sync_stream` says what
+  is missing and the snapshot keeps answering.
+
+`results/markouts.json` is what the keeper derived from the corpus, and is committed too.
+
+**It never falls back to an RPC for a book** — the whole point of the archive is that the RPC
+cannot answer, so a fallback would silently answer a different question. The single node call in
+the server is one `eth_blockNumber` inside `sync_stream`, asking where to stop.
+
+Refresh from this side:
 
 ```bash
 python -m coldcascade markouts        # or ./script/markout-cadence.sh
+./script/publish-results.sh           # commits the artifact and the corpus snapshot
 ```

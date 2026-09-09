@@ -359,7 +359,9 @@ A horizon with no number says which kind of nothing it is, because a page that d
 way is misleading in the one place it matters: `pending` resolves itself in a few minutes,
 `beforeSeries` never resolves because the fill predates the first poke, `gap` never resolves
 because the series had a hole there, and `noBook` is a fill whose own book the hook could not read.
-Right now that is 2 measured, 1 gap and 8 `beforeSeries` at the five-minute horizon.
+`summary.byHorizon` in `results/markouts.json` carries the count in each state, and it is not
+repeated here because the cadence moves it every twenty minutes — the eight `beforeSeries` are the
+one part of it that is fixed, being the fills that predate the series and can never acquire one.
 
 **What the number is, and what it is not.** The demand on this desk is scripted:
 `script/demo-cadence.sh` sends a take every twenty minutes and picks its side and size from the
@@ -455,6 +457,15 @@ It returns observations and their limits, and it says in its own instructions th
 produce trading advice. Standard library only, so it runs with a stock Python and no install
 step. `mcp/SKILL.md` is the manual, and the server serves it at `coldcascade://skill`.
 
+**It has its own way to the stream, and it ships with a corpus.** `results/desk-events.jsonl` is a
+committed snapshot of the decoded stream, so a clone answers every tool above with no credentials
+and no network, and `describe_coverage` says it is a snapshot and which block it stops at. With a
+free Substreams key from The Graph Market, `sync_stream` runs the package against Pinax and brings
+the corpus to the chain head, reporting how many blocks crossed the network and from where. It is
+the keeper's own `cached_stream`, imported rather than copied, so what a reader runs is what the
+cadence runs. The only node call the server makes is one `eth_blockNumber`, to know where to stop;
+it never asks a node for a book, which is the query a node cannot answer.
+
 `results/book-archive.json` is the same series as a static file, so the console can answer the
 same question in the browser from the same numbers.
 
@@ -544,9 +555,9 @@ points at the open one, and the console says which oracle each desk names.
 
 The quote, the program encoder, the desk account and the console are built and tested against
 1inch's own Aqua and the SwapVM router deployed on 999. The HyperCore reader has been run against a
-live node, and the round trip above is the live book answering today. **It is deployed.** Twelve
-contracts on chain 999 since 6 September, four desks shipped and open, and the canonical desk holds
-real UBTC and USD₮0. The taker path is live end to end from an email address, and the CoreWriter
+live node, and the round trip above is the live book answering today. **It is deployed.** Fifteen
+contracts on chain 999 — twelve on 6 September and three more with the hedge leg on the 7th — four
+desks shipped and open, and the canonical desk holds real UBTC and USD₮0. The taker path is live end to end from an email address, and the CoreWriter
 cover leg has been sent from a desk and filled on HyperCore. A desk can hand that trigger to an
 automation key that may call `cover()` and nothing else — on chain and under a policy — and one on
 999 did: it absorbed a fill, and five minutes later a cadence covered it with no signature from
@@ -614,6 +625,7 @@ forge build
 forge test
 node test/api/faucet.test.mjs # the one server-side endpoint, and what it refuses
 node script/faucet-check.mjs  # the same denials against the live wallet, so the policy is a fact
+python3 -m unittest discover -s mcp/tests   # the MCP server, and the corpus it ships with
 node script/hedge-check.mjs   # what the hedge operator's key is refused: every call but cover()
 DRY_RUN=1 node script/cover.mjs  # what a cover would send right now, and nothing sent
 ./script/probe999.sh          # the live book and the desk's two prices, no key, nothing deployed
@@ -746,6 +758,13 @@ python3 -m http.server 8000   # then http://localhost:8000/app/
   1 352 bps after the 12% move, and that a feed-shaped reader cannot lean. The rule they share is
   `src/libs/Regime.sol:49-68` and `src/CoreQuote.sol:60-110`. What the exercise found is in
   [`FEEDBACK.md`](FEEDBACK.md).
+
+## AI usage
+
+AI assistance was used throughout this repository, and [`AI-USAGE.md`](AI-USAGE.md) says exactly
+which models did what, on which parts, and what was done by hand instead. Every commit here was
+reviewed, made and pushed by the author; the mechanism, the parameters and every transaction on
+chain 999 are his.
 
 ## Prior art
 

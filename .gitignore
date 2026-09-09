@@ -7,8 +7,6 @@ keeper/.venv/
 keeper/.cache/
 mcp/.cache/
 **/__pycache__/
-subgraph/build/
-subgraph/generated/
 app/node_modules/
 app/dist/
 

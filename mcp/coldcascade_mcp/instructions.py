@@ -38,6 +38,14 @@ against L1 before the fill) and markouts at 5, 15 and 60 minutes.
 * For one fill: `get_fill` with a transaction hash. For many: `list_fills`, which filters by desk,
   side, and whether the price was set by the bound or by the curve.
 * For the keeper's own posted decisions: `get_markouts`.
+* **`sync_stream` first, if you have a Substreams key.** The corpus ships as a committed snapshot
+  so every tool above answers on a fresh clone with no credentials — but a snapshot stops where it
+  was taken. `sync_stream` runs the package against The Graph Market (Pinax) and brings it to the
+  chain head, and reports how many blocks crossed the network and from which endpoint. Without a
+  key it says exactly what is missing and the snapshot keeps answering. `describe_coverage` always
+  says which of the two you are reading, in its `corpus` block; say so too when the answer is near
+  the end of the series, because "nothing after that block is in it" is not the same claim as
+  "nothing happened".
 
 **How to read what comes back**
 

@@ -61,6 +61,45 @@ cd mcp && printf '%s\n' \
   | python3 -m coldcascade_mcp
 ```
 
+That answers on a fresh clone with no key, no CLI and no network — read on.
+
+## Where the data comes from, and how to bring it to head
+
+The corpus is decoded Substreams output and reaches this server two ways.
+
+**Cold, out of the box.** `results/desk-events.jsonl` is a snapshot of that corpus, committed to
+the repository. Every tool answers from it immediately with no credentials, and
+`describe_coverage` reports `corpus.kind: "snapshot"` and the block it stops at. It is a floor,
+not the source — nothing after that block is in it, which is a different statement from nothing
+having happened.
+
+**Live, from the provider.** `sync_stream` runs the package against The Graph Market for
+Substreams and brings the corpus to the chain head:
+
+```bash
+export SUBSTREAMS_API_TOKEN=<a free key from https://thegraph.market>
+# and the CLI, from github.com/streamingfast/substreams/releases
+
+cd mcp && printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"x","version":"0"}}}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"sync_stream","arguments":{}}}' \
+  | python3 -m coldcascade_mcp
+```
+
+It answers with the endpoint, the package, the blocks it spanned, how many blocks with events
+crossed the network and how long it took, and where the corpus now stops. It seeds itself from
+the committed snapshot first, so this streams the tail — minutes — rather than the quarter of a
+million blocks a scan from the deployment block would be. Without a key it returns
+`status: "notConfigured"` naming exactly what is missing, and the snapshot keeps answering.
+
+It is the keeper's own streaming code, `keeper/coldcascade/substreams.py:cached_stream`, imported
+by path and not copied: the function a judge runs here is the function the twenty-minute cadence
+runs, so the two cannot drift apart.
+
+The only node call this server ever makes is one `eth_blockNumber`, inside `sync_stream`, to know
+where to stop. **It never asks a node for a book** — that is the query no node can answer, and
+answering it from an RPC would silently be a different question.
+
 ## Tools
 
 | tool | answers |
@@ -72,6 +111,7 @@ cd mcp && printf '%s\n' \
 | `list_fills` | fills filtered by desk, side, and whether the bound or the curve priced them |
 | `get_markouts` | the keeper's 5/15/60-minute markouts, each with a status and whether it is on chain |
 | `describe_coverage` | extent, density, holes, and an explicit list of what this cannot answer |
+| `sync_stream` | streams the package against The Graph Market and brings the corpus to head |
 
 Resources: `coldcascade://instructions`, `coldcascade://skill` (this file),
 `coldcascade://coverage` (live). Prompts: `book_at`, `explain_fill`, `coverage`.
@@ -164,4 +204,5 @@ substreams run -e hyperevm.substreams.pinax.network:443 \
 `keeper/coldcascade/markouts.py` consumes that, joins each fill to the books at `t+5`, `t+15` and
 `t+60` minutes, and posts to `MarkoutLedger` — whose `Markout` log the same module decodes on the
 next pass, which is how the keeper knows what it has already published. This server reads the
-corpus that loop maintains; it never falls back to an RPC, because the RPC is what cannot answer.
+corpus that loop maintains, and `sync_stream` lets it maintain its own; it never falls back to an
+RPC for a book, because the RPC is what cannot answer.

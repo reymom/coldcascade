@@ -16,6 +16,7 @@ from pathlib import Path
 
 from .instructions import SERVER_INSTRUCTIONS
 from .store import Store, parse_time, provenance
+from .sync import sync as sync_stream
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "coldcascade-mcp"
@@ -128,9 +129,35 @@ def _tools() -> list[dict]:
             "name": "describe_coverage",
             "description": (
                 "What this server holds, how dense it is, and — explicitly — what it cannot "
-                "answer. Call this first when the time range is not already known."
+                "answer. Call this first when the time range is not already known. The `corpus` "
+                "block says whether the data being served is the committed snapshot or a live "
+                "corpus, and which block it stops at."
             ),
             "inputSchema": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "sync_stream",
+            "description": (
+                "Bring the corpus to the chain head from the provider: runs the Substreams "
+                "package against The Graph Market (Pinax) and reports how many blocks crossed "
+                "the network, from which endpoint, and where the corpus now stops. Needs a free "
+                "Substreams key in SUBSTREAMS_API_TOKEN; without one it says exactly what is "
+                "missing and keeps serving the committed snapshot. Call it once at the start of "
+                "a session to answer questions about the last few minutes."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "to_block": {
+                        "type": "integer",
+                        "description": "Stop here instead of at the chain head. Omit for head.",
+                    },
+                    "from_block": {
+                        "type": "integer",
+                        "description": "Start here instead of at the deployment block. Omit for the deployment block; cached blocks are not re-streamed either way.",
+                    },
+                },
+            },
         },
     ]
 
@@ -176,6 +203,16 @@ class Server:
             body["provenance"] = provenance("markout")
         elif name == "describe_coverage":
             body = s.coverage()
+            body["provenance"] = provenance("book")
+        elif name == "sync_stream":
+            body = sync_stream(
+                from_block=args.get("from_block"), to_block=args.get("to_block"))
+            # The corpus on disk has just changed underneath the store; the next answer must come
+            # from what was streamed, not from what was loaded before the call.
+            s.load()
+            body["corpusNow"] = {**body.get("corpusNow", {}),
+                                 "servedBy": s.corpus_kind,
+                                 "observations": len(s.books)}
             body["provenance"] = provenance("book")
         else:
             raise KeyError(f"unknown tool: {name}")

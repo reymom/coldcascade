@@ -1,10 +1,18 @@
 name: hygiene
 on: [push, pull_request]
 
-# The submission repo holds only what a judge reads: no internal working documents,
-# and no references to private projects or to the pre-event learning repo. It is a
-# cleanliness rule, not a concealment one — commit trailers are deliberately NOT
-# checked, because attribution is Ramon's call per commit, not the CI's.
+# The submission repo holds only what a judge reads: no internal working documents, and no
+# references to private projects or to the pre-event learning repo.
+#
+# It does NOT check for tooling references, and that is deliberate. An earlier version of this
+# file grepped for `claude`, `anthropic`, `co-authored-by` and `generated with`, which had the
+# effect of making the AI-usage disclosure ETHGlobal's rules require impossible to write inside
+# the repository. Cleanliness about working documents and concealment of how the work was done
+# are different things, and only the first belongs in CI. The disclosure is `AI-USAGE.md`, at the
+# root, and the last job below fails the build if it goes missing.
+#
+# Commit trailers are still not checked, in either direction: attribution per commit is Ramon's
+# call, and the disclosure covers the repository as a whole.
 jobs:
   clean:
     runs-on: ubuntu-latest
@@ -19,11 +27,17 @@ jobs:
           fi
           echo "ok"
 
-      - name: no tooling or internal references in tracked files
+      - name: no internal references in tracked files
         run: |
-          if git grep -nIiE 'co-authored-by|generated with|claude|anthropic|defistar|learning spike' \
+          if git grep -nIiE 'defistar|learning spike' \
                -- ':!yarn.lock' ':!.gitignore' ':!.github/workflows/hygiene.yml'; then
             echo "::error::Tracked file contains an internal reference. Remove it before pushing."
             exit 1
           fi
+          echo "ok"
+
+      - name: the AI-usage disclosure is present and linked from the README
+        run: |
+          test -f AI-USAGE.md || { echo "::error::AI-USAGE.md is missing. The event requires it."; exit 1; }
+          grep -q 'AI-USAGE.md' README.md || { echo "::error::The README does not point at AI-USAGE.md."; exit 1; }
           echo "ok"

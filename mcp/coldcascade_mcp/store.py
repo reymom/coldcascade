@@ -1,9 +1,20 @@
 """What the server actually knows, and how sure it is of it.
 
-Everything here comes from the Substreams stream: `keeper/.cache/desk_events.jsonl` is the
-decoded corpus the keeper maintains, and `results/markouts.json` is what it derived from it. No
-call in this module reaches the chain — the point of the book archive is that the chain **cannot
-answer**, so an MCP server that fell back to an RPC would be answering a different question.
+Everything here comes from the Substreams stream, and it can arrive by either of two routes:
+
+  * `keeper/.cache/desk_events.jsonl` — the live corpus, maintained by the keeper's cadence or by
+    this server's own `sync_stream`. Local working state; not in the repository.
+  * `results/desk-events.jsonl` — a committed snapshot of the same corpus, so a clone answers
+    with no credentials and no network. Every response says which of the two it read and where
+    that corpus stops, because a snapshot silently serving as live is the failure that would
+    make this whole server a static dataset wearing a stream's label.
+
+`results/markouts.json` is what the keeper derived from the corpus and is committed alongside.
+
+No call in this module reaches the chain — the point of the book archive is that the chain
+**cannot answer**, so an MCP server that fell back to an RPC would be answering a different
+question. (`sync.py` makes exactly one node call, `eth_blockNumber`, to know where to stop
+streaming. It never asks a node for a book.)
 
 Two rules run through every function:
 
@@ -23,7 +34,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-CORPUS = ROOT / "keeper" / ".cache" / "desk_events.jsonl"
+CORPUS_LIVE = ROOT / "keeper" / ".cache" / "desk_events.jsonl"
+CORPUS_SNAPSHOT = ROOT / "results" / "desk-events.jsonl"
 ARTIFACT = ROOT / "results" / "markouts.json"
 
 CHAIN_ID = 999
@@ -87,15 +99,34 @@ class Book:
 
 
 class Store:
-    def __init__(self, corpus: Path = CORPUS, artifact: Path = ARTIFACT):
-        self.corpus_path, self.artifact_path = corpus, artifact
+    def __init__(self, corpus: Path | None = None, artifact: Path = ARTIFACT):
+        # `corpus=None` means "choose", and the choice is re-made on every load: a judge who runs
+        # sync_stream creates the live cache mid-session, and the next answer should come from it.
+        self.corpus_override, self.artifact_path = corpus, artifact
+        self.corpus_path: Path = corpus or CORPUS_SNAPSHOT
+        self.corpus_kind = "snapshot"
         self.books: list[Book] = []
         self.fills: list[dict] = []
         self.markouts: list[dict] = []
         self.artifact: dict = {}
         self.load()
 
+    def _choose_corpus(self) -> None:
+        """Live if the keeper (or `sync_stream`) has written one, otherwise the committed snapshot.
+
+        Preferring live is not a preference for freshness in the abstract — it is that the live
+        file is only ever the snapshot plus what has happened since, because `sync_stream` seeds
+        it from the snapshot. So the live file is never behind, and never disagrees.
+        """
+        if self.corpus_override is not None:
+            self.corpus_path, self.corpus_kind = self.corpus_override, "explicit"
+        elif CORPUS_LIVE.exists() and CORPUS_LIVE.stat().st_size > 0:
+            self.corpus_path, self.corpus_kind = CORPUS_LIVE, "live"
+        else:
+            self.corpus_path, self.corpus_kind = CORPUS_SNAPSHOT, "snapshot"
+
     def load(self) -> None:
+        self._choose_corpus()
         books, fills, marks = [], [], []
         if self.corpus_path.exists():
             for line in self.corpus_path.read_text().splitlines():
@@ -354,6 +385,18 @@ class Store:
         return {
             "chainId": CHAIN_ID,
             "source": src,
+            "corpus": {
+                "kind": self.corpus_kind,
+                "path": str(self.corpus_path.relative_to(ROOT)) if self.corpus_path.exists() else None,
+                "lastBlock": max((b.block for b in self.books), default=None),
+                "note": (
+                    "A committed snapshot of the stream, current to the block above. Call "
+                    "sync_stream with a Substreams key to bring it to head from the provider."
+                    if self.corpus_kind == "snapshot" else
+                    "The live corpus, maintained by the keeper's cadence or by sync_stream on "
+                    "this machine. It is the committed snapshot plus everything since."
+                ),
+            },
             "bookArchive": {
                 "observations": len(self.books),
                 "firstAtTime": iso(first.time) if first else None,
