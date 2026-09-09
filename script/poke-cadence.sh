@@ -10,6 +10,14 @@
 # is a Fill joined to a later Booked, so with no Booked the join has no right-hand side and the
 # keeper has nothing to compute.
 #
+# **This runs on a separate machine.** Since 9 Sep the cadence lives on a small always-on box
+# with a key of its own that can do nothing but poke, and the local crontab no longer has it. Two
+# reasons, both about nonces and neither about convenience: `poke()` is permissionless, so no key
+# with powers has to leave the laptop, and HyperEVM rejects a nonce ahead of the account rather
+# than queueing it — two machines signing from one key would be a guaranteed lost transaction
+# rather than a race that usually works. The fills, the keeper and the cover leg stay put; only
+# this one loses data that cannot be recovered later when it stops.
+#
 #   ./script/poke-cadence.sh              # one poke of perp 0
 #   DRY_RUN=1 ./script/poke-cadence.sh    # decide and print, send nothing
 #   PERP=0 POKE_ACCOUNT=… POKE_PASSFILE=… ./script/poke-cadence.sh
@@ -21,7 +29,16 @@ cd "$(dirname "$0")/.."
 # Same trap as demo-cadence.sh: cron's PATH has no forge and no cast.
 command -v cast >/dev/null || PATH="$HOME/.foundry/bin:$PATH"
 command -v cast >/dev/null || { echo "cast not found (looked in ~/.foundry/bin)" >&2; exit 1; }
-command -v jq   >/dev/null || { echo "jq not found" >&2; exit 1; }
+command -v python3 >/dev/null || { echo "python3 not found" >&2; exit 1; }
+
+# One field out of one JSON file is not worth a dependency. jq if it is there, python3 otherwise —
+# the box this runs on has a half-configured dpkg belonging to another project, and repairing
+# somebody else's package state to read a string is the wrong trade.
+json_field() {                     # json_field <file> <key>
+  if command -v jq >/dev/null; then jq -r ".$2" "$1"
+  else python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]])' "$1" "$2"
+  fi
+}
 
 # .env fills in what the environment has not already set, rather than overwriting it. The other
 # way round means the overrides this script documents silently do nothing whenever the variable
@@ -80,7 +97,7 @@ fi
 
 FILE="deployments/999.json"
 [ -f "$FILE" ] || { echo "no $FILE" >&2; exit 1; }
-BOOKCACHE=$(jq -r '.bookCache' "$FILE")
+BOOKCACHE=$(json_field "$FILE" bookCache)
 
 
 # Every read tries both endpoints, and a read that fails on both writes a log line before giving
