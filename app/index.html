@@ -84,6 +84,10 @@ main { max-width: 1080px; margin: 0 auto; padding: 32px 28px 96px; }
 .hero-toll span { color: var(--muted); }
 .hero-toll b { color: var(--loss); font-weight: 500; font-size: 16px;
   font-variant-numeric: tabular-nums; }
+.hero-toll code { color: var(--ink); font-size: 11px; }
+/* The empty toll is a real answer, not a spinner — so it is small on purpose, tucked into the
+   bar instead of dressed up like the number it is not. */
+.hero-toll .toll-empty { font-size: 11.5px; }
 details.legs { margin: 16px 0 0; }
 details.legs > summary { cursor: pointer; list-style: none; color: var(--muted); font-size: 11px;
   text-transform: uppercase; letter-spacing: 0.12em; }
@@ -119,6 +123,8 @@ details.legs[open] > summary::before { content: "\2212\00a0"; }
 .strip-name { fill: var(--ink); font: 10px var(--mono); }
 .strip-l1 { fill: var(--l1); fill-opacity: 0.8; stroke: var(--l1-edge); }
 .strip-desk { fill: rgba(95,178,255,0.13); stroke: var(--desk); }
+.strip-curve { stroke: var(--loss); stroke-width: 2.5; }
+.strip-curve-label { fill: var(--loss); font: 10px var(--mono); }
 .strip-wedge-bid { fill: var(--bid); fill-opacity: 0.85; }
 .strip-wedge-ask { fill: var(--ask); fill-opacity: 0.85; }
 .strip-ghost { fill: none; stroke: #2c3a50; stroke-width: 1; stroke-dasharray: 3 3; }
@@ -172,6 +178,11 @@ button.go.ghost:hover { color: var(--ink); }
 .rc-lab { fill: var(--muted); font: 10px var(--mono); }
 .rc-dot { stroke: var(--bg); stroke-width: 1.2; }
 a .rc-dot { cursor: pointer; }
+.rc-dot:hover { stroke: var(--ink); stroke-width: 2; }
+/* The hover readout: the fill's row without leaving the page. */
+.record-hover { min-height: 1.5em; }
+.record-hover b { color: var(--ink); font-weight: 500; }
+.rd-row.rd-hl { background: rgba(95,178,255,0.07); }
 .rc-buy { fill: var(--bid); }
 .rc-sell { fill: var(--ask); }
 .rc-nobook.rc-buy { fill: none; stroke: var(--bid); }
@@ -467,7 +478,7 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
       <p id="floor-error" hidden></p>
 
       <div class="hero">
-        <p class="hero-k" id="verdict-k">what an arbitrageur has taken from this floor</p>
+        <p class="hero-k" id="verdict-k">what an arbitrageur has taken from these desks</p>
         <div class="zero" id="hero-zero">—</div>
         <p class="hero-sub" id="hero-sub"></p>
         <details class="legs">
@@ -476,40 +487,6 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
         </details>
         <div class="hero-toll" id="hero-toll"></div>
       </div>
-
-      <div class="cells" id="floor-book"></div>
-      <p class="regime" id="floor-regime"></p>
-
-      <div class="strip" id="floor-strip"></div>
-      <p class="strip-caption">Distance from the book's mid, in basis points. <b>Grey</b> is
-        Hyperliquid's own bid–ask; <b>blue</b> is where each desk trades — outside on both sides,
-        nothing to pick off. A filled wedge — <span class="k-bid">amber</span> buying,
-        <span class="k-ask">teal</span> selling — is a desk quoting <b>inside</b> the book to
-        absorb, capped at the book's own price.</p>
-
-      <div class="stress-row">
-        <button class="go" id="stress-go">watch it step in ▸</button>
-        <p class="out" id="stress-out"></p>
-      </div>
-      <div id="stress-auth" hidden>
-        <input id="strip-email" type="email" autocomplete="email" placeholder="you@example.com"
-               aria-label="email address">
-        <input id="strip-code" type="text" inputmode="numeric" autocomplete="one-time-code"
-               placeholder="6-digit code" aria-label="the code from the email" hidden>
-        <button class="go" id="strip-go">email me a code</button>
-      </div>
-      <p class="out" id="strip-note"></p>
-
-      <p class="strip-caption"><button class="linky" id="go-cascade">The same zero, held for 123 minutes through a real cascade →</button></p>
-
-      <h2>desks</h2>
-      <table class="desks">
-        <thead><tr>
-          <th>desk</th><th>bid / ask now</th><th>round trip</th>
-          <th>inventory</th><th>map</th><th>cover</th>
-        </tr></thead>
-        <tbody id="floor-rows"></tbody>
-      </table>
 
       <div class="try">
         <h2>take it</h2>
@@ -536,6 +513,46 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
         </div>
         <p class="out" id="take-out"></p>
       </div>
+
+      <div class="cells" id="floor-book"></div>
+      <p class="regime" id="floor-regime"></p>
+
+      <div class="strip" id="floor-strip"></div>
+      <p class="strip-caption">Distance from the book's mid, in basis points. <b>Grey</b> is
+        Hyperliquid's own bid–ask; <b>blue</b> is the desk's band, outside it on both sides;
+        <span style="color:var(--loss)">the red tick</span> is where a plain curve on the same
+        reserves would trade — that distance is the toll above, drawn. A filled wedge —
+        <span class="k-bid">amber</span> buying, <span class="k-ask">teal</span> selling — is the
+        desk quoting <b>inside</b> the book to absorb, capped at the book's own price. All three
+        desks read the same book with the same rule; what differs between them is in the table
+        below.</p>
+
+      <div class="stress-row">
+        <button class="go" id="stress-go">watch it step in ▸</button>
+        <p class="out" id="stress-out"></p>
+      </div>
+      <div id="stress-auth" hidden>
+        <input id="strip-email" type="email" autocomplete="email" placeholder="you@example.com"
+               aria-label="email address">
+        <input id="strip-code" type="text" inputmode="numeric" autocomplete="one-time-code"
+               placeholder="6-digit code" aria-label="the code from the email" hidden>
+        <button class="go" id="strip-go">email me a code</button>
+      </div>
+      <p class="out" id="strip-note"></p>
+
+      <p class="strip-caption"><button class="linky" id="go-cascade">The same zero, held for 123 minutes through a real cascade →</button></p>
+
+      <h2>desks</h2>
+      <table class="desks" style="margin-bottom:14px">
+        <thead><tr>
+          <th>desk</th><th>bid / ask now</th><th>round trip</th><th>margin</th>
+          <th>inventory</th><th>map</th><th>cover</th>
+        </tr></thead>
+        <tbody id="floor-rows"></tbody>
+      </table>
+      <p class="strip-caption" style="margin:0 0 48px">The margin is each desk's own choice — a
+        parameter, not a property. The floor is the book's touch; the number is where this desk
+        decided to sit above it.</p>
 
       <details class="fold">
         <summary>post a liquidation map — the one trusted input, by hand</summary>
@@ -574,7 +591,12 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
           it leaves standing is ordinary inventory risk: somebody who is right about the
           <i>next</i> move still wins here, with no round trip on this screen ever paying.
           <b>Absorbing a liquidation cascade is the same property under stress</b> — twice a year
-          in the wild, on demand from the button above.</p>
+          in the wild, on demand from the button above.
+          <br><br>
+          One thing the number on this page is not: the mechanism. The 20 bps every desk shows is
+          <code>quietBps</code>, a parameter each desk sets for itself — these three happen to
+          agree. What the program guarantees is the floor, never inside Hyperliquid's own touch;
+          how far above that floor a desk sits is the maker's decision, not the product's.</p>
       </details>
 
       <div class="proof">
@@ -614,8 +636,9 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
         <span><i class="swatch sw-bid"></i>the desk bought base</span>
         <span><i class="swatch sw-ask"></i>the desk sold base</span>
         <span><i class="swatch sw-l1"></i>the dead zone</span>
-        <span>each dot is one fill — click it for the transaction</span>
+        <span>each dot is one fill — hover for its row, click for the transaction</span>
       </div>
+      <p class="out record-hover" id="record-hover" hidden></p>
       <p class="out" id="record-excluded"></p>
       <p class="out" id="record-status"></p>
       <p class="record-why" id="record-why"></p>
@@ -624,9 +647,10 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
         <p class="why" id="record-why-full"></p>
       </details>
       <div id="record-decision"></div>
-      <details class="fold">
-        <summary>every fill, row by row</summary>
-        <div id="record-decision-rows"></div>
+      <div id="record-decision-rows"></div>
+      <details class="fold" id="record-decision-rest">
+        <summary>the rest, row by row</summary>
+        <div id="record-decision-tail"></div>
       </details>
       <details class="fold">
         <summary>post-fill drift — the loop, exercised</summary>
@@ -641,7 +665,9 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
         precompiles that <b>ignore the block tag</b>: asking for the past returns the present,
         without an error. So <i>what was the BBO at this instant</i> is not a slow query, it is not
         a query at all — unless somebody wrote it down while it was true. <code>BookCache.poke</code>
-        is that writing: four uint64, about once a minute, into an EVM log.<span id="archive-start"></span></p>
+        is that writing: four uint64, about once a minute, into an EVM log.<span id="archive-start"></span>
+        Every row of the record above carries its own instant — <b>the book it read ▸</b> asks this
+        panel directly.</p>
       <details class="fold">
         <summary>how an answer is built — and why it is never a number</summary>
         <p class="why">Ask for an instant and the panel returns the two observations that bracket
@@ -1013,8 +1039,11 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
       transfers nothing, and every other entry point is <code>onlyOwner</code>. Off chain the
       policy decides what the key can <i>express</i>: <code>eth_sendTransaction</code> only where
       the chain is 999, the recipient is that desk, the value is zero and the calldata decodes to
-      <code>cover()</code>. The wallet holds HYPE for its own gas, and there is no transaction it
-      can sign that sends any of it anywhere.</p>
+      <code>cover()</code>.</p>
+    <!-- Under live verification in another session (a sister policy leaves `to` unrestricted and
+         may reach CoreWriter). If the hole is confirmed on the operator, this line changes. -->
+    <p class="note" id="keys-containment" style="max-width:82ch">The wallet holds HYPE for its own
+      gas, and there is no transaction it can sign that sends any of it anywhere.</p>
 
     <h2>what the live wallet refuses</h2>
     <table class="check">

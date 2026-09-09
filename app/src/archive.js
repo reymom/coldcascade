@@ -211,6 +211,18 @@ export async function mountArchive(root) {
     ui.input.value = b.dataset.when;
     ask(b.dataset.when);
   });
+  // The archive hangs from the fills: every row of the record and the scatter's hover readout
+  // carry their own instant in data-archive-at, and clicking one asks this panel that instant.
+  // Delegated on the root, because the record re-renders its rows on every poll.
+  root.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-archive-at]");
+    if (!b) return;
+    const t = Number(b.dataset.archiveAt);
+    if (!Number.isFinite(t)) return;
+    ui.input.value = iso(t);
+    ask(ui.input.value);
+    root.querySelector("#archive")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
   for (const b of root.querySelectorAll("[data-copy]")) {
     b.addEventListener("click", () => copyCommand(b, root));
   }

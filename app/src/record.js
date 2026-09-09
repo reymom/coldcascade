@@ -35,6 +35,18 @@ const NOT_A_CLAMP_FILL = new Set([
   "0x17f1ab1670e3175cf738e16efc7156e341253f13f9ec054a55de87c0150b3799",
 ]);
 
+// One poll, every reader. The Record tab renders the panel; the Desk's hero only reduces each
+// fresh document with recordFacts — both read the same fetch, so the hero subscribes instead of
+// mounting a second poller.
+const subscribers = new Set();
+let lastDoc = null;
+
+/** Handed each fresh markouts document, and the current one immediately if the poll has run. */
+export function onRecord(fn) {
+  subscribers.add(fn);
+  if (lastDoc) fn(lastDoc);
+}
+
 export async function mountRecord(root) {
   const ui = {
     chart: root.querySelector("#record-chart"),
@@ -42,13 +54,28 @@ export async function mountRecord(root) {
     why: root.querySelector("#record-why"),
     whyFull: root.querySelector("#record-why-full"),
     excluded: root.querySelector("#record-excluded"),
+    hover: root.querySelector("#record-hover"),
     decision: root.querySelector("#record-decision"),
     decisionRows: root.querySelector("#record-decision-rows"),
+    decisionTail: root.querySelector("#record-decision-tail"),
     markouts: root.querySelector("#record-markouts"),
     foot: root.querySelector("#record-foot"),
     status: root.querySelector("#record-status"),
   };
   if (!ui.chart) return;
+
+  // Delegated, so the listeners survive the chart re-rendering itself every poll: the dots are
+  // replaced, the container is not. Hover shows the fill's row without leaving the page; click
+  // keeps opening the transaction on the explorer.
+  ui.chart.addEventListener("mouseover", (e) => {
+    const dot = e.target.closest("[data-i]");
+    if (!dot) return;
+    const f = ui.currentFills?.[Number(dot.dataset.i)];
+    if (f) showHover(ui, f);
+  });
+  ui.chart.addEventListener("mouseout", (e) => {
+    if (e.target.closest("[data-i]")) hideHover(ui);
+  });
 
   // The ledger's address is deployment metadata, not markout data — it lives in the deployments
   // file, fetched once. The decision panel links it when it has it and names it plainly when not.
@@ -60,6 +87,8 @@ export async function mountRecord(root) {
       const res = await fetch(FILE, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const doc = await res.json();
+      lastDoc = doc;
+      for (const fn of subscribers) fn(doc);
       if (!ledgerTried) {
         ledgerTried = true;
         fetch(`../deployments/${doc.chainId ?? 999}.json`)
@@ -84,6 +113,50 @@ export async function mountRecord(root) {
   setInterval(tick, POLL_MS);
 }
 
+/**
+ * What the Desk's hero needs from the record, reduced to four numbers: how long the desks have
+ * been quoting, how many fills the chart's set holds, whether any landed inside the band, and
+ * the toll a plain curve on the same reserves would have paid over those same trades.
+ *
+ * The toll is the ?toll=record comparison, so its rule is written down here rather than in the
+ * hero: per fill, the flat curve would have quoted its own ratio — mid × (1 + poolDev) — and an
+ * arbitrageur closing at the book's touch takes the gap, when there is one, at the fill's own
+ * size and before slippage. (A flat curve fills its whole clip at the ratio; the desk's own
+ * curve is bounded. Both approximations are in the curve's favour, so the sum is a floor on
+ * what the curve loses, not a ceiling.) Fills without a poolDev — the keeper could not rebuild
+ * the reserves for that block — are counted in `fills` but excluded from the sum, and
+ * `tollFills` says how many the sum covers.
+ */
+export function recordFacts(doc) {
+  const all = (doc.fills ?? []).filter((f) => Number.isFinite(f.vsTouchBps) && Number.isFinite(f.at));
+  const fills = all.filter((f) => !NOT_A_CLAMP_FILL.has(f.txHash.toLowerCase()));
+  const inside = fills.filter((f) => Math.abs(f.vsTouchBps) < zoneOf(f, doc)).length;
+
+  let tollUsd = 0;
+  let tollFills = 0;
+  for (const f of fills) {
+    if (!Number.isFinite(f.poolDevBps) || f.bookOk === false) continue;
+    const curve = f.midRaw * (1 + f.poolDevBps / 10_000);   // the flat curve's price, raw units
+    const gap = f.makerBuysBase
+      ? (curve - f.askRaw) / f.askRaw                        // it would overpay for base
+      : (f.bidRaw - curve) / f.bidRaw;                       // or undersell it
+    if (gap <= 0) continue;
+    tollFills += 1;
+    tollUsd += gap * (Number(f.baseRaw) / 1e8) * (f.midRaw / 10);
+  }
+
+  const days = Number.isFinite(doc.summary?.spanDays) ? doc.summary.spanDays : null;
+  const daysText = days === null ? "—"
+    : days < 1 ? `${Math.max(1, Math.round(days * 24))} hours`
+    : days < 10 ? `${days.toFixed(1)} days`
+    : `${Math.round(days)} days`;
+  return { fills: fills.length, inside, daysText, tollUsd, tollFills };
+}
+
+/** The fill's own quietBps when the file carries it (it does, per fill); the shipped 20 else. */
+const zoneOf = (f, doc) =>
+  Number.isFinite(f.quietBps) ? f.quietBps : Number.isFinite(doc.quietBps) ? doc.quietBps : 20;
+
 function render(ui, doc, ledger) {
   // allFills is the artifact — every fill the desks have signed, every desk included. fills is
   // the chart — the ones whose price a quote set, which are the ones that speak about the clamp.
@@ -95,18 +168,19 @@ function render(ui, doc, ledger) {
   const chain = chainFor(doc.chainId ?? 999, "");
   const tx = (hash) => explorerTx(chain, hash);
 
-  // The dead zone's half-width is the mechanism's bound: quietBps, 20 on every desk on the
-  // floor, and the record pins exactly there. The file does not carry the parameter, so the band
-  // is the shipped bound and nothing else — the day a fill lands at ±15 the honest picture is a
+  // The dead zone's drawn half-width is the shipped margin: quietBps, 20 on every desk on the
+  // floor. Each fill's own parameter is in the file and decides the count above; the drawn band
+  // stays the shipped one and nothing else — the day a fill lands at ±15 the honest picture is a
   // dot inside the band and a mechanism to look at, not a band that quietly redrew itself around
-  // it. If the schema grows a quietBps field, it wins.
+  // it.
   const zone = Number.isFinite(doc.quietBps) ? doc.quietBps : 20;
 
   // The tab's headline, computed from the same set the chart plots: the fills, the span, and
   // whether any landed inside the band. It is a count, not a claim — the scatter below is the
-  // same set one dot per fill, so the sentence is checked against the picture at a glance.
+  // same set one dot per fill, so the sentence is checked against the picture at a glance. The
+  // band each fill is measured against is that fill's own quietBps, not a page constant.
   if (ui.count) {
-    const inside = fills.filter((f) => Math.abs(f.vsTouchBps) < zone).length;
+    const inside = fills.filter((f) => Math.abs(f.vsTouchBps) < zoneOf(f, doc)).length;
     const days = Number.isFinite(sum.spanDays) ? sum.spanDays : null;
     const daysText = days === null ? "—"
       : days < 1 ? `${Math.max(1, Math.round(days * 24))} hours`
@@ -140,7 +214,7 @@ function render(ui, doc, ledger) {
   for (const e of [zone, -zone]) {
     parts.push(`<line class="rc-zone-edge" x1="${PAD.left}" y1="${y(e)}" x2="${W - PAD.right}" y2="${y(e)}"/>`);
   }
-  parts.push(`<text class="rc-lab" x="${PAD.left + 10}" y="${y(zone) + 13}">the dead zone — no fill lands inside ±${fmtZone(zone)} bps of the touch</text>`);
+  parts.push(`<text class="rc-lab" x="${PAD.left + 10}" y="${y(zone) + 13}">the dead zone — the book's touch is the floor; ±${fmtZone(zone)} bps is the margin these desks chose. No fill lands inside.</text>`);
 
   // The touch itself, and the hundred-bps gridlines that fit the domain.
   parts.push(`<line class="rc-touch" x1="${PAD.left}" y1="${y(0)}" x2="${W - PAD.right}" y2="${y(0)}"/>`);
@@ -159,17 +233,17 @@ function render(ui, doc, ledger) {
     parts.push(`<text class="rc-lab" x="${x(books.firstAt) - 6}" y="${PAD.top - 12}" text-anchor="end">the book series starts</text>`);
   }
 
-  // The fills. Amber the desk bought base, teal it sold; each links to its own transaction.
-  for (const f of fills) {
+  // The fills. Amber the desk bought base, teal it sold. Click still opens the transaction on
+  // the explorer; hover stays on the page and shows the fill's row — when it happened, which
+  // side, where it printed, and where the book went after — in the readout under the chart.
+  ui.currentFills = fills;
+  fills.forEach((f, i) => {
     const side = f.makerBuysBase ? "buy" : "sell";
     const cls = `rc-dot rc-${side}${f.bookOk === false ? " rc-nobook" : ""}`;
-    const tip =
-      `${when(f.at)} · the desk ${f.makerBuysBase ? "bought" : "sold"} base · ` +
-      `${fmtVs(f.vsTouchBps)} bps vs the touch${f.bookOk === false ? " · the book read failed" : ""} · ${f.txHash.slice(0, 10)}…`;
-    const dot = `<circle class="${cls}" cx="${x(f.at)}" cy="${y(f.vsTouchBps)}" r="4.5"><title>${escape(tip)}</title></circle>`;
+    const dot = `<circle class="${cls}" data-i="${i}" cx="${x(f.at)}" cy="${y(f.vsTouchBps)}" r="4.5"/>`;
     const link = tx(f.txHash);
     parts.push(link ? `<a href="${link}" target="_blank" rel="noreferrer">${dot}</a>` : dot);
-  }
+  });
 
   // The date axis: local midnights labelled, noons ticked.
   const axisY = PAD.top + CH;
@@ -353,7 +427,20 @@ function renderDecision(ui, doc, fills, ledger, chain) {
     return `the fill predates the first poke — there is no book to join it to, and there never will be`;
   };
 
-  const rows = fills.map((f) => {
+  ui.currentHorizons = horizons;
+
+  // The rows are one per fill, and the fill count grows every day the desks run, so the table
+  // shows its most useful rows and folds the rest: the latest eight, the most recent fill with
+  // every horizon resolved — the table's one worked example — and one from before the series, so
+  // the absence the legend names is a row on the screen rather than only a description.
+  const complete = (f) => horizons.every((h) => f.markouts?.[String(h)]?.status === "ok");
+  const visible = new Set(fills.slice(-8).map((f) => f.fillId));
+  const lastComplete = [...fills].reverse().find((f) => complete(f));
+  if (lastComplete) visible.add(lastComplete.fillId);
+  const preSeries = [...fills].reverse().find((f) => Number.isFinite(books.firstAt) && f.at < books.firstAt);
+  if (preSeries) visible.add(preSeries.fillId);
+
+  const rowFor = (f) => {
     const cells = horizons.map((h) => {
       const m = f.markouts?.[String(h)];
       if (!m) return `<div class="rd-cell rd-mut">—</div>`;
@@ -371,34 +458,39 @@ function renderDecision(ui, doc, fills, ledger, chain) {
     });
     const link = txl(f.txHash);
     const label = link ? `<a href="${link}" target="_blank" rel="noreferrer">${when(f.at)}</a>` : when(f.at);
+    // "the book it read" is the archive's question with this fill's instant already in it — the
+    // archive answers from the row instead of living loose at the bottom of the tab.
     return (
-      `<div class="rd-row">` +
+      `<div class="rd-row" data-fill="${f.txHash}">` +
       `<div class="rd-fill">${label} · <b>${f.makerBuysBase ? "bought" : "sold"}</b> · ` +
-      `${fmtVs(f.vsTouchBps)}</div>` +
+      `${fmtVs(f.vsTouchBps)} · <button class="linky rd-book" data-archive-at="${f.at}">the book it read ▸</button></div>` +
       cells.join("") +
       `</div>`
     );
-  });
+  };
 
   node.innerHTML =
     `<div class="record-mk-head">the keeper's decision</div>` +
-    `<p class="record-mk-sub">Every twenty minutes a keeper in this repository streams the same ` +
-    `blocks and decides, for each fill and each horizon, whether the markout exists and what it ` +
-    `is. The ones that exist are written to ${ledgerLink} — the chain is where the decision is ` +
-    `recorded; the precision stays in this file. The next pass reads its own Markout logs back out ` +
-    `of the same stream, which is how it knows what is already written.</p>` +
+    `<p class="record-mk-sub">Every twenty minutes a keeper in this repository decides, per fill ` +
+    `and per horizon, whether the markout exists — and writes the ones that do to ${ledgerLink}.</p>` +
     `<p class="rd-run">this run, <b>${ageText(age)}</b> — ${runLine}${failedLine}</p>` +
     `<p class="rd-legend"><b>pending</b> — the series has not reached the horizon yet; it resolves ` +
     `itself · <b>gap</b> — the book arrived past the tolerance; a hole, it never resolves · ` +
     `<b>before the series</b> — the fill predates the first poke · <b>no book</b> — the fill's own ` +
     `read failed</p>`;
-  // The rows are one per fill, and the fill count grows every day the desk runs. They keep their
-  // own fold so the section's answer is visible without the scroll; the fold opens to all of them.
-  const rowsNode = ui.decisionRows;
-  if (rowsNode) {
-    rowsNode.innerHTML =
-      `<div class="rd-head"><div>fill · bps vs the touch</div>${horizons.map((h) => `<div>${h} min</div>`).join("")}</div>` +
-      rows.join("");
+
+  const head = `<div class="rd-head"><div>fill · bps vs the touch</div>${horizons.map((h) => `<div>${h} min</div>`).join("")}</div>`;
+  const shown = fills.filter((f) => visible.has(f.fillId));
+  const rest = fills.filter((f) => !visible.has(f.fillId));
+  if (ui.decisionRows) ui.decisionRows.innerHTML = head + shown.map(rowFor).join("");
+  if (ui.decisionTail) {
+    ui.decisionTail.innerHTML = rest.map(rowFor).join("");
+    const fold = ui.decisionTail.closest("details");
+    if (fold) {
+      fold.hidden = rest.length === 0;
+      const summary = fold.querySelector("summary");
+      if (summary) summary.textContent = `the other ${rest.length} fills, row by row`;
+    }
   }
 }
 
@@ -408,6 +500,36 @@ const MISSING = {
   gap: "gap in the series",
   noBook: "no book",
 };
+
+// Hover on a dot: the fill's row, one line under the chart, without leaving the page — when it
+// happened, which desk and side, where it printed against the touch, and where the book went
+// after. The matching table row lights up if it is one of the visible ones, and "the book it
+// read" asks the archive this fill's own instant.
+function showHover(ui, f) {
+  if (!ui.hover) return;
+  const hs = ui.currentHorizons ?? [5, 15, 60];
+  const marks = hs.map((h) => {
+    const m = f.markouts?.[String(h)];
+    if (!m) return `${h}m —`;
+    return m.status === "ok" ? `${h}m ${fmtVs(m.bps)} bps` : `${h}m ${MISSING[m.status] ?? m.status}`;
+  }).join(" · ");
+  const amt = (Number(f.baseRaw) / 1e8).toLocaleString("en-US", { maximumFractionDigits: 5 });
+  ui.hover.innerHTML =
+    `<b>${when(f.at)}</b> · <b>${escape(f.deskName)}</b> ${f.makerBuysBase ? "bought" : "sold"} ` +
+    `${amt} base · printed <b>${fmtVs(f.vsTouchBps)} bps</b> vs the touch` +
+    `${f.bookOk === false ? " (its book read failed)" : ""} · ${marks} · ` +
+    `<button class="linky" data-archive-at="${f.at}">the book it read ▸</button>`;
+  ui.hover.hidden = false;
+  ui.decisionRows?.querySelector(`[data-fill="${f.txHash}"]`)?.classList.add("rd-hl");
+  ui.decisionTail?.querySelector(`[data-fill="${f.txHash}"]`)?.classList.add("rd-hl");
+}
+
+function hideHover(ui) {
+  if (!ui.hover) return;
+  ui.hover.hidden = true;
+  ui.decisionRows?.querySelectorAll(".rd-hl").forEach((el) => el.classList.remove("rd-hl"));
+  ui.decisionTail?.querySelectorAll(".rd-hl").forEach((el) => el.classList.remove("rd-hl"));
+}
 
 /** A signed bps figure, adverse in red, favorable in ink — a cost is coloured, a gain is not. */
 const fmtBps = (v) =>

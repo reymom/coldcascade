@@ -43,8 +43,19 @@ document.getElementById("go-cascade")?.addEventListener("click", () => {
   show("tab-cascade", "panel-cascade");
 });
 
+// Cross-tab prose links are buttons with data-show-tab (a link would lie about going somewhere).
+// Delegated once: the hero's record grounding lives beside the zero, and its module re-renders
+// the line it sits in.
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-show-tab]");
+  if (!b) return;
+  const tab = tabs.find((t) => t.button === b.dataset.showTab);
+  if (tab) show(tab.button, tab.panel);
+});
+
 mountFloor(document);
 // The record reads its own file on its own cadence; it neither waits for the chain nor blocks it.
+// The Desk's hero subscribes to this same read (onRecord in floor.js) rather than polling twice.
 mountRecord(document);
 // The archive is the record's other half: the record shows the fills, the archive answers for any
 // instant. Same keeper pass, same cadence, and no chain needed — the file alone carries it.
