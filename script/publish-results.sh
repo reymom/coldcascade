@@ -61,9 +61,25 @@ if [ "$DEPLOY" = "1" ]; then
   echo
   echo "verify on production, never on localhost:"
   curl -sS -m 20 -o /dev/null -w "  /app/ -> %{http_code}\n" https://coldcascade.vercel.app/app/
-  curl -sS -m 20 https://coldcascade.vercel.app/results/markouts.json \
-    | python3 -c "
-import sys, json
-d = json.load(sys.stdin); s = d['summary']
-print(f\"  live artifact: {s['fills']} fills, {s['fillsWithCompleteHorizons']} complete, {d['books']['count']} books\")"
+
+  # Poll rather than read once. The alias takes a few seconds to point at the new deployment, and
+  # checking immediately reads the *previous* artifact — which looks exactly like a deploy that
+  # did not take, and on 9 Sep sent me hunting one that had in fact worked.
+  WANT=$(python3 -c 'import json;print(json.load(open("results/markouts.json"))["generatedAt"])')
+  for i in $(seq 1 10); do
+    GOT=$(curl -sS -m 15 "https://coldcascade.vercel.app/results/markouts.json?cb=$$-$i" 2>/dev/null \
+          | python3 -c 'import sys,json
+try:
+    d=json.load(sys.stdin); s=d["summary"]
+    print(d["generatedAt"], s["fills"], s["fillsWithCompleteHorizons"], d["books"]["count"])
+except Exception: pass' || true)
+    set -- ${GOT:-}
+    if [ "${1:-}" = "$WANT" ]; then
+      echo "  live artifact: $2 fills, $3 complete, $4 books"
+      exit 0
+    fi
+    sleep 3
+  done
+  echo "  live artifact still shows the previous version after 30s — check the deployment." >&2
+  exit 1
 fi
