@@ -118,8 +118,9 @@ export async function mountRecord(root) {
  * been quoting, how many fills the chart's set holds, whether any landed inside the band, and
  * the toll a plain curve on the same reserves would have paid over those same trades.
  *
- * The toll is the ?toll=record comparison, so its rule is written down here rather than in the
- * hero: per fill, the flat curve would have quoted its own ratio — mid × (1 + poolDev) — and an
+ * The toll is the accumulated half of the hero's toll bar, so its rule is written down here
+ * rather than in the hero: per fill, the flat curve would have quoted its own ratio —
+ * mid × (1 + poolDev) — and an
  * arbitrageur closing at the book's touch takes the gap, when there is one, at the fill's own
  * size and before slippage. (A flat curve fills its whole clip at the ratio; the desk's own
  * curve is bounded. Both approximations are in the curve's favour, so the sum is a floor on

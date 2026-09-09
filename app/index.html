@@ -88,6 +88,9 @@ main { max-width: 1080px; margin: 0 auto; padding: 32px 28px 96px; }
 /* The empty toll is a real answer, not a spinner — so it is small on purpose, tucked into the
    bar instead of dressed up like the number it is not. */
 .hero-toll .toll-empty { font-size: 11.5px; }
+/* The live slice rides next to the accumulated total at text size: it is the proof the total
+   still moves block by block, not a second headline. */
+.hero-toll .toll-live b { font-size: 12.5px; }
 details.legs { margin: 16px 0 0; }
 details.legs > summary { cursor: pointer; list-style: none; color: var(--muted); font-size: 11px;
   text-transform: uppercase; letter-spacing: 0.12em; }
@@ -137,6 +140,29 @@ details.legs[open] > summary::before { content: "\2212\00a0"; }
   margin: 0 0 18px; }
 .strip-caption b { color: var(--ink); font-weight: 500; }
 .k-bid { color: var(--bid); } .k-ask { color: var(--ask); }
+/* The five scenes: same grammar as the strip, plus the desk's inside-the-book fill and the
+   consequence line. Discrete cuts only — the fade is a nicety, never the carrier. */
+.sc-desk-in { fill: var(--bid); fill-opacity: 0.8; stroke: var(--bid); }
+.sc-bot { font: 11px var(--mono); }
+.sc-bot-gain { fill: var(--ask); }
+.sc-bot-loss { fill: var(--loss); }
+#scenes-stage svg :where(rect, line, text) { animation: scIn 0.35s ease-out; }
+@keyframes scIn { from { opacity: 0; } to { opacity: 1; } }
+.scenes-bar { display: flex; align-items: center; gap: 12px; margin: 12px 0 0; }
+.scenes-nav { background: none; border: 1px solid var(--line); border-radius: 2px;
+  color: var(--ink); font: 12px var(--mono); padding: 4px 12px; cursor: pointer; }
+.scenes-nav:disabled { color: var(--muted); cursor: default; }
+.scenes-dots { display: flex; gap: 7px; }
+.scenes-dots button { width: 9px; height: 9px; padding: 0; border: none; border-radius: 50%;
+  background: var(--line); cursor: pointer; }
+.scenes-dots button.on { background: var(--desk); }
+.scenes-flip { margin-left: auto; background: none; border: 1px solid var(--desk);
+  border-radius: 2px; color: var(--desk); font: 11px var(--mono); padding: 4px 12px;
+  cursor: pointer; }
+.scenes-flip:hover { background: rgba(95,178,255,0.08); }
+.scenes-caption { font: 15px/1.6 var(--serif); color: var(--muted); margin: 14px 0 0;
+  max-width: 74ch; }
+.scenes-caption b { color: var(--ink); font-weight: 500; }
 
 /* ---- the stress row ---- */
 .stress-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
@@ -735,6 +761,22 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
       <a href="../results/oct10_replay.csv">the same file</a>.</p>
   </div>
 
+    <section class="chart" id="scenes">
+      <h2>the mechanism, in five scenes</h2>
+      <p class="note">One axis throughout — each mark's distance to the book's mid, in basis
+        points, the same scale as the desk's live strip. The grey band is the book's touch and it
+        never moves inside a scene. Scenes 2, 4 and 5 keep the quiet ↔ absorbing switch live:
+        the crossing is yours to make.</p>
+      <div id="scenes-stage"></div>
+      <div class="scenes-bar">
+        <button class="scenes-nav" id="scenes-prev" aria-label="previous scene">←</button>
+        <div class="scenes-dots" id="scenes-dots"></div>
+        <button class="scenes-nav" id="scenes-next" aria-label="next scene">→</button>
+        <button class="scenes-flip" id="scenes-flip" hidden>quiet ↔ absorbing</button>
+      </div>
+      <p class="scenes-caption" id="scenes-caption"></p>
+    </section>
+
   <pre id="status" class="status">loading results/oct10_replay.csv…</pre>
 
   <div id="page" hidden>
@@ -1023,13 +1065,17 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
           <small>entry $78,730 · limitPx 78,493 — the bid less its 30 bps of room · 8 Sep</small></p>
         <p class="key-card-who"><b>Nobody signed it.</b> The owner armed the desk and went away; a
           five-minute cadence read <code>coverPreview()</code>, decided, and a Privy server wallet
-          sent <code>cover()</code>. Its <code>cloid</code>, 3, is the desk's
-          <code>coverCount</code>, indexed on both hedge events of the same transaction.</p>
+          sent <code>cover()</code>. Its <code>cloid</code>, 3, was the desk's
+          <code>coverCount</code> at that fill, and both hedge events of the same transaction are
+          indexed on it. Call <code>coverCount()</code> today and it reads 4: a later probe sent
+          a <code>cover()</code> the desk answered <code>HedgeSkipped</code> — flat, nothing to
+          hedge — and the counter counts decisions, not fills.</p>
         <p class="key-card-links">
           <a href="https://hyperevmscan.io/address/0xa09765E0bBC38E1Ae37f1EB9f2D75b4cEd4dc144" target="_blank" rel="noreferrer">the desk</a>
           <a href="https://hyperevmscan.io/address/0xf33c11453144F9a44406766602885Cd353497da3" target="_blank" rel="noreferrer">the key</a>
           <a href="https://hyperevmscan.io/tx/0x15d44e3483a0b038f98f358556b79785fd8b5107bb72fa643b13e9e8ccc9603e" target="_blank" rel="noreferrer">armed</a>
           <a href="https://hyperevmscan.io/tx/0x932aeaa549b09de47a819287f6cbf77a327046164a38cbee5c228ed26207e6b7" target="_blank" rel="noreferrer">the cover</a>
+          <a href="https://hyperevmscan.io/tx/0x87a91ac39e8da50a26f9c8798207ce301e74fd37bce4bbb6ea818c9fc21cf1d6" target="_blank" rel="noreferrer">the no-op</a>
         </p>
       </div>
     </div>

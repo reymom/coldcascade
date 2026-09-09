@@ -3,12 +3,14 @@
 // One story per tab, each with its own header and its own action: the Desk is the live zero and
 // the take; the Record is every fill against the band and the archive that answers for any
 // instant; the Cascade is the same zero over 123 minutes of 10 Oct 2025; the Keys is who is
-// trusted with what. The Cascade is imported only when it is first opened — it fetches a 200-row
-// CSV and the other three should not wait for it.
+// trusted with what. The Cascade's replay is imported only when it is first opened — it fetches
+// a 200-row CSV and the other three should not wait for it. The Cascade's five scenes are not
+// part of that import: they fetch nothing, so they mount with the shell.
 
 import { mountFloor } from "./floor.js";
 import { mountRecord } from "./record.js";
 import { mountArchive } from "./archive.js";
+import { mountScenes } from "./scenes.js";
 
 const tabs = [
   { button: "tab-desk", panel: "panel-desk" },
@@ -60,3 +62,6 @@ mountRecord(document);
 // The archive is the record's other half: the record shows the fills, the archive answers for any
 // instant. Same keeper pass, same cadence, and no chain needed — the file alone carries it.
 mountArchive(document);
+// The five scenes fetch nothing and wait for nothing: they are drawings of a rule the rest of
+// the page measures live, mounted ahead of the Cascade's lazy replay so they work without it.
+mountScenes(document);

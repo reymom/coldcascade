@@ -4,10 +4,10 @@
 // the desks, the take flow, the proof — is below that fold. The zero is recomputed every block
 // from the frame on the screen, but its ground is the record: the days the desks have been
 // quoting and the fills they have signed, read from the same file the Record tab plots. Beside
-// the zero, the toll: what the same search takes from a plain curve on the same reserves —
-// either this block's, live (?toll=block, the default), or the record's accumulated over its
-// own trades (?toll=record). Neither is asserted; both are re-derived from data the visitor can
-// open.
+// the zero, the toll at both its scales at once: the accumulated total a plain curve on the same
+// reserves would have paid over every trade the record holds, and this block's live slice of it,
+// with its bps and its block number — the total is only credible if the accumulation is visible.
+// Neither is asserted; both are re-derived from data the visitor can open.
 
 import {
   Rpc, plant, loadSelectors, readFloor, readOrder, takerTraits, quoteCall, swapCall,
@@ -65,11 +65,6 @@ export async function mountFloor(root) {
   // cooled down and the next one takes over, per the cascade in rpc.js.
   const params = new URLSearchParams(location.search);
   const rpc = new Rpc(params.get("rpc") ? [params.get("rpc")] : DEFAULT_RPCS);
-  // `?toll=` picks the comparison the zero sits beside: the toll a plain curve pays on this
-  // block, live ("block", the default), or the one the curve would have paid over every trade
-  // the record holds ("record"). Two pages, one query string — the pair is a design decision,
-  // so both are built and both are reachable.
-  const tollMode = params.get("toll") === "record" ? "record" : "block";
 
   let state;
   try {
@@ -86,7 +81,6 @@ export async function mountFloor(root) {
     state, rpc, ui,
     floor: null,
     signer: null,
-    tollMode,
     // The record the zero stands on: days quoting, fills signed, none inside the band, and the
     // accumulated toll a plain curve would have paid over those trades. Filled by mountRecord's
     // shared read of the same file the Record tab plots; null until the first render arrives.
@@ -304,49 +298,49 @@ function renderVerdict(view, best) {
       `${ground} — <button class="linky" data-show-tab="tab-record">The Record</button> · ${live}`;
   }
 
-  // The toll, beside the zero. ?toll=block (the default): the same search against a plain curve
-  // on the same reserves, recomputed from the frame on the screen — it moves every block and the
-  // zero does not, and the contrast is the argument. ?toll=record: the toll that curve would
-  // have paid over every trade the record holds, summed — the desk is an invariant of its own
-  // code, so its zero beside one block's cents undersells it; beside three days of someone
-  // else's fills it does not.
-  if (view.tollMode === "record") {
-    if (rec) {
-      // tollFills is the count the sum actually covers: fills whose reserves the keeper could
-      // rebuild. It is the whole set in practice, and the sentence says so when it is not.
-      const coverage = rec.tollFills === rec.fills
-        ? `the ${rec.fills} trades the record holds`
-        : `${rec.tollFills} of the ${rec.fills} trades the record holds`;
-      ui.toll.innerHTML =
-        `<span>The same search against a plain curve on the same reserves:</span>` +
-        `<b>$${rec.tollUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b>` +
-        `<span>paid over ${coverage}, ${rec.daysText} — computed per fill from ` +
-        `<code>results/markouts.json</code>, at each fill's own size against the book it read, ` +
-        `before slippage</span>`;
-    } else {
-      ui.toll.innerHTML = `<span>The record is loading — the accumulated toll is summed from it.</span>`;
-    }
+  // The toll, beside the zero, at both its scales in one bar: the accumulated total a plain
+  // curve on the same reserves would have paid over every trade the record holds — the desk is
+  // an invariant of its own code, so its zero beside one block's cents undersells it — and this
+  // block's live slice of it, named by its block number. The total is only credible if the
+  // accumulation is visible, so the slice rides next to it at the smaller size.
+  const toll = bestControlToll(view.floor.book, view.floor.desks);
+  const block = view.floor.blockNumber.toLocaleString("en-US");
+  let liveSlice;
+  if (toll && toll.usd > 0.005) {
+    liveSlice =
+      `<span class="toll-live">this block, ${block}: <b>+$${toll.usd.toFixed(2)} · ` +
+      `+${toll.bps.toFixed(1)} bps</b></span>`;
+  } else if (toll) {
+    // A real answer, not a spinner: there is nothing to take on this block either, and the
+    // block is named so the state is checkable rather than a "calculating" that would be lying.
+    liveSlice =
+      `<span class="toll-live toll-empty">this block, ${block}: nothing to take — a plain ` +
+      `curve pays when its ratio drifts from the book, and right now it has not</span>`;
   } else {
-    const toll = bestControlToll(view.floor.book, view.floor.desks);
-    if (toll && toll.usd > 0.005) {
-      ui.toll.innerHTML =
-        `<span>The same search against a plain curve on the same reserves:</span>` +
-        `<b>+$${toll.usd.toFixed(2)} · +${toll.bps.toFixed(1)} bps</b>` +
-        `<span>the toll, collected this block</span>`;
-    } else if (toll) {
-      // A real answer, not a spinner: there is nothing to take on this block either, and the
-      // block is named so the state is checkable rather than a "calculating" that would be lying.
-      ui.toll.innerHTML =
-        `<span class="toll-empty">nothing to take right now — last block was ` +
-        `${view.floor.blockNumber.toLocaleString("en-US")} · a plain curve pays when its ratio ` +
-        `drifts from the book, and right now it has not</span>`;
-    } else {
-      // A null toll is not a zero toll: every desk's reserves were too thin for the search to quote
-      // a rate on. Say which, rather than let the empty panel read as "no arbitrage".
-      ui.toll.innerHTML =
-        `<span>The same search against a plain curve on the same reserves:</span>` +
-        `<b>reserves too thin to quote a rate</b>`;
-    }
+    // A null toll is not a zero toll: every desk's reserves were too thin for the search to
+    // quote a rate on. Say which, rather than let the empty panel read as "no arbitrage".
+    liveSlice =
+      `<span class="toll-live">this block, ${block}: <b>reserves too thin to quote a rate</b></span>`;
+  }
+
+  if (rec) {
+    // tollFills is the count the sum actually covers: fills whose reserves the keeper could
+    // rebuild. It is the whole set in practice, and the sentence says so when it is not.
+    const coverage = rec.tollFills === rec.fills
+      ? `the ${rec.fills} trades the record holds`
+      : `${rec.tollFills} of the ${rec.fills} trades the record holds`;
+    ui.toll.innerHTML =
+      `<span>The same search against a plain curve on the same reserves:</span>` +
+      `<b>$${rec.tollUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b>` +
+      liveSlice +
+      `<span>paid over ${coverage}, ${rec.daysText} — computed per fill from ` +
+      `<code>results/markouts.json</code>, at each fill's own size against the book it read, ` +
+      `before slippage</span>`;
+  } else {
+    ui.toll.innerHTML =
+      `<span>The same search against a plain curve on the same reserves:</span>` +
+      `<span>the accumulated total is summed from the record — it is loading</span>` +
+      liveSlice;
   }
 
   // The two legs, for whoever opens the fold: why the zero is arithmetic and not a promise.
