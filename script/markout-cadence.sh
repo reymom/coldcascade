@@ -26,7 +26,17 @@ command -v substreams >/dev/null || PATH="$HOME/.local/bin:$PATH"
 command -v cast >/dev/null || { echo "cast not found (looked in ~/.foundry/bin)" >&2; exit 1; }
 command -v substreams >/dev/null || { echo "substreams not found (looked in ~/.local/bin)" >&2; exit 1; }
 
-[ -f .env ] && { set -a; . ./.env; set +a; }
+# .env fills in what the environment has not already set, rather than overwriting it. The other
+# way round means the overrides this script documents silently do nothing whenever the variable
+# also appears in .env — which is how a test of the endpoint fallback passed this morning while
+# still talking to the real endpoint.
+if [ -f .env ]; then
+  while IFS= read -r line; do
+    case "$line" in ''|\#*) continue ;; *=*) ;; *) continue ;; esac
+    key=${line%%=*}
+    [ -n "${!key+set}" ] || export "$key=${line#*=}"
+  done < .env
+fi
 : "${PINAX_JWT:?no PINAX_JWT in .env — the stream will not authenticate}"
 
 LOG="${MARKOUT_LOG:-$HOME/.config/coldcascade/markout.log}"

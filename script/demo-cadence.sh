@@ -25,7 +25,17 @@ command -v forge >/dev/null || PATH="$HOME/.foundry/bin:$PATH"
 command -v forge >/dev/null || { echo "forge not found (looked in ~/.foundry/bin)" >&2; exit 1; }
 command -v jq >/dev/null || { echo "jq not found" >&2; exit 1; }
 
-[ -f .env ] && { set -a; . ./.env; set +a; }
+# .env fills in what the environment has not already set, rather than overwriting it. The other
+# way round means the overrides this script documents silently do nothing whenever the variable
+# also appears in .env — which is how a test of the endpoint fallback passed this morning while
+# still talking to the real endpoint.
+if [ -f .env ]; then
+  while IFS= read -r line; do
+    case "$line" in ''|\#*) continue ;; *=*) ;; *) continue ;; esac
+    key=${line%%=*}
+    [ -n "${!key+set}" ] || export "$key=${line#*=}"
+  done < .env
+fi
 
 RPC="${HYPEREVM_RPC_URL:-https://rpc.hyperliquid.xyz/evm}"
 ACCOUNT="${TAKER_ACCOUNT:-coldcascade-taker}"

@@ -23,7 +23,17 @@ command -v cast >/dev/null || PATH="$HOME/.foundry/bin:$PATH"
 command -v cast >/dev/null || { echo "cast not found (looked in ~/.foundry/bin)" >&2; exit 1; }
 command -v jq   >/dev/null || { echo "jq not found" >&2; exit 1; }
 
-[ -f .env ] && { set -a; . ./.env; set +a; }
+# .env fills in what the environment has not already set, rather than overwriting it. The other
+# way round means the overrides this script documents silently do nothing whenever the variable
+# also appears in .env — which is how a test of the endpoint fallback passed this morning while
+# still talking to the real endpoint.
+if [ -f .env ]; then
+  while IFS= read -r line; do
+    case "$line" in ''|\#*) continue ;; *=*) ;; *) continue ;; esac
+    key=${line%%=*}
+    [ -n "${!key+set}" ] || export "$key=${line#*=}"
+  done < .env
+fi
 
 # Two endpoints, and the reason is the page rather than the poke. One poke a minute is about
 # 8 600 RPC calls a day, which is the largest single consumer we have, and it shares the public
@@ -72,8 +82,35 @@ FILE="deployments/999.json"
 [ -f "$FILE" ] || { echo "no $FILE" >&2; exit 1; }
 BOOKCACHE=$(jq -r '.bookCache' "$FILE")
 
-POKER=$(cast wallet address --account "$ACCOUNT" --password-file "$PASSFILE")
-BAL=$(cast balance "$POKER" --rpc-url "$RPC")
+
+# Every read tries both endpoints, and a read that fails on both writes a log line before giving
+# up. Neither was true this morning: the alternation built yesterday covers only the *send*
+# attempts, so when rpc.hypurrscan.io stopped answering at 10:15 the reads before the send had
+# nowhere to go — and being unguarded command substitutions under `set -e`, they killed the script
+# where it stood. Fourteen minutes of no pokes and not one line in the log to say why, the same
+# shape as firstswap.sh's swallowed diagnostic. A hole in the series is bad; a hole with no record
+# of its cause is the thing that costs an evening.
+rpc_read() {                      # rpc_read <what, for the log> <cast args...>
+  local what="$1"; shift
+  local out
+  if out=$(cast "$@" --rpc-url "$RPC" 2>/dev/null); then printf '%s' "$out"; return 0; fi
+  if out=$(cast "$@" --rpc-url "$RPC_FALLBACK" 2>/dev/null); then
+    echo "primary endpoint failed for $what; used the fallback" >&2
+    printf '%s' "$out"; return 0
+  fi
+  printf '%s\tFAIL\tperp=%s\tcould not %s on either endpoint\n' "$(date -Is)" "$PERP" "$what" >>"$LOG"
+  echo "could not $what on either endpoint" >&2
+  return 1
+}
+
+# The keystore read is local, but it can still fail — a bad password file, a moved keystore — and
+# under `set -e` that is a silent death too.
+if ! POKER=$(cast wallet address --account "$ACCOUNT" --password-file "$PASSFILE" 2>/dev/null); then
+  printf '%s\tFAIL\tperp=%s\tcannot derive the poker address from keystore %s\n' \
+    "$(date -Is)" "$PERP" "$ACCOUNT" >>"$LOG"
+  echo "cannot read keystore $ACCOUNT with $PASSFILE" >&2; exit 1
+fi
+BAL=$(rpc_read "read the poker balance" balance "$POKER") || exit 4
 # ~1000 warm pokes of headroom at the pinned price. Below it, stop rather than starve whatever
 # else that account is for — on the taker, that is the fill cadence.
 # 0.02 HYPE held back. Not "enough for one more poke" — enough that the markout keeper, which
@@ -98,13 +135,13 @@ fi
 # A fixed path, not $XDG_RUNTIME_DIR: cron has no XDG_RUNTIME_DIR and a login shell does, so a
 # variable one is two different locks and no exclusion at all between the cron job and a hand run.
 #
-# **Twenty seconds, and then give up on this minute.** The first version waited 300, and on 8 Sep
+# **Forty seconds, and then give up on this minute.** The first version waited 300, and on 8 Sep
 # at 15:34 that turned one held lock into a pile-up: five cron minutes queued behind the markout
 # keeper's sends, all took the lock within ninety seconds of each other, all computed the same
 # nonce, and four came back "already known" while the book went 319 seconds without a poke. A
 # skipped minute is a 120-second gap, inside the 180-second horizon tolerance. A queue is not.
 exec 9>"$HOME/.config/coldcascade/send.lock"
-if ! flock -w "${POKE_LOCK_WAIT:-20}" 9; then
+if ! flock -w "${POKE_LOCK_WAIT:-40}" 9; then
   printf '%s\tSKIP\tperp=%s\tanother sender holds the lock\n' "$(date -Is)" "$PERP" >>"$LOG"
   echo "another sender holds the send lock; skipping this minute" >&2
   exit 0
@@ -118,7 +155,7 @@ fi
 # And it retries: at one send a minute against a public RPC, a transient -32602 is a normal
 # Tuesday. A book series with a hole in it is worth five seconds of sleep.
 # What the network is charging right now, and whether it is worth paying.
-BASEFEE=$(cast base-fee --rpc-url "$RPC" 2>/dev/null || echo "")
+BASEFEE=$(rpc_read "read the base fee" base-fee) || exit 4
 case "$BASEFEE" in ''|*[!0-9]*) BASEFEE="$MIN_GAS_WEI" ;; esac
 WANT=$(( BASEFEE * 5 / 4 ))
 [ "$WANT" -lt "$MIN_GAS_WEI" ] && WANT="$MIN_GAS_WEI"
@@ -164,8 +201,8 @@ GAS_PRICE="${WANT}"
 # lock with the nonce still in flight, and the next signer computes the same nonce and is told
 # `replacement transaction underpriced`. The node's own pending-vs-latest count is the answer to
 # "is there anything of mine still out there", and this minute is cheap to skip.
-PEND=$(cast rpc eth_getTransactionCount "$POKER" pending --rpc-url "$RPC" 2>/dev/null | tr -d '"')
-LAST=$(cast rpc eth_getTransactionCount "$POKER" latest  --rpc-url "$RPC" 2>/dev/null | tr -d '"')
+PEND=$(rpc_read "read the pending nonce" rpc eth_getTransactionCount "$POKER" pending | tr -d '"') || exit 4
+LAST=$(rpc_read "read the latest nonce" rpc eth_getTransactionCount "$POKER" latest | tr -d '"') || exit 4
 if [ -n "$PEND" ] && [ -n "$LAST" ] && [ "$PEND" != "$LAST" ]; then
   printf '%s\tSKIP\tperp=%s\t%s has a transaction pending (%s vs %s)\n' \
     "$(date -Is)" "$PERP" "$POKER" "$PEND" "$LAST" >>"$LOG"
@@ -174,7 +211,7 @@ if [ -n "$PEND" ] && [ -n "$LAST" ] && [ "$PEND" != "$LAST" ]; then
 fi
 
 # What was already true before this ran, so "did the poke land" is answerable afterwards.
-WAS=$(cast call "$BOOKCACHE" 'pokedAt(uint32)(uint64)' "$PERP" --rpc-url "$RPC" 2>/dev/null | awk '{print $1}')
+WAS=$(rpc_read "read pokedAt" call "$BOOKCACHE" 'pokedAt(uint32)(uint64)' "$PERP" | awk '{print $1}' || true)
 WAS="${WAS:-0}"
 
 STATUS=1; OUT=""; TRIED=0
@@ -193,7 +230,7 @@ for i in $(seq 1 "$ATTEMPTS"); do
   # flight; the chain is then the thing to ask, not the RPC again.
   case "$OUT" in
     *"already known"*|*"nonce too low"*|*"replacement transaction underpriced"*)
-      NOW=$(cast call "$BOOKCACHE" 'pokedAt(uint32)(uint64)' "$PERP" --rpc-url "$RPC" 2>/dev/null | awk '{print $1}')
+      NOW=$(rpc_read "re-read pokedAt" call "$BOOKCACHE" 'pokedAt(uint32)(uint64)' "$PERP" | awk '{print $1}' || true)
       if [ -n "${NOW:-}" ] && [ "$NOW" -gt "$WAS" ]; then
         printf '%s\tOK\tperp=%s\tin flight from another attempt; pokedAt %s -> %s\n' \
           "$(date -Is)" "$PERP" "$WAS" "$NOW" >>"$LOG"
