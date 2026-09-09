@@ -38,9 +38,12 @@ const NOT_A_CLAMP_FILL = new Set([
 export async function mountRecord(root) {
   const ui = {
     chart: root.querySelector("#record-chart"),
+    count: root.querySelector("#record-count"),
     why: root.querySelector("#record-why"),
+    whyFull: root.querySelector("#record-why-full"),
     excluded: root.querySelector("#record-excluded"),
     decision: root.querySelector("#record-decision"),
+    decisionRows: root.querySelector("#record-decision-rows"),
     markouts: root.querySelector("#record-markouts"),
     foot: root.querySelector("#record-foot"),
     status: root.querySelector("#record-status"),
@@ -98,6 +101,23 @@ function render(ui, doc, ledger) {
   // dot inside the band and a mechanism to look at, not a band that quietly redrew itself around
   // it. If the schema grows a quietBps field, it wins.
   const zone = Number.isFinite(doc.quietBps) ? doc.quietBps : 20;
+
+  // The tab's headline, computed from the same set the chart plots: the fills, the span, and
+  // whether any landed inside the band. It is a count, not a claim — the scatter below is the
+  // same set one dot per fill, so the sentence is checked against the picture at a glance.
+  if (ui.count) {
+    const inside = fills.filter((f) => Math.abs(f.vsTouchBps) < zone).length;
+    const days = Number.isFinite(sum.spanDays) ? sum.spanDays : null;
+    const daysText = days === null ? "—"
+      : days < 1 ? `${Math.max(1, Math.round(days * 24))} hours`
+      : days < 10 ? `${days.toFixed(1)} days`
+      : `${Math.round(days)} days`;
+    ui.count.innerHTML =
+      `<b>${fills.length}</b> fills · ${daysText} · ` +
+      (inside === 0
+        ? `<span class="ok">none inside the band</span>`
+        : `<span class="bad">${inside} inside the band — look at them</span>`);
+  }
 
   const starts = [books.firstAt, ...fills.map((f) => f.at)].filter(Number.isFinite);
   const ends = [books.lastAt, doc.generatedAt, ...fills.map((f) => f.at)].filter(Number.isFinite);
@@ -208,19 +228,26 @@ function render(ui, doc, ledger) {
   // book, and Hyperliquid publishes its own L2 archive. What nothing else reproduces is the join:
   // the same stream, the same clock, the fill and the book five, fifteen and sixty minutes later.
   const before = Number.isFinite(books.firstAt) ? allFills.filter((f) => f.at < books.firstAt).length : 0;
+  // Two sentences up, the rest folded: the fact and the consequence carry the section on their
+  // own; the numbers, the before-series count and the join are for whoever opens the fold.
   ui.why.innerHTML = Number.isFinite(books.firstAt)
     ? `The book this quote reads is not HyperEVM state: the precompiles answer with the present ` +
-      `whatever block tag you ask for — the official RPC documents the latest block only, and asking ` +
-      `for the past returns the present without an error. A Substreams module can only stream what a ` +
-      `contract logs, so the floor logs the book itself: permissionless, four words — bid, ask, mark, ` +
-      `oracle — one poke a minute: <b>${books.count ?? "—"} pokes</b> so far, median gap ` +
-      `${books.medianGapSeconds ?? "—"} s, started ${when(books.firstAt)}. That is why the record ` +
-      `begins there, and why ${before} of the ${allFills.length} fills are marked <b>before the ` +
-      `series</b> rather than given a number they cannot have. The same stream then joins each fill ` +
-      `to the book five, fifteen and sixty minutes later — that join is what the series is for. It ` +
-      `cannot be reconstructed from Hyperliquid's S3 archive or its WebSocket: another domain, ` +
-      `another scale, another clock.`
+      `whatever block tag you ask for, and asking for the past returns the present without an ` +
+      `error. A Substreams module can only stream what a contract logs, so the floor logs the book ` +
+      `itself.`
     : "";
+  if (ui.whyFull) {
+    ui.whyFull.innerHTML = Number.isFinite(books.firstAt)
+      ? `Permissionless, four words — bid, ask, mark, oracle — one poke a minute: ` +
+        `<b>${books.count ?? "—"} pokes</b> so far, median gap ` +
+        `${books.medianGapSeconds ?? "—"} s, started ${when(books.firstAt)}. That is why the record ` +
+        `begins there, and why ${before} of the ${allFills.length} fills are marked <b>before the ` +
+        `series</b> rather than given a number they cannot have. The same stream then joins each fill ` +
+        `to the book five, fifteen and sixty minutes later — that join is what the series is for. It ` +
+        `cannot be reconstructed from Hyperliquid's S3 archive or its WebSocket: another domain, ` +
+        `another scale, another clock.`
+      : "";
+  }
 
   renderDecision(ui, doc, allFills, ledger, chain);
 
@@ -248,7 +275,6 @@ function render(ui, doc, ledger) {
     );
   });
   ui.markouts.innerHTML =
-    `<div class="record-mk-head">post-fill drift</div>` +
     `<p class="record-mk-sub">where the book went after each fill, signed from the desk's side, ` +
     `over ${sum.spanDays ?? "—"} days. This flow is sent by a schedule in this repository, so it ` +
     `carries no information and this is drift, not adverse selection and not an edge claim.</p>` +
@@ -365,9 +391,15 @@ function renderDecision(ui, doc, fills, ledger, chain) {
     `<p class="rd-legend"><b>pending</b> — the series has not reached the horizon yet; it resolves ` +
     `itself · <b>gap</b> — the book arrived past the tolerance; a hole, it never resolves · ` +
     `<b>before the series</b> — the fill predates the first poke · <b>no book</b> — the fill's own ` +
-    `read failed</p>` +
-    `<div class="rd-head"><div>fill · bps vs the touch</div>${horizons.map((h) => `<div>${h} min</div>`).join("")}</div>` +
-    rows.join("");
+    `read failed</p>`;
+  // The rows are one per fill, and the fill count grows every day the desk runs. They keep their
+  // own fold so the section's answer is visible without the scroll; the fold opens to all of them.
+  const rowsNode = ui.decisionRows;
+  if (rowsNode) {
+    rowsNode.innerHTML =
+      `<div class="rd-head"><div>fill · bps vs the touch</div>${horizons.map((h) => `<div>${h} min</div>`).join("")}</div>` +
+      rows.join("");
+  }
 }
 
 const MISSING = {

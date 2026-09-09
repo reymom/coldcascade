@@ -1,20 +1,23 @@
-// The shell: two tabs, the Floor first.
+// The shell: four tabs, the Desk first.
 //
-// The Evidence tab is the Oct-10 page unchanged, and it is imported only when it is first opened —
-// it fetches a 200-row CSV and the Floor should not wait for it. It is also labelled a
-// reproduction, on the tab and in its own header, so nothing on a live screen is a picture of
-// something else.
+// One story per tab, each with its own header and its own action: the Desk is the live zero and
+// the take; the Record is every fill against the band and the archive that answers for any
+// instant; the Cascade is the same zero over 123 minutes of 10 Oct 2025; the Keys is who is
+// trusted with what. The Cascade is imported only when it is first opened — it fetches a 200-row
+// CSV and the other three should not wait for it.
 
 import { mountFloor } from "./floor.js";
 import { mountRecord } from "./record.js";
 import { mountArchive } from "./archive.js";
 
 const tabs = [
-  { button: "tab-floor", panel: "panel-floor" },
-  { button: "tab-evidence", panel: "panel-evidence" },
+  { button: "tab-desk", panel: "panel-desk" },
+  { button: "tab-record", panel: "panel-record" },
+  { button: "tab-cascade", panel: "panel-cascade" },
+  { button: "tab-keys", panel: "panel-keys" },
 ];
 
-let evidenceLoaded = false;
+let cascadeLoaded = false;
 
 async function show(button, panel) {
   for (const t of tabs) {
@@ -22,21 +25,22 @@ async function show(button, panel) {
     document.getElementById(t.button).setAttribute("aria-selected", String(selected));
     document.getElementById(t.panel).hidden = !selected;
   }
-  if (panel === "panel-evidence" && !evidenceLoaded) {
-    evidenceLoaded = true;
+  if (panel === "panel-cascade" && !cascadeLoaded) {
+    cascadeLoaded = true;
     await import("./app.js");
   }
+  // The panels differ in height, so a switch that kept the old scroll offset would land mid-air.
+  window.scrollTo({ top: 0 });
 }
 
 for (const { button, panel } of tabs) {
   document.getElementById(button).addEventListener("click", () => show(button, panel));
 }
 
-// The Floor's arbitrage panel makes a claim about this block; the Evidence tab makes the same claim
-// about 123 of them. The link between them is in the prose, so it should also be in the page.
-document.getElementById("go-evidence")?.addEventListener("click", () => {
-  show("tab-evidence", "panel-evidence");
-  document.getElementById("panel-evidence").scrollIntoView({ behavior: "smooth", block: "start" });
+// The Desk's strip makes a claim about this block; the Cascade makes the same claim about 123 of
+// them. The link between them is in the prose, so it should also be in the page.
+document.getElementById("go-cascade")?.addEventListener("click", () => {
+  show("tab-cascade", "panel-cascade");
 });
 
 mountFloor(document);

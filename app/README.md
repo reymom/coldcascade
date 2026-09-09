@@ -1,7 +1,7 @@
 # app
 
-The console. Two tabs, no framework and no build step: ES modules and one stylesheet, served as
-static files.
+The console. Four tabs — the Desk, the Record, the Cascade, the Keys — no framework and no build
+step: ES modules and one stylesheet, served as static files.
 
 ## Signing in
 
@@ -23,13 +23,13 @@ meant to be judged on, because a maker program nobody can take is a paper.
   `eth_sendTransaction` on chain 999 up to that amount and nothing else; `../keeper/policy.json` is
   that policy as Privy returns it. `node ../test/api/faucet.test.mjs` asserts what it refuses.
 - **The SDK is loaded lazily and vendored, never from a CDN.** `vendor/privy.js` is 836 kB of
-  somebody else's JavaScript and the Floor does not pay for it: the book, the desks and the round
+  somebody else's JavaScript and the Desk does not pay for it: the book, the desks and the round
   trip are this repository's own code against a node. It is fetched when a visitor asks for a
   wallet, and on a reload only when Privy's own refresh token is in `localStorage`.
 
-## Floor — live
+## The Desk — live
 
-The landing screen, and it is live before anything is deployed.
+The landing tab, and it is live before anything is deployed.
 
 - **The book** is four words out of `0x080e`, `0x0806` and `0x0807` on chain 999, read by
   `CoreQuote` itself — not by the page. Nothing here is a price feed.
@@ -67,13 +67,20 @@ price than L1, so an oracle anyone can write is an oracle anyone can be paid out
 That is why the map button works for a visitor on the demo desk and not on the canonical one, and
 why the page says so instead of hiding the control.
 
-## Evidence · 10 October 2025
+## The Record and the Keys
+
+The Record is every fill the desks have signed against the band, plus the book archive: it reads
+`markouts.json` and `book-archive.json`, both written by the keeper pass. The Keys is the two live
+shorts and the operator key's policy — the substance is in the root `README.md`, under *The
+operator is a key that can only do this*.
+
+## The Cascade — 10 October 2025
 
 The replay, imported only when the tab is first opened. It reads `../results/oct10_replay.csv` —
 45 columns, documented in `../results/oct10_replay.schema.md` — and is labelled a reproduction from
 a frozen tape, because nothing on a live screen should be a picture of something else.
 
-**It is the Floor's claim over a session rather than over a block.** The Floor prices one round
+**It is the Desk's claim over a session rather than over a block.** The Desk prices one round
 trip against the current book; this counts what an arbitrageur closing at L1's own touch actually
 extracted over 123 consecutive minutes of the 2025-10-10 cascade. Both come out zero, and the zero
 is the headline: $0 taken from the desk against $3,558 from a plain `XYCSwap` control and $2,700
@@ -119,17 +126,17 @@ open http://localhost:8000/app/?rpc=http://127.0.0.1:8545
 
 | file | |
 |---|---|
-| `index.html` | both tabs and all of the CSS |
+| `index.html` | all four tabs, the favicon and all of the CSS |
 | `selectors.json` · `bytecode.json` | written by `../script/appdata.sh` out of the compiled artifacts. **No selector and no bytecode is typed into JavaScript** — a signature that drifts from a contract fails that script instead of producing a call a router silently rejects |
 | `src/console.js` | the tab shell |
 | `src/abi.js` | the ABI codec, written rather than imported. The page sends calldata to a router; a CDN import would put a third party between the judge's browser and those bytes |
 | `src/rpc.js` | JSON-RPC and the state override. No chain constant lives here |
 | `src/signer.js` | the two wallets behind one interface, and the chain description both are built from |
 | `vendor/privy.js` · `privy.json` | written by `../script/appvendor.sh`: the bundled SDK and the public app id, which is read out of `.env` rather than typed. **The app secret is a Vercel environment variable and is in neither** |
-| `src/chain.js` | every call the Floor makes, with its type strings in one place |
-| `src/floor.js` | the Floor screen and the two buttons |
+| `src/chain.js` | every call the Desk makes, with its type strings in one place |
+| `src/floor.js` | the Desk screen and the two buttons |
 | `src/bands.js` | the live two-books strip |
-| `src/replay.js` · `src/chart.js` · `src/app.js` | the Evidence tab: the CSV guard, the drawing primitives, the four lines |
+| `src/replay.js` · `src/chart.js` · `src/app.js` | the Cascade tab: the CSV guard, the drawing primitives, the four lines |
 | `src/types.ts` | the contract and CSV types, for the surfaces still to come |
 
 Regenerate the two JSON files after any change to `CoreQuote`, `FloorLens`, `DeskAccount`,

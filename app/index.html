@@ -7,6 +7,7 @@
      that base every relative asset (./src/console.js, ../results/…) resolves one level up and
      404s. Pinning the base keeps all three URL forms — /app, /app/, /app/index.html — working. -->
 <base href="/app/">
+<link rel="icon" type="image/svg+xml" href="./favicon.svg">
 <title>coldcascade — a maker that reads the book</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -67,9 +68,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 32px 28px 96px; }
   margin-top: 22px; max-width: 62ch; font-style: italic; }
 
 /* ---- the zero ---- */
-.hero { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 40px;
-  align-items: start; margin-bottom: 20px; }
-@media (max-width: 820px) { .hero { grid-template-columns: 1fr; gap: 20px; } }
+.hero { margin-bottom: 20px; max-width: 880px; }
 .hero-k { font: 11px var(--mono); text-transform: uppercase; letter-spacing: 0.18em;
   color: var(--muted); margin: 0 0 6px; }
 .zero { font: 500 clamp(72px, 12vw, 128px)/1 var(--mono); letter-spacing: -0.045em;
@@ -78,10 +77,12 @@ main { max-width: 1080px; margin: 0 auto; padding: 32px 28px 96px; }
 .hero-sub { color: var(--muted); font-size: 12.5px; line-height: 1.7; margin: 14px 0 0;
   max-width: 58ch; }
 .hero-sub b { color: var(--ink); font-weight: 500; }
-.hero-toll { border-left: 2px solid var(--loss); padding: 10px 0 10px 18px; font-size: 12.5px;
-  line-height: 1.7; }
-.hero-toll span { color: var(--muted); display: block; }
-.hero-toll b { color: var(--loss); font-weight: 500; font-size: 17px; display: block;
+/* The toll is the other half of the headline, so it takes the full width like one — a bar
+   under the zero, not a box jammed to the left. */
+.hero-toll { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px;
+  border-top: 1px solid var(--line); margin-top: 20px; padding: 12px 0 0; font-size: 12.5px; }
+.hero-toll span { color: var(--muted); }
+.hero-toll b { color: var(--loss); font-weight: 500; font-size: 16px;
   font-variant-numeric: tabular-nums; }
 details.legs { margin: 16px 0 0; }
 details.legs > summary { cursor: pointer; list-style: none; color: var(--muted); font-size: 11px;
@@ -156,7 +157,12 @@ button.go.ghost:hover { color: var(--ink); }
 .out a { color: var(--desk); text-decoration: none; border-bottom: 1px solid rgba(95,178,255,0.4); }
 
 /* ---- the record ---- */
-.record { margin: 56px 0 64px; }
+.record { margin: 0 0 48px; }
+/* The tab's big header: the count is the sentence, the scatter is the proof of it. */
+.record-count { font: 500 clamp(26px, 3.6vw, 40px)/1.25 var(--mono); letter-spacing: -0.03em;
+  margin: 0 0 6px; font-variant-numeric: tabular-nums; }
+.record-count .ok { color: var(--ask); }
+.record-count .bad { color: var(--loss); }
 .record-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
 .rc-grid { stroke: var(--line); stroke-width: 1; }
 .rc-touch { stroke: var(--l1-edge); stroke-width: 1; stroke-dasharray: 1 3; }
@@ -215,6 +221,7 @@ a .rc-dot { cursor: pointer; }
 .record-foot b { color: var(--ink); font-weight: 500; }
 
 /* ---- the book archive ---- */
+.archive { margin-top: 40px; border-top: 1px solid var(--line); padding-top: 26px; }
 .archive .controls { margin: 16px 0 10px; }
 .archive .controls input { width: 17em; }
 .archive-presets { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -242,10 +249,10 @@ a .rc-dot { cursor: pointer; }
   font-variant-numeric: tabular-nums; }
 .archive-nointerp { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
 .archive-nointerp code { color: var(--ink); }
-.archive-warn { color: var(--bid); font-size: 12px; line-height: 1.65;
-  border-left: 2px solid var(--bid); padding-left: 12px; margin: 12px 0 0; max-width: 76ch; }
-.archive-refusal { border-left: 2px solid var(--bid); padding: 8px 0 8px 18px; margin: 14px 0 6px;
-  max-width: 80ch; }
+.archive-warn { color: var(--bid); font-size: 12px; line-height: 1.65; margin: 12px 0 0; }
+/* The refusal is the exhibit, so it gets the full width like one. */
+.archive-refusal { border: 1px solid #4a3a1e; border-radius: 3px; padding: 14px 18px 10px;
+  margin: 14px 0 6px; }
 .archive-refusal h3 { font: 500 15px var(--mono); color: var(--ink); margin: 0 0 8px;
   letter-spacing: -0.01em; }
 .archive-refusal p { color: var(--muted); font-size: 12.5px; line-height: 1.7; margin: 0 0 8px; }
@@ -322,9 +329,16 @@ footer { color: var(--muted); font-size: 12px; line-height: 1.7; border-top: 1px
   padding-top: 20px; margin-top: 48px; max-width: 78ch; }
 footer code { color: var(--ink); }
 
-/* ================= Evidence tab ================= */
-#panel-evidence section.chart { margin-bottom: 30px; }
-#panel-evidence h2 { margin: 0 0 4px; }
+/* ================= The Cascade tab ================= */
+#panel-cascade section.chart { margin-bottom: 30px; }
+#panel-cascade h2 { margin: 0 0 4px; }
+/* The header is the comparison: the desk's zero against what the same search took next door.
+   Two numbers at the same size, because the pair is the sentence. */
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin: 40px 0 32px; }
+@media (max-width: 820px) { .compare { grid-template-columns: 1fr; gap: 24px; } }
+.compare .zero { font-size: clamp(56px, 8vw, 96px); }
+.compare .zero.loss { color: var(--loss); }
+.compare .hero-sub { max-width: 46ch; }
 .note { color: var(--muted); font-size: 12px; margin: 0 0 10px; max-width: 80ch; line-height: 1.65; }
 .note b { color: var(--ink); font-weight: 500; }
 .note code { color: var(--ink); }
@@ -332,7 +346,7 @@ footer code { color: var(--ink); }
 #stat-lvr-desk, #stat-toxic-desk, #stat-edge-desk { color: var(--desk); }
 .fig { font-size: 12px; color: var(--muted); margin: 0 0 10px; line-height: 1.7; }
 .fig b { color: var(--ink); font-weight: 500; font-size: 14px; font-variant-numeric: tabular-nums; }
-#panel-evidence .statement a { color: var(--desk); text-decoration: none; border-bottom: 1px solid var(--l1-edge); }
+#panel-cascade .statement a { color: var(--desk); text-decoration: none; border-bottom: 1px solid var(--l1-edge); }
 
 .chart { position: relative; }
 .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
@@ -375,7 +389,7 @@ footer code { color: var(--ink); }
 .sw-hard { background: #c08a4e; }
 .sw-touch { background: repeating-linear-gradient(90deg,#8fa6c4 0 5px,transparent 5px 9px); }
 .caveat { color: var(--muted); font-size: 12px; line-height: 1.7; margin: 12px 0 0;
-  max-width: 82ch; border-left: 2px solid var(--line); padding-left: 12px; }
+  max-width: 82ch; }
 .caveat b { color: var(--ink); font-weight: 500; }
 .caveat code { color: var(--ink); }
 table.sweep { border-collapse: collapse; font-size: 12px; margin: 10px 0 0; }
@@ -397,6 +411,33 @@ table.sweep td.now { color: var(--desk); }
 .linky:hover { border-bottom-color: var(--desk); }
 .k-l1 { color: #8fa6c4; font-weight: 500; }
 .k-desk { color: var(--desk); font-weight: 500; }
+
+/* ================= The Keys tab ================= */
+/* The header is the fact: two live shorts, two different signers, full width. */
+.keys-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line);
+  border: 1px solid var(--line); margin: 40px 0 36px; }
+@media (max-width: 760px) { .keys-grid { grid-template-columns: 1fr; } }
+.key-card { background: var(--bg); padding: 22px 24px 18px; }
+.key-card-k { font: 11px var(--mono); text-transform: uppercase; letter-spacing: 0.18em;
+  color: var(--muted); margin: 0 0 14px; }
+.key-card-pos { font: 500 clamp(30px, 4vw, 44px)/1.1 var(--mono); letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums; }
+.key-card-pos small { display: block; font: 400 13px var(--mono); color: var(--muted);
+  letter-spacing: 0; margin-top: 6px; }
+.key-card-who { color: var(--muted); font-size: 12.5px; line-height: 1.7; margin: 14px 0 0; }
+.key-card-who b { color: var(--ink); font-weight: 500; }
+.key-card-links { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 14px; font-size: 11.5px; }
+.key-card-links a { color: var(--desk); text-decoration: none;
+  border-bottom: 1px solid rgba(95,178,255,0.4); }
+table.check { width: 100%; border-collapse: collapse; font-size: 12px; margin: 10px 0 8px; }
+table.check th { text-align: left; font-weight: 400; color: var(--muted); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.12em; padding: 6px 16px 6px 0;
+  border-bottom: 1px solid var(--line); }
+table.check td { padding: 7px 16px 7px 0; border-bottom: 1px solid var(--line);
+  vertical-align: baseline; }
+table.check td.a { white-space: nowrap; font-variant-numeric: tabular-nums; }
+table.check td .deny { color: var(--loss); }
+table.check td .allow { color: var(--ask); font-weight: 500; }
 </style>
 </head>
 <body>
@@ -406,18 +447,18 @@ table.sweep td.now { color: var(--desk); }
     <span id="floor-mode" class="chip">—</span>
     <p id="floor-meta">reading the chain…</p>
     <div class="tabs" role="tablist">
-      <button class="tab" id="tab-floor" role="tab" aria-selected="true" aria-controls="panel-floor">Floor</button>
-      <button class="tab" id="tab-evidence" role="tab" aria-selected="false" aria-controls="panel-evidence">Evidence · 10 Oct 2025</button>
+      <button class="tab" id="tab-desk" role="tab" aria-selected="true" aria-controls="panel-desk">The Desk</button>
+      <button class="tab" id="tab-record" role="tab" aria-selected="false" aria-controls="panel-record">The Record</button>
+      <button class="tab" id="tab-cascade" role="tab" aria-selected="false" aria-controls="panel-cascade">The Cascade</button>
+      <button class="tab" id="tab-keys" role="tab" aria-selected="false" aria-controls="panel-keys">The Keys</button>
     </div>
   </div>
 
-  <section id="panel-floor" role="tabpanel">
+  <section id="panel-desk" role="tabpanel">
     <div class="statement">
       <p class="kicker">1inch Aqua · HyperEVM · Hyperliquid's book</p>
       <p>When the market moves, bots charge market makers for still using the old price.
         <em>This maker reads the book before it accepts the trade.</em></p>
-      <p class="tail">Every number below is live, recomputed from the chain every block. None of it
-        is asserted. All of it can be checked from this page.</p>
     </div>
 
     <pre id="floor-status" class="status">connecting to HyperEVM…</pre>
@@ -426,15 +467,13 @@ table.sweep td.now { color: var(--desk); }
       <p id="floor-error" hidden></p>
 
       <div class="hero">
-        <div>
-          <p class="hero-k" id="verdict-k">what an arbitrageur has taken from this floor</p>
-          <div class="zero" id="hero-zero">—</div>
-          <p class="hero-sub" id="hero-sub"></p>
-          <details class="legs">
-            <summary>why the zero is arithmetic, not a promise</summary>
-            <div class="arb-legs" id="hero-legs"></div>
-          </details>
-        </div>
+        <p class="hero-k" id="verdict-k">what an arbitrageur has taken from this floor</p>
+        <div class="zero" id="hero-zero">—</div>
+        <p class="hero-sub" id="hero-sub"></p>
+        <details class="legs">
+          <summary>why the zero is arithmetic, not a promise</summary>
+          <div class="arb-legs" id="hero-legs"></div>
+        </details>
         <div class="hero-toll" id="hero-toll"></div>
       </div>
 
@@ -443,10 +482,10 @@ table.sweep td.now { color: var(--desk); }
 
       <div class="strip" id="floor-strip"></div>
       <p class="strip-caption">Distance from the book's mid, in basis points. <b>Grey</b> is
-        Hyperliquid's own bid–ask; <b>blue</b> is where each desk trades. Outside on both sides:
-        nothing to pick off. A filled wedge — <span class="k-bid">amber</span> buying from forced
-        sellers, <span class="k-ask">teal</span> selling to forced buyers — is a desk quoting
-        <b>inside</b> the book to absorb, capped at the book's own price.</p>
+        Hyperliquid's own bid–ask; <b>blue</b> is where each desk trades — outside on both sides,
+        nothing to pick off. A filled wedge — <span class="k-bid">amber</span> buying,
+        <span class="k-ask">teal</span> selling — is a desk quoting <b>inside</b> the book to
+        absorb, capped at the book's own price.</p>
 
       <div class="stress-row">
         <button class="go" id="stress-go">watch it step in ▸</button>
@@ -461,95 +500,7 @@ table.sweep td.now { color: var(--desk); }
       </div>
       <p class="out" id="strip-note"></p>
 
-      <p class="strip-caption"><button class="linky" id="go-evidence">The same zero, held for 123 minutes through a real cascade →</button>
-        the Evidence tab replays 10 October 2025 against an arbitrageur that chose its own size,
-        while the same search took $6,258 out of two ordinary AMMs standing next to it.</p>
-
-      <section class="record" id="record">
-        <h2>the record — the same band, over days</h2>
-        <p class="strip-caption" style="max-width:78ch">The Floor's strip is one block; this is the
-          same distance — a fill's price against the book's own touch — for every fill the desks have
-          signed. The grey band is the dead zone: the desk's price is <b>min(curve, bound)</b>, the
-          bound never improves on the book, so nothing can land inside it, and when the pool drifts
-          the curve is already outside and rules. The dots pinned on the edge are the bound doing
-          its work. The <b>demo desk</b>'s fills are sent on a schedule by this repository; the
-          <b>hedged desk</b>'s is the take the cover then hedged. All over a mock pair — each dot
-          is one fill; click it for the transaction.</p>
-        <div class="record-chart" id="record-chart"></div>
-        <div class="legend">
-          <span><i class="swatch sw-bid"></i>the desk bought base</span>
-          <span><i class="swatch sw-ask"></i>the desk sold base</span>
-          <span><i class="swatch sw-l1"></i>the dead zone</span>
-        </div>
-        <p class="out" id="record-excluded"></p>
-        <p class="out" id="record-status"></p>
-        <p class="record-why" id="record-why"></p>
-        <div id="record-decision"></div>
-        <div id="record-markouts"></div>
-        <div class="record-foot" id="record-foot"></div>
-      </section>
-
-      <section class="record archive" id="archive">
-        <h2>the book archive — what the book was</h2>
-        <p class="strip-caption" style="max-width:78ch">Hyperliquid's book reaches HyperEVM through
-          precompiles that <b>ignore the block tag</b>: an <code>eth_call</code> pinned two hundred
-          thousand blocks back returns the <i>current</i> book, without erroring — the official RPC
-          serves the latest block only. So <i>what was the BBO at this instant</i> is not a slow
-          query, it is not a query at all — unless somebody wrote it down while it was true.
-          <code>BookCache.poke</code> is that writing: permissionless, four uint64, about once a
-          minute, into an EVM log. Ask for an instant and the panel returns the two observations
-          that bracket it, each with its distance — <b>never a number, never interpolated</b>. It
-          is the same answer the MCP server gives, from the same file, with the commands that
-          reproduce it underneath.<span id="archive-start"></span></p>
-
-        <div class="controls">
-          <input id="archive-when" type="text" spellcheck="false" autocomplete="off"
-                 placeholder="2026-09-08T16:30:00Z"
-                 aria-label="an instant — ISO-8601 or unix seconds, UTC">
-          <button class="go" id="archive-go">ask the archive</button>
-        </div>
-        <div class="archive-presets" id="archive-presets">
-          <button class="go ghost" data-when="2026-09-08T16:30:00Z">8 Sep 16:30Z — inside the series</button>
-          <button class="go ghost" data-when="2026-09-08T13:43:07Z">8 Sep 13:43Z — inside a 485&#8201;s hole</button>
-          <button class="go ghost" data-when="2025-10-10T21:21:00Z">10 Oct 2025 — the cascade's trough, before the series</button>
-        </div>
-        <p class="out" id="archive-status" aria-live="polite"></p>
-
-        <div id="archive-answer" hidden>
-          <p class="archive-verdict"><span class="chip" id="archive-chip"></span><span id="archive-explanation"></span></p>
-          <div class="ba-grid" id="archive-bracket"></div>
-          <div class="archive-refusal" id="archive-refusal" hidden></div>
-          <p class="archive-gap" id="archive-gap"></p>
-          <p class="archive-nointerp" id="archive-nointerp"></p>
-          <p class="archive-warn" id="archive-warn" hidden></p>
-
-          <div class="ba-call">
-            <div class="ba-call-k">the call — repeat what you see</div>
-            <div class="ba-cmd">
-              <span class="ba-cmd-k">regenerate from the stream</span>
-              <code id="archive-reproduce"></code>
-              <button class="linky" data-copy="archive-reproduce">copy</button>
-            </div>
-            <div class="ba-cmd">
-              <span class="ba-cmd-k">verify against the chain</span>
-              <code id="archive-verify"></code>
-              <button class="linky" data-copy="archive-verify">copy</button>
-            </div>
-          </div>
-
-          <details class="fold small">
-            <summary>the response object — the shape the MCP server returns</summary>
-            <p class="caveat"><code>get_book_at_time</code> in <code>mcp/</code> returns this same
-              object from the keeper's live corpus; the page builds it in the browser from the
-              static file the same pass writes. The file carries the four logged numbers and the
-              block per observation; the server adds the poker and the transaction hash. Nothing
-              else differs.</p>
-            <pre class="ba-json" id="archive-json"></pre>
-          </details>
-        </div>
-
-        <div class="record-foot" id="archive-foot"></div>
-      </section>
+      <p class="strip-caption"><button class="linky" id="go-cascade">The same zero, held for 123 minutes through a real cascade →</button></p>
 
       <h2>desks</h2>
       <table class="desks">
@@ -626,15 +577,6 @@ table.sweep td.now { color: var(--desk); }
           in the wild, on demand from the button above.</p>
       </details>
 
-      <details class="fold">
-        <summary>the cover — a hedge on the same venue, in a second transaction</summary>
-        <p class="why"><b>cover</b> is the hedge a desk's owner has authorised. <code>cover()</code>
-          is a separate transaction, sent by the owner or by an operator the owner names, and it
-          queues an order: CoreWriter hands it to HyperCore, which executes it seconds later and
-          may reject or partially fill it without failing the transaction that carried it. A fill
-          is read back off HyperCore. The desk that used it is in the table.</p>
-      </details>
-
       <div class="proof">
         <h2>already on the chain</h2>
         <div class="proof-row">
@@ -644,14 +586,6 @@ table.sweep td.now { color: var(--desk); }
             <div class="s">The desk paid 79,539.60 against a book bid of 79,699.00 — exactly −20.00
               bps, its own quiet parameter — while the pool's own ratio sat +163.6 bps above the
               book. The curve alone would have handed that away.</div>
-          </div>
-        </div>
-        <div class="proof-row">
-          <div class="k">the hedge, fired and filled</div>
-          <div class="v">
-            <a href="https://hyperevmscan.io/tx/0x15d68c542957371a2e84742a5af3ca9021788aebb68956cb721383b7e76d9b4f" target="_blank" rel="noreferrer">0x15d68c54…d9b4f</a>
-            <div class="s">The desk absorbed 17,000 UBTC-raw and <code>cover()</code> sent an IOC
-              short to HyperCore — filled, with the fill's id written back into the desk.</div>
           </div>
         </div>
         <div class="proof-row">
@@ -666,20 +600,119 @@ table.sweep td.now { color: var(--desk); }
     </div>
   </section>
 
-  <section id="panel-evidence" role="tabpanel" hidden>
+  <section id="panel-record" role="tabpanel" hidden>
+    <div class="statement">
+      <p class="kicker">The Graph · Substreams · the book, written down</p>
+      <p>Every fill the desks have signed, priced against the book its quote read. <em>None has
+        ever landed inside the band.</em></p>
+    </div>
+
+    <section class="record" id="record">
+      <p class="record-count" id="record-count">reading the record…</p>
+      <div class="record-chart" id="record-chart"></div>
+      <div class="legend">
+        <span><i class="swatch sw-bid"></i>the desk bought base</span>
+        <span><i class="swatch sw-ask"></i>the desk sold base</span>
+        <span><i class="swatch sw-l1"></i>the dead zone</span>
+        <span>each dot is one fill — click it for the transaction</span>
+      </div>
+      <p class="out" id="record-excluded"></p>
+      <p class="out" id="record-status"></p>
+      <p class="record-why" id="record-why"></p>
+      <details class="fold">
+        <summary>why the series exists, and what the join is for</summary>
+        <p class="why" id="record-why-full"></p>
+      </details>
+      <div id="record-decision"></div>
+      <details class="fold">
+        <summary>every fill, row by row</summary>
+        <div id="record-decision-rows"></div>
+      </details>
+      <details class="fold">
+        <summary>post-fill drift — the loop, exercised</summary>
+        <div id="record-markouts"></div>
+      </details>
+      <div class="record-foot" id="record-foot"></div>
+    </section>
+
+    <section class="record archive" id="archive">
+      <h2>the book archive — what the book was</h2>
+      <p class="strip-caption" style="max-width:78ch">Hyperliquid's book reaches HyperEVM through
+        precompiles that <b>ignore the block tag</b>: asking for the past returns the present,
+        without an error. So <i>what was the BBO at this instant</i> is not a slow query, it is not
+        a query at all — unless somebody wrote it down while it was true. <code>BookCache.poke</code>
+        is that writing: four uint64, about once a minute, into an EVM log.<span id="archive-start"></span></p>
+      <details class="fold">
+        <summary>how an answer is built — and why it is never a number</summary>
+        <p class="why">Ask for an instant and the panel returns the two observations that bracket
+          it, each with its distance — <b>never a number, never interpolated</b>. It is the same
+          answer the MCP server gives, from the same file, with the commands that reproduce it
+          underneath.</p>
+      </details>
+
+      <div class="controls">
+        <input id="archive-when" type="text" spellcheck="false" autocomplete="off"
+               placeholder="2026-09-08T16:30:00Z"
+               aria-label="an instant — ISO-8601 or unix seconds, UTC">
+        <button class="go" id="archive-go">ask the archive</button>
+      </div>
+      <div class="archive-presets" id="archive-presets">
+        <button class="go ghost" data-when="2026-09-08T16:30:00Z">8 Sep 16:30Z — inside the series</button>
+        <button class="go ghost" data-when="2026-09-08T13:43:07Z">8 Sep 13:43Z — inside a 485&#8201;s hole</button>
+        <button class="go ghost" data-when="2025-10-10T21:21:00Z">10 Oct 2025 — the cascade's trough, before the series</button>
+      </div>
+      <p class="out" id="archive-status" aria-live="polite"></p>
+
+      <div id="archive-answer" hidden>
+        <p class="archive-verdict"><span class="chip" id="archive-chip"></span><span id="archive-explanation"></span></p>
+        <div class="ba-grid" id="archive-bracket"></div>
+        <div class="archive-refusal" id="archive-refusal" hidden></div>
+        <p class="archive-gap" id="archive-gap"></p>
+        <p class="archive-nointerp" id="archive-nointerp"></p>
+        <p class="archive-warn" id="archive-warn" hidden></p>
+
+        <div class="ba-call">
+          <div class="ba-call-k">the call — repeat what you see</div>
+          <div class="ba-cmd">
+            <span class="ba-cmd-k">regenerate from the stream</span>
+            <code id="archive-reproduce"></code>
+            <button class="linky" data-copy="archive-reproduce">copy</button>
+          </div>
+          <div class="ba-cmd">
+            <span class="ba-cmd-k">verify against the chain</span>
+            <code id="archive-verify"></code>
+            <button class="linky" data-copy="archive-verify">copy</button>
+          </div>
+        </div>
+
+        <details class="fold small">
+          <summary>the response object — the shape the MCP server returns</summary>
+          <p class="caveat"><code>get_book_at_time</code> in <code>mcp/</code> returns this same
+            object from the keeper's live corpus; the page builds it in the browser from the
+            static file the same pass writes. The file carries the four logged numbers and the
+            block per observation; the server adds the poker and the transaction hash. Nothing
+            else differs.</p>
+          <pre class="ba-json" id="archive-json"></pre>
+        </details>
+      </div>
+
+      <div class="record-foot" id="archive-foot"></div>
+    </section>
+  </section>
+
+  <section id="panel-cascade" role="tabpanel" hidden>
   <div class="statement evidence-statement">
     <p class="kicker">the same zero, over 123 minutes of a real cascade</p>
     <p>10 October 2025. The book breaks, the forced sellers come, and <em>the desk keeps
-      quoting a price it read that second.</em></p>
-    <p class="tail">A frozen tape, replayed. Every fill below settles through 1inch's official
-      router, and every number on this page is computed from
-      <a href="../results/oct10_replay.csv">the same file</a> you can download.</p>
+      quoting a price it read that second.</em> A frozen tape, replayed — every fill settles
+      through 1inch's official router, and every number is computed from
+      <a href="../results/oct10_replay.csv">the same file</a>.</p>
   </div>
 
   <pre id="status" class="status">loading results/oct10_replay.csv…</pre>
 
   <div id="page" hidden>
-    <div class="hero">
+    <div class="compare">
       <div>
         <p class="hero-k">what arbitrageurs took from the desk, closing at the book's own touch</p>
         <div class="zero" id="stat-lvr-desk">—</div>
@@ -689,12 +722,12 @@ table.sweep td.now { color: var(--desk); }
           two AMMs they were <b><span id="stat-toxic-amm">—</span></b> of it,
           <span id="stat-toxic-amm-sub"></span> in notional</p>
       </div>
-      <div class="hero-toll">
-        <span>The same search, against the two ordinary AMMs next to it:</span>
-        <b>$6,258</b>
-        <span><span id="stat-lvr-control">—</span> from
-          <span id="stat-lvr-control-sub"></span></span>
-        <span>one of them is the desk's own program with the bound removed</span>
+      <div>
+        <p class="hero-k">the same search, against the two ordinary AMMs next to it</p>
+        <div class="zero loss">$6,258</div>
+        <p class="hero-sub"><b><span id="stat-lvr-control">—</span></b> from
+          <span id="stat-lvr-control-sub"></span><br>
+          one of them is the desk's own program with the bound removed</p>
       </div>
     </div>
 
@@ -730,24 +763,12 @@ table.sweep td.now { color: var(--desk); }
         </details>
       </section>
 
-      <section class="chart" id="wrap-spot">
-        <h2>the day itself</h2>
-        <p class="note">Coinbase BTC-USD, one-minute closes. Every book, fill and line on this page
-          is derived from the shape of this path — the sweep fold at the bottom prices that
-          derivation.</p>
-        <p class="fig">trough <b id="stat-trough">—</b> <span id="stat-trough-sub"></span>,
-          640 bps under the session's open</p>
-        <div id="chart-spot"></div>
-      </section>
-
       <section class="chart" id="wrap-bands">
         <h2>the two books</h2>
-        <p class="note">Distance from the book's mid, in basis points — the only scale on which a
-          25 bps quote and a $7,000 crash fit in one picture. The <span class="k-l1">grey band</span>
-          is Hyperliquid's own best bid and offer; the <span class="k-desk">blue band</span> is where
-          the desk trades. In the quiet it sits outside on both sides. When the book breaks, one side
-          crosses inside and the wedge lights up — <span class="k-bid">amber</span> buying from
-          forced sellers, <span class="k-ask">teal</span> selling to forced buyers.</p>
+        <p class="note">Distance from the book's mid, in basis points. The <span class="k-l1">grey
+          band</span> is Hyperliquid's own best bid and offer; the <span class="k-desk">blue
+          band</span> is where the desk trades — outside on both sides in the quiet, one side
+          crossing in when the book breaks.</p>
         <div id="chart-bands"></div>
         <div class="legend">
           <span><i class="swatch sw-l1"></i>book bid–ask</span>
@@ -755,14 +776,6 @@ table.sweep td.now { color: var(--desk); }
           <span><i class="swatch sw-bid"></i>desk inside the book, buying</span>
           <span><i class="swatch sw-ask"></i>desk inside the book, selling</span>
         </div>
-      </section>
-
-      <section class="chart" id="wrap-lean">
-        <h2>lean</h2>
-        <p class="note">Which side is absorbing, minute by minute.</p>
-        <p class="fig"><b id="stat-lean">—</b> <span id="stat-lean-sub"></span> with a side
-          inside the book</p>
-        <div id="chart-lean"></div>
       </section>
 
       <section class="chart" id="wrap-edge">
@@ -814,6 +827,27 @@ table.sweep td.now { color: var(--desk); }
     </div>
 
     <div id="readout"></div>
+
+    <details class="fold">
+      <summary>the tape itself — the day, and which side absorbed</summary>
+      <section class="chart" id="wrap-spot">
+        <h2>the day itself</h2>
+        <p class="note">Coinbase BTC-USD, one-minute closes. Every book, fill and line on this page
+          is derived from the shape of this path — the sweep fold at the bottom prices that
+          derivation.</p>
+        <p class="fig">trough <b id="stat-trough">—</b> <span id="stat-trough-sub"></span>,
+          640 bps under the session's open</p>
+        <div id="chart-spot"></div>
+      </section>
+
+      <section class="chart" id="wrap-lean">
+        <h2>lean</h2>
+        <p class="note">Which side is absorbing, minute by minute.</p>
+        <p class="fig"><b id="stat-lean">—</b> <span id="stat-lean-sub"></span> with a side
+          inside the book</p>
+        <div id="chart-lean"></div>
+      </section>
+    </details>
 
     <details class="fold" id="wrap-sweep">
       <summary>the one modelled number, and what it is worth</summary>
@@ -917,7 +951,7 @@ table.sweep td.now { color: var(--desk); }
 
     <details class="fold">
       <summary>how these numbers were produced, and why the takers are blind</summary>
-      <p class="caveat" style="border-left:none">Reads <code>results/oct10_replay.csv</code>, written by
+      <p class="caveat">Reads <code>results/oct10_replay.csv</code>, written by
         <code>forge test --match-contract Oct10Replay</code>, whose 45 columns are documented in
         <code>results/oct10_replay.schema.md</code>. Three makers are shipped into Aqua and every
         fill on this page settles through 1inch's official router.
@@ -936,6 +970,135 @@ table.sweep td.now { color: var(--desk); }
         the tape they came from.</p>
     </details>
   </div>
+  </section>
+
+  <section id="panel-keys" role="tabpanel" hidden>
+    <div class="statement">
+      <p class="kicker">Privy · a server wallet · a policy</p>
+      <p>Two live shorts stand on chain 999. One was sent by the owner, by hand. <em>The other by
+        a key that can do nothing else.</em></p>
+    </div>
+
+    <div class="keys-grid">
+      <div class="key-card">
+        <p class="key-card-k">signer one — the owner's hand</p>
+        <p class="key-card-pos">short 0.00017 BTC
+          <small>entry $79,513 · crossed, filled at the book · 7 Sep</small></p>
+        <p class="key-card-who">The owner sent <code>cover()</code> itself: one transaction, an IOC
+          short queued to HyperCore, filled, with the fill's id written back into the desk.</p>
+        <p class="key-card-links">
+          <a href="https://hyperevmscan.io/address/0xB4ad3Fc0702145fB7a1DE72576968f9A30987a7f" target="_blank" rel="noreferrer">the desk</a>
+          <a href="https://hyperevmscan.io/tx/0x15d68c542957371a2e84742a5af3ca9021788aebb68956cb721383b7e76d9b4f" target="_blank" rel="noreferrer">the cover</a>
+        </p>
+      </div>
+      <div class="key-card">
+        <p class="key-card-k">signer two — a key that can only do this</p>
+        <p class="key-card-pos">short 0.00015 BTC
+          <small>entry $78,730 · limitPx 78,493 — the bid less its 30 bps of room · 8 Sep</small></p>
+        <p class="key-card-who"><b>Nobody signed it.</b> The owner armed the desk and went away; a
+          five-minute cadence read <code>coverPreview()</code>, decided, and a Privy server wallet
+          sent <code>cover()</code>. Its <code>cloid</code>, 3, is the desk's
+          <code>coverCount</code>, indexed on both hedge events of the same transaction.</p>
+        <p class="key-card-links">
+          <a href="https://hyperevmscan.io/address/0xa09765E0bBC38E1Ae37f1EB9f2D75b4cEd4dc144" target="_blank" rel="noreferrer">the desk</a>
+          <a href="https://hyperevmscan.io/address/0xf33c11453144F9a44406766602885Cd353497da3" target="_blank" rel="noreferrer">the key</a>
+          <a href="https://hyperevmscan.io/tx/0x15d44e3483a0b038f98f358556b79785fd8b5107bb72fa643b13e9e8ccc9603e" target="_blank" rel="noreferrer">armed</a>
+          <a href="https://hyperevmscan.io/tx/0x932aeaa549b09de47a819287f6cbf77a327046164a38cbee5c228ed26207e6b7" target="_blank" rel="noreferrer">the cover</a>
+        </p>
+      </div>
+    </div>
+
+    <p class="note" style="max-width:82ch"><b>Two controls, and neither depends on the other being
+      right.</b> On chain the account decides what the key can <i>reach</i>: <code>cover</code>
+      transfers nothing, and every other entry point is <code>onlyOwner</code>. Off chain the
+      policy decides what the key can <i>express</i>: <code>eth_sendTransaction</code> only where
+      the chain is 999, the recipient is that desk, the value is zero and the calldata decodes to
+      <code>cover()</code>. The wallet holds HYPE for its own gas, and there is no transaction it
+      can sign that sends any of it anywhere.</p>
+
+    <h2>what the live wallet refuses</h2>
+    <table class="check">
+      <thead><tr><th>asked of the live wallet</th><th>answer</th></tr></thead>
+      <tbody>
+        <tr><td><code>cover()</code> on the desk, chain 999, value 0</td>
+          <td class="a"><span class="allow">allowed</span> — stopped at the node; the check sends a nonce far ahead</td></tr>
+        <tr><td><code>close()</code> — returns the desk's inventory to its owner</td>
+          <td class="a"><span class="deny">policy_violation</span></td></tr>
+        <tr><td><code>armHedge()</code> — the operator rewriting its own ceiling</td>
+          <td class="a"><span class="deny">policy_violation</span></td></tr>
+        <tr><td><code>cover()</code> with 1 wei attached</td>
+          <td class="a"><span class="deny">policy_violation</span></td></tr>
+        <tr><td><code>personal_sign</code></td>
+          <td class="a"><span class="deny">policy_violation</span></td></tr>
+      </tbody>
+    </table>
+    <p class="note" style="max-width:82ch"><code>close()</code> and <code>armHedge()</code> differ
+      from the allowed call in four bytes of calldata and nothing else — a policy that only read
+      the envelope would pass them. The full run is <code>node script/hedge-check.mjs</code>
+      against the live wallet; this table is its output.</p>
+
+    <details class="fold">
+      <summary>every question the check asks, row by row</summary>
+      <table class="check">
+        <tbody>
+          <tr><td><code>cover()</code> on the desk, chain 999, value 0</td>
+            <td class="a"><span class="allow">allowed</span> — and stopped at the node, because the check sends a nonce far ahead of the account</td></tr>
+          <tr><td>the same <code>cover()</code> on the hedged desk</td>
+            <td class="a"><span class="deny">policy_violation</span></td></tr>
+          <tr><td><code>close()</code>, which returns the desk's inventory to its owner</td>
+            <td class="a"><span class="deny">policy_violation</span></td></tr>
+          <tr><td><code>armHedge()</code>, which is the operator rewriting its own ceiling</td>
+            <td class="a"><span class="deny">policy_violation</span></td></tr>
+          <tr><td><code>transfer()</code> of the desk's UBTC</td>
+            <td class="a"><span class="deny">policy_violation</span></td></tr>
+          <tr><td><code>personal_sign</code></td>
+            <td class="a"><span class="deny">policy_violation</span></td></tr>
+          <tr><td>the same <code>cover()</code> on Ethereum mainnet</td>
+            <td class="a"><span class="deny">policy_violation</span></td></tr>
+          <tr><td><code>cover()</code> with 1 wei attached</td>
+            <td class="a"><span class="deny">policy_violation</span></td></tr>
+          <tr><td><code>cover()</code> with no owner signature</td>
+            <td class="a"><span class="deny">401</span> — the app secret alone signs nothing</td></tr>
+          <tr><td>a partial <code>{to, data}</code> aimed anywhere else</td>
+            <td class="a"><span class="deny">policy_violation</span> — an unpopulated request is still read on the fields it does carry</td></tr>
+          <tr><td>does the wallet have an owner? the policy?</td>
+            <td class="a">both, or the run fails</td></tr>
+        </tbody>
+      </table>
+      <p class="caveat"><b>One measurement is kept out of the check's way.</b> A request Privy
+        still has to populate gets its gas estimated first, so calldata the desk would revert on
+        comes back as <code>transaction_broadcast_failure</code> <i>before the policy has said
+        anything</i> — which reads exactly like a policy that allowed it. Every case above is
+        either fully populated or uses calldata that does not revert.
+        <br><br>
+        <b>Both halves are owned by the same P-256 key, and that is the second lock.</b> A policy
+        is not enforced at all on a wallet whose <code>owner_id</code> is null, and a policy whose
+        own <code>owner_id</code> is null can be rewritten by anything holding the app secret. An
+        owned wallet under an unowned policy is a lock with its key beside it.</p>
+    </details>
+
+    <details class="fold">
+      <summary>the cover — a hedge on the same venue, in a second transaction</summary>
+      <p class="why"><b>cover</b> is the hedge a desk's owner has authorised. <code>cover()</code>
+        is a separate transaction, sent by the owner or by an operator the owner names, and it
+        queues an order: CoreWriter hands it to HyperCore, which executes it seconds later and
+        may reject or partially fill it without failing the transaction that carried it. A fill
+        is read back off HyperCore. The desks that used it are the two above.</p>
+    </details>
+
+    <div class="ba-call">
+      <div class="ba-call-k">check it yourself — both positions are open right now</div>
+      <div class="ba-cmd">
+        <span class="ba-cmd-k">the key's desk, on Hyperliquid's own API</span>
+        <code id="keys-curl-operator">curl -s https://api.hyperliquid.xyz/info -H 'content-type: application/json' -d '{"type":"clearinghouseState","user":"0xa09765E0bBC38E1Ae37f1EB9f2D75b4cEd4dc144"}'</code>
+        <button class="linky" data-copy="keys-curl-operator">copy</button>
+      </div>
+      <div class="ba-cmd">
+        <span class="ba-cmd-k">the owner's desk, same call</span>
+        <code id="keys-curl-owner">curl -s https://api.hyperliquid.xyz/info -H 'content-type: application/json' -d '{"type":"clearinghouseState","user":"0xB4ad3Fc0702145fB7a1DE72576968f9A30987a7f"}'</code>
+        <button class="linky" data-copy="keys-curl-owner">copy</button>
+      </div>
+    </div>
   </section>
 </main>
 <script type="module" src="./src/console.js"></script>
