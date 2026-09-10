@@ -713,17 +713,20 @@ python3 -m http.server 8000   # then http://localhost:8000/app/
   does not build; the packed encoding in `src/libs/DeskParams.sol` is 138 and is exact — `decode`
   rejects any other length rather than reading a short buffer as a desk with a zero inventory band.
 - The replay is `forge test --match-contract Oct10Replay -vv`; it writes
-  `results/oct10_replay.csv`, whose 45 columns are documented in
-  `results/oct10_replay.schema.md`. Four lines: the desk, a plain `XYCSwap` control, the same curve
-  charging 30 bps through 1inch's own `FlatFeeIn`, and Hyperliquid's own touch, which is not a
-  maker. Every maker is shipped into Aqua and every fill settles through the official router.
+  `results/oct10_replay.csv`, whose 54 columns are documented in
+  `results/oct10_replay.schema.md`. Five lines: the desk, a plain `XYCSwap` control, the same curve
+  charging 30 bps through 1inch's own `FlatFeeIn`, the same curve centred on Hyperliquid's oracle as
+  of its last refresh — the maker most people would name as the alternative to an AMM, whose cadence
+  `oct10_replay.source` records for the run that produced the file — and Hyperliquid's own touch,
+  which is not a maker. Every maker is shipped into Aqua and every fill settles through the official
+  router.
 - **Both takers are blind, and that is the load-bearing part.** A forced seller walks a pot that is
   a function of the tape alone — the same notional in the quiet as in a cascade — into whichever
   maker quotes best, one clip at a time. An arbitrageur looks, against every maker identically, for
   the round trip that closes profitably at L1's own touch. Neither learns anything about a maker
   beyond the number that came back from `quote`: no regime word, no parameters, no address.
-  `test_takers_areBlind` ships the same program into all three slots and requires the three lines
-  to come out equal **to the dollar**. They do — $18,968 absorbed and $774,522 of arbitrage
+  `test_takers_areBlind` ships the same program into all four slots and requires the four lines
+  to come out equal **to the dollar**. They do — $14,226 absorbed and $775,589 of arbitrage
   *notional* each.
   Without that test the rest of the file is a number the harness handed out rather than one a maker
   won, which is exactly what an earlier version of this replay did.
@@ -736,17 +739,18 @@ python3 -m http.server 8000   # then http://localhost:8000/app/
 - So `SPREAD_GAIN` in that overlay sets how wide a book opens after it has been run over, and the
   desk's price improvement in a lean is bounded by exactly that width. **`test_report_theSpreadIsTheDial`
   measures what it is worth** rather than leaving it as a caveat: at half the tape's spread the desk
-  keeps $1,372 and takes 67.8% of the flow, at the tape's own spread $1,334 and 65.9%, at double
-  $1,257 and 65.2%. A fourfold range in the one modelled quantity moves the headline by 9%, and
-  moves it *against* the desk as the book widens — it pays L1's ask, which a wide book makes worse.
-  The desk's arb notional is zero at every width.
+  keeps $1,219 and takes 60.8% of the flow, at the tape's own spread $1,306 and 64.8%, at double
+  $1,097 and 57.0%. A fourfold range in the one modelled quantity moves the headline across 16% of
+  the shipped run, and the shipped width is not an edge of that range: a narrow book leaves less
+  distance to lean into and the desk wins less of the flow, a wide one costs more at L1's ask, which
+  it pays. The desk's arb notional is zero at every width.
 - **The falsifier, and it is on the page rather than in a footnote.** `stressBps` is how far the
   perp book has to walk from oracle before the desk quotes inside L1 — the one decision the extra
   instruction makes. `test_report_theRegimeIsWhatCarriesIt` sweeps it with the map unwired: the
-  desk leans on 123, 49, 24, 8 and 0 minutes and absorbs $43,173, $43,173, $37,527, $17,553 and
+  desk leans on 123, 49, 24, 8 and 0 minutes and absorbs $41,706, $41,706, $36,878, $17,409 and
   **$0**. `test_falsifier_regimeOffCollapsesTheDesk` is that last rung asserted — no reachable
   threshold and no map, and the desk quotes 20 bps outside L1 for 123 minutes and takes **nothing**,
-  while the same $56,898 of forced flow goes to the two makers willing to be the best price. It
+  while the same $56,904 of forced flow goes to the three makers willing to be the best price. It
   also asserts that somebody absorbed it, because a desk that took nothing out of a harness that
   routed nothing would prove the opposite of what it looks like. The shipped 25 bps sits in the
   middle of that range and not at the edge of it, and the arbitrage column is $0 at every rung:
@@ -759,10 +763,13 @@ python3 -m http.server 8000   # then http://localhost:8000/app/
 - **Who gets served first inside a minute is an assumption, so it is a parameter and both settings
   are published.** Arbitrageur first is what ships. Serve the forced seller first and in a falling
   market they reach a maker still quoting last minute's higher bid, and the desk wins nothing at
-  all — because it will never bid above L1's ask. That is the desk declining to join two AMMs that
+  all — because it will never bid above L1's ask. That is the desk declining to join three AMMs that
   are bidding over the market, and it is exactly where the retired `desk >= 2 x control` gate
-  broke: it fails there while the desk is $2,249 ahead of the better control on what it kept. The
-  margin gate holds under both, 4.73 bps and 2.44.
+  broke: it fails there while the desk is $222 ahead of the best control on what it kept. The desk
+  stays ahead under both orderings, by 1.64 bps and 0.24 of the capital deployed, and the threshold
+  is set against the shipped one — with the forced seller first the desk absorbs nothing by design,
+  so both sides of that comparison are near zero and a threshold on it would be a threshold on which
+  of two makers did less.
   `test_report_flowFirstMovesTheShareAndNotTheClaim` runs the retired gate rather than describing
   it, so the example cannot rot into a story.
 - Four claims, four tests, and they are different questions.
@@ -772,12 +779,14 @@ python3 -m http.server 8000   # then http://localhost:8000/app/
   program can be perfectly inarbitrable and still be a constant product that ignores L1.
   `test_gate_deskIsNeverArbitraged` asks the first question again at session scale, against an
   arbitrageur that chooses its own size: 123 minutes, both directions, 640 bps of drawdown, nothing
-  found. It also fails if the two AMMs are never arbitraged, because then the zero means nothing.
+  found. It also fails if the three AMMs are never arbitraged, because then the zero means nothing.
   `test_gate_deskKeepsMoreThanTheControls` asks whether any of it was worth doing: what the desk
-  kept, net of what the arbitrageur took, against the **better** of the two controls, in basis
+  kept, net of what the arbitrageur took, against the **best** of the three controls, in basis
   points of the capital deployed. It is a signed margin and not a multiple, because a multiple has
-  no denominator once the control loses money on what it absorbed — which is what a maker priced
-  before the trade does in a cascade, and what both AMM lines do here.
+  no denominator once a control loses money on what it absorbed — which is what a maker priced
+  before the trade does in a cascade, and what the two lines priced off their own reserves do here:
+  −$34 and −$315 of absorbed edge. The oracle-pegged line is the one that does not, at +$18, and it
+  still ends $1,510 behind the desk once the arbitrageur has been paid.
 - **The same rule as a Uniswap v4 hook, in `test/v4/`, deployed nowhere.** `test/v4/CoreQuoteHook.sol`
   wraps the deployed `CoreQuote` in a `beforeSwap` with a return delta, `test/v4/PoolManagerStub.sol`
   reproduces v4's delta accounting around it, and `test/CoreQuoteHook.t.sol` asserts that the hook
