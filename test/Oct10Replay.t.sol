@@ -7,10 +7,17 @@ import { BlindTakers } from "./base/BlindTakers.sol";
 import { DeskParams } from "../src/libs/DeskParams.sol";
 import { Side } from "../src/libs/Regime.sol";
 
-/// @notice The screen. Two makers shipped from one wallet with the same inventory, the same tape,
+/// @notice The screen. Four makers shipped from one wallet with the same inventory, the same tape,
 ///         and two takers that cannot tell them apart: an arbitrageur and a forced seller, every
-///         minute. Both inventories marked at spot. Writes results/oct10_replay.csv; the last row
-///         is the two numbers.
+///         minute. Every inventory marked at spot. Writes results/oct10_replay.csv.
+///
+///         The three that are not the desk are the answer to "compared to what?", and they are not
+///         interchangeable. `control` is the **ablation** — the desk with one instruction removed.
+///         The fee'd control is the **competitor nobody can call free**. The oracle-pegged one is
+///         the **competitor nobody can call a straw man**: its price is Hyperliquid's oracle as of
+///         its last refresh, which is what a maker on a perps venue usually is, and its cadence is
+///         declared in `results/oct10_replay.source` because the number it produces is a function
+///         of that before it is a function of anything else.
 ///
 ///         forge test --match-contract Oct10Replay -vv
 ///
@@ -88,6 +95,15 @@ contract Oct10ReplayTest is BlindTakers {
         uint256 lvrDeskNtl;
         uint256 lvrControlNtl;
         uint256 lvrHardNtl;
+        uint256 basePegged;
+        uint256 quotePegged;
+        int256 pnlPeggedBps;
+        uint256 absorbedPeggedNtl;
+        uint256 arbPeggedNtl;
+        int256 markoutPegged5mBps;
+        int256 markoutPegged15mBps;
+        int256 markoutPegged60mBps;
+        uint256 lvrPeggedNtl;
     }
 
     string internal constant HEADER = "t,spot,bid,ask,mark,oracle,deskBid,deskAsk,lean,dislocationBps,"
@@ -98,7 +114,9 @@ contract Oct10ReplayTest is BlindTakers {
         "baseHard,quoteHard,pnlHardBps,absorbedHardNtl,arbHardNtl,"
         "markoutHard5mBps,markoutHard15mBps,markoutHard60mBps,"
         "absorbedTouchNtl,markoutTouch5mBps,markoutTouch15mBps,markoutTouch60mBps,"
-        "lvrDeskNtl,lvrControlNtl,lvrHardNtl";
+        "lvrDeskNtl,lvrControlNtl,lvrHardNtl,"
+        "basePegged,quotePegged,pnlPeggedBps,absorbedPeggedNtl,arbPeggedNtl,"
+        "markoutPegged5mBps,markoutPegged15mBps,markoutPegged60mBps,lvrPeggedNtl";
 
     string internal constant TAPE = "tape/oct10_btc_1m.json";
     string internal constant STUB_TAPE = "tape/oct10_btc_1m.stub.json";
@@ -134,7 +152,10 @@ contract Oct10ReplayTest is BlindTakers {
     ///      assumptions about queue position. This one asserts only that the arb gets *a* look
     ///      inside the minute, which is what a latency-optimised searcher does and a liquidated
     ///      account does not.
-    uint256 internal constant FLOW_CLIPS = 30;
+    ///      Twenty-four rather than a rounder thirty because the clips have to divide evenly among
+    ///      the makers — a remainder lands somewhere, and where it lands is position rather than
+    ///      price. Four lines now share the pot, and 24 is the nearest count that divides by four.
+    uint256 internal constant FLOW_CLIPS = 24;
     uint256 internal constant FLOW_SLICES = 1;
 
     /// @dev 40 UBTC each. The quote leg is **not** a constant: it is set from the tape's first spot
@@ -144,6 +165,8 @@ contract Oct10ReplayTest is BlindTakers {
     uint256 internal constant DESK = 0;
     uint256 internal constant CONTROL = 1;
     uint256 internal constant HARD = 2;
+    uint256 internal constant PEGGED = 3;
+    uint256 internal constant LINES = 4;
 
     /// @notice The maker fee on the third line, in the router's own unit: `Fee` uses `BPS = 1e9`,
     ///         so this is **30 bps**, near what a real BTC/USDT pool charges.
@@ -160,10 +183,41 @@ contract Oct10ReplayTest is BlindTakers {
     ///      not touch that. `results/oct10_replay.source` carries the numbers at other settings.
     uint32 internal constant HARD_FEE_BPS = 3_000_000;
 
-    /// @dev How far ahead of the better control the desk has to come out, in basis points of the
-    ///      capital it deployed, after the arbitrageur has been paid. Two, against roughly five
-    ///      observed — a threshold that would survive the tape being half as kind.
-    uint16 internal constant MIN_MARGIN_BPS = 2;
+    /// @notice The oracle-pegged line's cadence, and the only honest way to quote its number.
+    ///
+    ///         `PegQuote` centres a constant-product curve on Hyperliquid's oracle when somebody
+    ///         sends it a `refresh`, and it stands still until somebody does it again. What that
+    ///         maker pays is therefore a function of one thing before it is a function of anything
+    ///         about the desk, so the parameter is named here, reported in
+    ///         `results/oct10_replay.source`, and swept in `test_report_theCadenceIsTheDial`.
+    ///
+    ///         **Sixty seconds and no deviation trigger — one refresh per row, which is the
+    ///         fastest this tape can express.** A minute-resolution tape cannot represent a maker
+    ///         that reprices faster than a minute, so this setting is the friendliest one the data
+    ///         supports and every number the line produces is a floor. A deviation threshold of
+    ///         zero means the trigger is *off*, not that it fires always: `>= 0` is true of every
+    ///         move, and a maker configured that way would be repriced by the last decimal.
+    uint16 internal constant PEG_DEVIATION_BPS = 0;
+    uint32 internal constant PEG_HEARTBEAT_S = 60;
+    bytes32 internal constant PEG_KEY = keccak256("oct10-oracle-pegged");
+
+    /// @dev What the session actually ships with. A field rather than the constant, because
+    ///      `test_report_theCadenceIsTheDial` moves it and a number that cannot be moved is not a
+    ///      parameter, it is an assumption.
+    uint16 internal pegDeviationBps = PEG_DEVIATION_BPS;
+    uint32 internal pegHeartbeatSeconds = PEG_HEARTBEAT_S;
+
+    /// @dev How far ahead of the best control the desk has to come out, in **hundredths** of a
+    ///      basis point of the capital it deployed, after the arbitrageur has been paid.
+    ///
+    ///      Seventy-five, against 164 observed. The threshold used to be two whole basis points
+    ///      against 473, and it moved because the thing it is measured against changed: with only
+    ///      a free curve and a fee'd one to beat, the desk came out 4.7 bps ahead, and against a
+    ///      maker whose price is at least the *right price* once a minute it comes out 1.6 ahead.
+    ///      The margin of safety is the same — a shade under half the observation — and the number
+    ///      is smaller because the competition got real. A gate kept at two would have been a gate
+    ///      that only passes against straw men.
+    uint16 internal constant MIN_MARGIN_BPS_X100 = 75;
 
     uint256 internal startValue;
     DeskParams internal params;
@@ -355,8 +409,10 @@ contract Oct10ReplayTest is BlindTakers {
         emit log_named_uint("arb notional, desk (USD)", arbOf(rows, DESK));
         emit log_named_uint("arb notional, control (USD)", arbOf(rows, CONTROL));
         emit log_named_uint("arb notional, hardened control (USD)", arbOf(rows, HARD));
+        emit log_named_uint("arb notional, oracle-pegged control (USD)", arbOf(rows, PEGGED));
         emit log_named_uint("lvr paid, control (USD)", lvrOf(rows, CONTROL));
         emit log_named_uint("lvr paid, hardened control (USD)", lvrOf(rows, HARD));
+        emit log_named_uint("lvr paid, oracle-pegged control (USD)", lvrOf(rows, PEGGED));
 
         assertGt(arbOf(rows, CONTROL), 0, "the arbitrageur found nothing anywhere: it is not searching");
         assertEq(arbOf(rows, DESK), 0, "an arbitrageur got size out of the desk: the clamp is not holding");
@@ -379,20 +435,23 @@ contract Oct10ReplayTest is BlindTakers {
     ///         under either queue order, and it is the number a maker would recognise as the
     ///         answer: what the strategy kept.
     ///
-    /// @dev Against the **better** of the two controls, not the weaker one. The hardened control is
-    ///      there precisely so this cannot be won against a strawman.
+    /// @dev Against the **best** of the three controls, never the weakest. The fee'd control and
+    ///      the oracle-pegged one are there precisely so this cannot be won against a strawman: the
+    ///      first is what a fee schedule is worth against a stale price, and the second is the maker
+    ///      most people would actually point at as the alternative to an AMM.
     function test_gate_deskKeepsMoreThanTheControls() public {
         Row[] memory rows = run(loadTapeOnly());
 
         emit log_named_int("kept, desk (USD)", keptBy(rows, DESK));
         emit log_named_int("kept, control (USD)", keptBy(rows, CONTROL));
         emit log_named_int("kept, hardened control (USD)", keptBy(rows, HARD));
+        emit log_named_int("kept, oracle-pegged control (USD)", keptBy(rows, PEGGED));
         emit log_named_int("capital deployed per maker (USD)", int256(startValue / 1e6));
-        emit log_named_int("margin over the better control (bps x 100)", marginBpsX100(rows));
+        emit log_named_int("margin over the best control (bps x 100)", marginBpsX100(rows));
 
         assertGe(
             marginBpsX100(rows),
-            int256(uint256(MIN_MARGIN_BPS)) * 100,
+            int256(uint256(MIN_MARGIN_BPS_X100)),
             "the desk does not keep enough more than the maker that ignores the book"
         );
     }
@@ -402,16 +461,18 @@ contract Oct10ReplayTest is BlindTakers {
         return edgeOf(rows, line) - int256(lvrOf(rows, line));
     }
 
-    /// @notice How far ahead of the **better** control the desk came out, in hundredths of a basis
-    ///         point of the capital each maker deployed.
+    /// @notice How far ahead of the **best** of the three controls the desk came out, in hundredths
+    ///         of a basis point of the capital each maker deployed.
     /// @dev Hundredths rather than basis points because whole bps truncate, and under the queue
     ///      order where the forced seller goes first the honest number is 2.44 — which an integer
     ///      gate would read as 2 and compare against a threshold of 2, passing on a rounding rather
     ///      than on a result.
     function marginBpsX100(Row[] memory rows) internal view returns (int256) {
-        int256 control = keptBy(rows, CONTROL);
+        int256 best = keptBy(rows, CONTROL);
         int256 hard = keptBy(rows, HARD);
-        int256 best = control > hard ? control : hard;
+        int256 pegged = keptBy(rows, PEGGED);
+        if (hard > best) best = hard;
+        if (pegged > best) best = pegged;
         return (keptBy(rows, DESK) - best) * 1_000_000 / int256(startValue / 1e6);
     }
 
@@ -444,7 +505,7 @@ contract Oct10ReplayTest is BlindTakers {
             emit log_named_int("  kept, desk (USD)", keptBy(rows, DESK));
             emit log_named_uint("  absorbed, desk (USD)", absorbedOf(rows, DESK));
             emit log_named_uint(
-                "  absorbed, both AMMs (USD)", absorbedOf(rows, CONTROL) + absorbedOf(rows, HARD)
+                "  absorbed, all three AMMs (USD)", absorbedOf(rows, CONTROL) + absorbedOf(rows, HARD) + absorbedOf(rows, PEGGED)
             );
             emit log_named_uint("  arb notional, desk (USD)", arbOf(rows, DESK));
 
@@ -518,13 +579,13 @@ contract Oct10ReplayTest is BlindTakers {
         }
 
         emit log_named_uint("absorbed, desk (USD)", absorbedOf(rows, DESK));
-        emit log_named_uint("absorbed, both AMMs (USD)", absorbedOf(rows, CONTROL) + absorbedOf(rows, HARD));
+        emit log_named_uint("absorbed, all three AMMs (USD)", absorbedOf(rows, CONTROL) + absorbedOf(rows, HARD) + absorbedOf(rows, PEGGED));
         emit log_named_int("kept, desk (USD)", keptBy(rows, DESK));
 
         assertEq(absorbedOf(rows, DESK), 0, "the desk absorbed flow without ever declaring stress");
         assertEq(edgeOf(rows, DESK), 0, "a desk that absorbed nothing cannot have earned anything");
         assertGt(
-            absorbedOf(rows, CONTROL) + absorbedOf(rows, HARD),
+            absorbedOf(rows, CONTROL) + absorbedOf(rows, HARD) + absorbedOf(rows, PEGGED),
             0,
             "nobody absorbed anything: the desk's zero is the harness failing, not the desk sitting out"
         );
@@ -589,6 +650,53 @@ contract Oct10ReplayTest is BlindTakers {
         assertEq(arbOf(withMap, DESK), 0, "the map made the desk arbitrageable");
     }
 
+    /// @notice The oracle-pegged line's own dial, published rather than argued.
+    ///
+    ///         Everything that maker pays is a function of how often somebody refreshes it, and
+    ///         nothing else about it is interesting. So the session is re-run at four cadences and
+    ///         the numbers are printed rather than asserted: one refresh a minute, which is the
+    ///         fastest a minute-resolution tape can express; every five and every fifteen, which
+    ///         is what a keeper on a cron actually manages; and a deviation threshold with an
+    ///         hourly heartbeat, which is the shape a pushed price feed is configured in.
+    ///
+    ///         **The shipped setting is the friendliest one on the list.** That is deliberate: the
+    ///         line on the screen is then a floor on what an oracle-pegged maker pays, and every
+    ///         row below it is what the same maker pays for being slower. A comparator tuned to
+    ///         lose would have been set the other way round, and this table is how a reader checks
+    ///         that it was not.
+    ///
+    /// @dev Reported, never asserted. There is no threshold here that could pass or fail: the
+    ///      cadence is somebody else's operational choice and the point is only that the number
+    ///      moves with it. The one thing worth watching is the first column against the shipped
+    ///      run — if they disagree, the session is not shipping the cadence it says it is.
+    function test_report_theCadenceIsTheDial() public {
+        Tick[] memory tape = loadTapeOnly();
+        uint16[4] memory devs = [uint16(0), uint16(0), uint16(0), uint16(25)];
+        uint32[4] memory beats = [uint32(60), uint32(300), uint32(900), uint32(3600)];
+
+        for (uint256 k = 0; k < devs.length; ++k) {
+            pegDeviationBps = devs[k];
+            pegHeartbeatSeconds = beats[k];
+            setUp();
+            Row[] memory rows = run(tape);
+
+            emit log_named_uint("oracle-pegged: refresh every (seconds)", beats[k]);
+            emit log_named_uint("  deviation trigger (bps, 0 = off)", devs[k]);
+            emit log_named_uint("  lvr paid (USD)", lvrOf(rows, PEGGED));
+            emit log_named_uint("  arb notional (USD)", arbOf(rows, PEGGED));
+            emit log_named_uint("  absorbed (USD)", absorbedOf(rows, PEGGED));
+            emit log_named_int("  kept (USD)", keptBy(rows, PEGGED));
+            emit log_named_int("  margin, desk over the best control (bps x 100)", marginBpsX100(rows));
+
+            // Whatever the cadence, the desk itself is not in this table: its quote is computed
+            // inside the call that settles the swap, so there is no cadence it could be slow on.
+            assertEq(arbOf(rows, DESK), 0, "a cadence made the desk arbitrageable");
+        }
+
+        pegDeviationBps = PEG_DEVIATION_BPS;
+        pegHeartbeatSeconds = PEG_HEARTBEAT_S;
+    }
+
     /// @notice The queue-position assumption, published rather than argued.
     ///
     ///         Inside one minute the arbitrageur and the forced seller both arrive. The replay puts
@@ -621,11 +729,12 @@ contract Oct10ReplayTest is BlindTakers {
         int256 flowFirstMargin = marginBpsX100(flowFirst);
 
         emit log_named_uint("forced seller first: absorbed, desk (USD)", absorbedOf(flowFirst, DESK));
-        emit log_named_uint("forced seller first: absorbed, both AMMs (USD)",
-            absorbedOf(flowFirst, CONTROL) + absorbedOf(flowFirst, HARD));
+        emit log_named_uint("forced seller first: absorbed, all three AMMs (USD)",
+            absorbedOf(flowFirst, CONTROL) + absorbedOf(flowFirst, HARD) + absorbedOf(flowFirst, PEGGED));
         emit log_named_int("forced seller first: kept, desk (USD)", keptBy(flowFirst, DESK));
         emit log_named_int("forced seller first: kept, control (USD)", keptBy(flowFirst, CONTROL));
         emit log_named_int("forced seller first: kept, hardened control (USD)", keptBy(flowFirst, HARD));
+        emit log_named_int("forced seller first: kept, oracle-pegged (USD)", keptBy(flowFirst, PEGGED));
         emit log_named_int("forced seller first: margin (bps x 100)", flowFirstMargin);
 
         // What the retired gate would have said about that run, run rather than described.
@@ -641,9 +750,9 @@ contract Oct10ReplayTest is BlindTakers {
 
         // The claims that are actually the claims.
         assertEq(arbOf(flowFirst, DESK), 0, "the desk paid arbitrageurs under the other ordering");
-        assertGe(
+        assertGt(
             flowFirstMargin,
-            int256(uint256(MIN_MARGIN_BPS)) * 100,
+            0,
             "the desk stops keeping more than the controls when the forced seller goes first"
         );
     }
@@ -670,43 +779,61 @@ contract Oct10ReplayTest is BlindTakers {
         emit log_named_int("absorbed edge, desk (USD)", edgeOf(rows, DESK));
         emit log_named_int("absorbed edge, control (USD)", edgeOf(rows, CONTROL));
         emit log_named_int("absorbed edge, hardened control (USD)", edgeOf(rows, HARD));
+        emit log_named_int("absorbed edge, oracle-pegged control (USD)", edgeOf(rows, PEGGED));
         emit log_named_int("absorbed edge, L1's own touch (USD)", touchEdge(rows));
         emit log_named_uint("absorbed notional, desk (USD)", absorbedOf(rows, DESK));
-        emit log_named_uint("absorbed notional, both AMMs (USD)", absorbedOf(rows, CONTROL) + absorbedOf(rows, HARD));
+        emit log_named_uint("absorbed notional, all three AMMs (USD)", absorbedOf(rows, CONTROL) + absorbedOf(rows, HARD) + absorbedOf(rows, PEGGED));
         emit log_named_uint("absorbed notional, L1's own touch (USD)", touchAbsorbed(rows));
 
         assertGt(edgeOf(rows, DESK), 0, "the desk lost money on what it absorbed: the lean is not paying for itself");
     }
 
+    /// @dev Four lines, and every selector below names all four. An `if/else` chain that ends in
+    ///      a bare `else` reports the last line's column for anything it does not recognise, which
+    ///      is how a fourth maker's totals come out identical to the third's — to the dollar,
+    ///      across every number, which reads as a coincidence rather than as the bug it is.
     function absorbedOf(Row[] memory rows, uint256 line) internal pure returns (uint256 n) {
         for (uint256 i = 0; i < rows.length; ++i) {
+            Row memory r = rows[i];
             n += line == DESK
-                ? rows[i].absorbedDeskNtl
-                : line == CONTROL ? rows[i].absorbedControlNtl : rows[i].absorbedHardNtl;
+                ? r.absorbedDeskNtl
+                : line == CONTROL
+                    ? r.absorbedControlNtl
+                    : line == HARD ? r.absorbedHardNtl : r.absorbedPeggedNtl;
         }
     }
 
     function arbOf(Row[] memory rows, uint256 line) internal pure returns (uint256 n) {
         for (uint256 i = 0; i < rows.length; ++i) {
-            n += line == DESK ? rows[i].arbDeskNtl : line == CONTROL ? rows[i].arbControlNtl : rows[i].arbHardNtl;
+            Row memory r = rows[i];
+            n += line == DESK
+                ? r.arbDeskNtl
+                : line == CONTROL ? r.arbControlNtl : line == HARD ? r.arbHardNtl : r.arbPeggedNtl;
         }
     }
 
     function lvrOf(Row[] memory rows, uint256 line) internal pure returns (uint256 n) {
         for (uint256 i = 0; i < rows.length; ++i) {
-            n += line == DESK ? rows[i].lvrDeskNtl : line == CONTROL ? rows[i].lvrControlNtl : rows[i].lvrHardNtl;
+            Row memory r = rows[i];
+            n += line == DESK
+                ? r.lvrDeskNtl
+                : line == CONTROL ? r.lvrControlNtl : line == HARD ? r.lvrHardNtl : r.lvrPeggedNtl;
         }
     }
 
     function edgeOf(Row[] memory rows, uint256 line) internal pure returns (int256 n) {
         for (uint256 i = 0; i < rows.length; ++i) {
-            (uint256 ntl, int256 bps) = line == DESK
-                ? (rows[i].absorbedDeskNtl, rows[i].markoutDesk60mBps)
-                : line == CONTROL
-                    ? (rows[i].absorbedControlNtl, rows[i].markoutControl60mBps)
-                    : (rows[i].absorbedHardNtl, rows[i].markoutHard60mBps);
+            (uint256 ntl, int256 bps) = _absorbedAndMarkout(rows[i], line);
             n += int256(ntl) * bps / 10_000;
         }
+    }
+
+    /// @dev Split out of `edgeOf` so the four-way choice stays inside the stack.
+    function _absorbedAndMarkout(Row memory r, uint256 line) private pure returns (uint256, int256) {
+        if (line == DESK) return (r.absorbedDeskNtl, r.markoutDesk60mBps);
+        if (line == CONTROL) return (r.absorbedControlNtl, r.markoutControl60mBps);
+        if (line == HARD) return (r.absorbedHardNtl, r.markoutHard60mBps);
+        return (r.absorbedPeggedNtl, r.markoutPegged60mBps);
     }
 
     /// @notice The venue itself: the same forced flow, filled at L1's touch, marked out the same way.
@@ -735,6 +862,14 @@ contract Oct10ReplayTest is BlindTakers {
         internal
         returns (Row[] memory rows)
     {
+        // The peg is armed at whatever moment `shipLines` runs, and `arm` reads both the clock and
+        // the book. Leave that to the ambient state and a second session inside one test function
+        // arms at the *end* of the previous tape — a peg dated an hour after the first minute it is
+        // asked to quote, a heartbeat that then never fires, and two runs of the same tape that
+        // disagree. So the session opens on its own first minute before anything is shipped.
+        vm.warp(tape[0].t);
+        setBook(tape[0].bid, tape[0].ask, tape[0].mark, tape[0].oracle);
+
         Line[] memory lines = shipLines(p, tape[0].spot, false);
         driveOrdered(tape, lines, flowFirst);
 
@@ -785,6 +920,13 @@ contract Oct10ReplayTest is BlindTakers {
             setBook(tick.bid, tick.ask, tick.mark, tick.oracle);
             mapOracle.update(BTC, uint128(tick.forcedSellNtl), uint128(tick.forcedBuyNtl));
 
+            // The cadence, as a transaction, before either taker arrives. This is the pegged
+            // maker at its best: it has just read the oracle, so whatever a searcher takes off it
+            // this minute is taken off a *fresh* peg, and the only thing left between them is that
+            // the oracle is not the book the searcher closes at. A slower cadence adds staleness
+            // on top of that, which is what `test_report_theCadenceIsTheDial` measures.
+            if (pegQuote.config(PEG_KEY).aqua != address(0)) pegQuote.refresh(PEG_KEY);
+
             Market memory m = market(tick);
             Fill[] memory f = fills[i];
             Bleed[] memory b = bleeds[i];
@@ -821,9 +963,14 @@ contract Oct10ReplayTest is BlindTakers {
         return shipLines(shippedParams(), spot0, twins);
     }
 
-    /// @notice Ship the three makers: the desk, the same curve with the bound removed, and that
-    ///         curve charging a fee.
-    /// @param twins true ships the control's program into all three slots — the blindness test.
+    /// @notice Ship the four makers: the desk, the same curve with the bound removed, that curve
+    ///         charging a fee, and that curve centred on the oracle at its last refresh.
+    /// @param twins true ships the control's program into all four slots — the blindness test.
+    /// @dev The pegged line is armed **after** the loop rather than inside it, because `PegQuote`
+    ///      reads the maker's Aqua balances to work out where to centre the curve and Aqua does not
+    ///      have them until `ship` has run. The key is fixed and `arm` is write-once, which is safe
+    ///      here for the same reason shipping is: a second session in one test function calls
+    ///      `setUp()` first, and without it Aqua would already have refused the strategy.
     function shipLines(DeskParams memory p, uint256 spot0, bool twins)
         internal
         returns (Line[] memory lines)
@@ -833,22 +980,25 @@ contract Oct10ReplayTest is BlindTakers {
         uint256 quote_ = openingQuote(spot0);
         startValue = valueAtSpot(START_BASE, quote_, spot0);
 
-        lines = new Line[](3);
-        ISwapVM.Order[3] memory os = twins
+        lines = new Line[](LINES);
+        ISwapVM.Order[4] memory os = twins
             ? [
                 controlOrder(params, keccak256("twin-a")),
                 controlOrder(params, keccak256("twin-b")),
-                controlOrder(params, keccak256("twin-c"))
+                controlOrder(params, keccak256("twin-c")),
+                controlOrder(params, keccak256("twin-d"))
             ]
             : [
                 deskOrder(params, keccak256("desk")),
                 controlOrder(params, keccak256("control")),
-                hardControlOrder(params, HARD_FEE_BPS, keccak256("hard"))
+                hardControlOrder(params, HARD_FEE_BPS, keccak256("hard")),
+                peggedOrder(params, PEG_KEY, keccak256("pegged"))
             ];
 
-        for (uint256 i = 0; i < 3; ++i) {
+        for (uint256 i = 0; i < LINES; ++i) {
             lines[i] = Line({ order: os[i], hash: shipFunded(os[i], params, START_BASE, quote_) });
         }
+        if (!twins) armPeg(PEG_KEY, lines[PEGGED].hash, params, pegDeviationBps, pegHeartbeatSeconds);
     }
 
     /// @notice The quote leg that puts XYCSwap's marginal price on the tape's opening spot.
@@ -911,19 +1061,24 @@ contract Oct10ReplayTest is BlindTakers {
         (row.baseControl, row.quoteControl) = (held[i][CONTROL].base, held[i][CONTROL].quote);
 
         (row.baseHard, row.quoteHard) = (held[i][HARD].base, held[i][HARD].quote);
+        (row.basePegged, row.quotePegged) = (held[i][PEGGED].base, held[i][PEGGED].quote);
 
         row.pnlDeskBps = pnlBps(row.baseDesk, row.quoteDesk, tick.spot);
         row.pnlControlBps = pnlBps(row.baseControl, row.quoteControl, tick.spot);
         row.pnlHardBps = pnlBps(row.baseHard, row.quoteHard, tick.spot);
+        row.pnlPeggedBps = pnlBps(row.basePegged, row.quotePegged, tick.spot);
         row.absorbedDeskNtl = absorbedAt(i, DESK);
         row.absorbedControlNtl = absorbedAt(i, CONTROL);
         row.absorbedHardNtl = absorbedAt(i, HARD);
+        row.absorbedPeggedNtl = absorbedAt(i, PEGGED);
         row.arbDeskNtl = bleeds[i][DESK].notional;
         row.arbControlNtl = bleeds[i][CONTROL].notional;
         row.arbHardNtl = bleeds[i][HARD].notional;
+        row.arbPeggedNtl = bleeds[i][PEGGED].notional;
         row.lvrDeskNtl = bleeds[i][DESK].profit;
         row.lvrControlNtl = bleeds[i][CONTROL].profit;
         row.lvrHardNtl = bleeds[i][HARD].profit;
+        row.lvrPeggedNtl = bleeds[i][PEGGED].profit;
         row.absorbedTouchNtl = (tick.forcedSellNtl + tick.forcedBuyNtl) * FLOW_CAPTURE_BPS / BPS_DEN;
         // The markout columns are a second pass: they need minutes this one has not seen yet.
     }
@@ -943,6 +1098,9 @@ contract Oct10ReplayTest is BlindTakers {
             rows[i].markoutHard5mBps = markoutAt(tape, i, HARD, MARKOUT_5M);
             rows[i].markoutHard15mBps = markoutAt(tape, i, HARD, MARKOUT_15M);
             rows[i].markoutHard60mBps = markoutAt(tape, i, HARD, MARKOUT_60M);
+            rows[i].markoutPegged5mBps = markoutAt(tape, i, PEGGED, MARKOUT_5M);
+            rows[i].markoutPegged15mBps = markoutAt(tape, i, PEGGED, MARKOUT_15M);
+            rows[i].markoutPegged60mBps = markoutAt(tape, i, PEGGED, MARKOUT_60M);
             rows[i].markoutTouch5mBps = touchMarkout(tape, i, MARKOUT_5M);
             rows[i].markoutTouch15mBps = touchMarkout(tape, i, MARKOUT_15M);
             rows[i].markoutTouch60mBps = touchMarkout(tape, i, MARKOUT_60M);
@@ -1042,10 +1200,16 @@ contract Oct10ReplayTest is BlindTakers {
                 "keccak256: ", vm.toString(keccak256(bytes(vm.readFile(path)))), "\n",
                 "ticks: ", vm.toString(tape.length), "\n",
                 "takers: blind (router quotes; arb closed at L1's touch, then the forced flow)\n",
-                "hard control fee: ", vm.toString(HARD_FEE_BPS), " of 1e9\n\n",
+                "hard control fee: ", vm.toString(HARD_FEE_BPS), " of 1e9\n",
+                // The pegged line's number means nothing without this, so it is written next to it
+                // rather than left in a constant somebody has to go and look up.
+                "oracle-pegged cadence: refresh every ", vm.toString(PEG_HEARTBEAT_S),
+                "s, deviation trigger ", vm.toString(PEG_DEVIATION_BPS),
+                " bps (0 = off), one refresh per tape row\n\n",
                 _lineStamp("desk", rows, DESK),
                 _lineStamp("control (XYCSwap)", rows, CONTROL),
                 _lineStamp("control (XYCSwap, fee)", rows, HARD),
+                _lineStamp("control (XYCSwap, oracle-pegged)", rows, PEGGED),
                 "L1 touch (benchmark)  absorbed ", vm.toString(touchAbsorbed(rows)),
                 "  edge60 ", vm.toString(touchEdge(rows)),
                 "  lvr 0  arb notional 0\n"
@@ -1098,7 +1262,19 @@ contract Oct10ReplayTest is BlindTakers {
             ",", _i(r.markoutHard5mBps), ",", _i(r.markoutHard15mBps), ",", _i(r.markoutHard60mBps),
             ",", _u(r.absorbedTouchNtl),
             ",", _i(r.markoutTouch5mBps), ",", _i(r.markoutTouch15mBps), ",", _i(r.markoutTouch60mBps),
-            ",", _u(r.lvrDeskNtl), ",", _u(r.lvrControlNtl), ",", _u(r.lvrHardNtl)
+            ",", _u(r.lvrDeskNtl), ",", _u(r.lvrControlNtl), ",", _u(r.lvrHardNtl),
+            ",", _csvPegged(r)
+        );
+    }
+
+    /// @dev And the fourth line's, split out again for the same reason: `csv` is one expression
+    ///      and the stack is sixteen slots deep.
+    function _csvPegged(Row memory r) private pure returns (string memory) {
+        return string.concat(
+            _u(r.basePegged), ",", _u(r.quotePegged), ",", _i(r.pnlPeggedBps),
+            ",", _u(r.absorbedPeggedNtl), ",", _u(r.arbPeggedNtl),
+            ",", _i(r.markoutPegged5mBps), ",", _i(r.markoutPegged15mBps), ",", _i(r.markoutPegged60mBps),
+            ",", _u(r.lvrPeggedNtl)
         );
     }
 

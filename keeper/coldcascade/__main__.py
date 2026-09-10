@@ -1,4 +1,4 @@
-"""coldcascade tape | map | poke | markouts | replay | plot"""
+"""coldcascade tape | map | poke | markouts | tolls | replay | plot"""
 
 import argparse
 import sys
@@ -37,6 +37,15 @@ def main(argv: list[str] | None = None) -> int:
     # Posting is the half that writes to the chain, so it is the half you ask for. A bare run
     # streams, joins, and writes results/markouts.json without sending anything.
     m.add_argument("--post", action="store_true", help="actually send; otherwise a dry run")
+
+    # The counterfactual block of results/markouts.json, rebuilt off the artifacts already on
+    # disk. The markouts run computes it inline; this recomputes it with no node, no key and no
+    # network, which is what makes the cadence a parameter a reader can change rather than a
+    # number they have to take on trust.
+    tl = sub.add_parser("tolls", help="rebuild the counterfactual tolls in results/markouts.json")
+    tl.add_argument("--markouts", type=Path, default=ROOT / "results" / "markouts.json")
+    tl.add_argument("--archive", type=Path, default=ROOT / "results" / "book-archive.json")
+    tl.add_argument("--events", type=Path, default=ROOT / "results" / "desk-events.jsonl")
 
     for name in ("map", "poke", "replay", "plot"):
         sub.add_parser(name)
@@ -81,6 +90,21 @@ def main(argv: list[str] | None = None) -> int:
                       f"median {st['medianBps']:+.2f}  worst {st['minBps']:+.2f}")
             else:
                 print(f"  {h:>2}m  no fill yet has a book that close to it")
+        return 0
+
+    if args.command == "tolls":
+        from . import tolls as tolls_mod
+
+        doc = tolls_mod.apply_to_artifact(args.markouts, args.archive, args.events)
+        cf = doc["counterfactuals"]
+        print(f"{args.markouts}: {cf['over']['fills']} fills, {cf['over']['rule']}")
+        for name, line in cf["lines"].items():
+            print(f"  {name:<13} ${line['tollUsd']:>10,.2f}  over {line['priced']} priced, "
+                  f"{line['paying']} paying")
+        print("  cadence sweep, oracle-pegged:")
+        for row in cf["cadenceSweep"]:
+            print(f"    {row['name']:<32} band {str(row['bandBps']):<24} "
+                  f"{row['refreshes']:>5} refreshes  ${row['tollUsd']:>9,.2f}")
         return 0
 
     raise NotImplementedError(f"todo: {args.command}")

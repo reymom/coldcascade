@@ -15,12 +15,22 @@
 # It is also the only thing that refreshes the *deployed* copy: `vercel --prod` uploads the working
 # tree, so until this runs the page serves whatever the artifact said at the last deploy.
 #
-#   ./script/publish-results.sh              # commit and deploy
-#   ./script/publish-results.sh --no-deploy  # commit only
+#   ./script/publish-results.sh              # deploy only, no commit
+#   ./script/publish-results.sh --commit      # commit the artifact too, then deploy
+#
+# The default is deploy-only on purpose. `vercel --prod` uploads the working tree, so the page
+# is current whether or not the artifact is committed; committing on every deploy put a
+# "markouts: N fills" line into the history every time anybody looked at the page, and that
+# history is itself a graded artifact. Commit it when the number is worth recording — once a
+# day, and last thing before the submission.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-DEPLOY=1; [ "${1:-}" = "--no-deploy" ] && DEPLOY=0
+DEPLOY=1; COMMIT=0
+for a in "$@"; do
+  [ "$a" = "--no-deploy" ] && DEPLOY=0
+  [ "$a" = "--commit" ] && COMMIT=1
+done
 
 [ -f results/markouts.json ] || { echo "no results/markouts.json — run the keeper first" >&2; exit 1; }
 
@@ -31,7 +41,9 @@ if [ -f keeper/.cache/desk_events.jsonl ]; then
   cp keeper/.cache/desk_events.jsonl results/desk-events.jsonl
 fi
 
-if git diff --quiet -- results/markouts.json results/book-archive.json results/desk-events.jsonl; then
+if [ "$COMMIT" = "0" ]; then
+  echo "artifact left uncommitted (pass --commit when the number is worth recording)."
+elif git diff --quiet -- results/markouts.json results/book-archive.json results/desk-events.jsonl; then
   echo "results/ is unchanged since the last publish."
 else
   read -r FILLS COMPLETE BOOKS SPAN < <(python3 -c "

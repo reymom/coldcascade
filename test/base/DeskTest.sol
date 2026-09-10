@@ -7,6 +7,7 @@ import { TakerTraitsLib } from "@1inch/swap-vm/src/libs/TakerTraits.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { CoreQuote } from "../../src/CoreQuote.sol";
+import { PegQuote } from "../../src/PegQuote.sol";
 import { CorePrecompiles } from "../../src/CorePrecompiles.sol";
 import { DeskHooks } from "../../src/DeskHooks.sol";
 import { MapOracle } from "../../src/MapOracle.sol";
@@ -67,6 +68,7 @@ abstract contract DeskTest is AquaSwapVMTest {
     MockCoreReader internal reader;
     CorePrecompiles internal precompiles;
     CoreQuote internal coreQuote;
+    PegQuote internal pegQuote;
     DeskHooks internal hooks;
     MapOracle internal mapOracle;
     DemoMapOracle internal demoMap;
@@ -86,6 +88,7 @@ abstract contract DeskTest is AquaSwapVMTest {
         precompiles = new CorePrecompiles();
         reader = new MockCoreReader();
         coreQuote = new CoreQuote(precompiles);
+        pegQuote = new PegQuote(precompiles);
         hooks = new DeskHooks(address(swapVM), precompiles);
         mapOracle = new MapOracle(address(this));
         demoMap = new DemoMapOracle();
@@ -126,6 +129,46 @@ abstract contract DeskTest is AquaSwapVMTest {
     /// @notice The other line on the screen: the same pair and inventory, plain XYCSwap, no hook.
     function controlOrder(DeskParams memory p, bytes32 salt) internal view returns (ISwapVM.Order memory) {
         return DeskPrograms.order(maker, address(0), DeskPrograms.control(salt), p);
+    }
+
+    /// @notice The fourth line: the same curve, centred on the oracle at its last refresh.
+    /// @dev No hook, like the other two controls, so the lines differ by the quote and nothing
+    ///      else. `key` has to be picked before the order exists because the program carries it;
+    ///      `armPeg` is what points it at the strategy hash Aqua answers with afterwards.
+    function peggedOrder(DeskParams memory p, bytes32 key, bytes32 salt)
+        internal
+        view
+        returns (ISwapVM.Order memory)
+    {
+        return DeskPrograms.order(maker, address(0), DeskPrograms.oraclePegged(address(pegQuote), key, salt), p);
+    }
+
+    /// @notice Point a pegged maker at the strategy it quotes for, and set its first price.
+    /// @param deviationBps The move that forces a refresh; zero leaves the heartbeat alone with it.
+    /// @param heartbeatSeconds The longest it will go without one.
+    function armPeg(
+        bytes32 key,
+        bytes32 strategyHash,
+        DeskParams memory p,
+        uint16 deviationBps,
+        uint32 heartbeatSeconds
+    ) internal {
+        pegQuote.arm(
+            key,
+            PegQuote.Cfg({
+                aqua: address(aqua),
+                swapVM: address(swapVM),
+                maker: maker,
+                strategyHash: strategyHash,
+                base: p.base,
+                quote: p.quote,
+                perpIndex: p.perpIndex,
+                pxNum: p.pxNum,
+                pxDen: p.pxDen,
+                deviationBps: deviationBps,
+                heartbeatSeconds: heartbeatSeconds
+            })
+        );
     }
 
     /// @notice The third line: the same curve charging a maker fee, which is what people deploy.

@@ -26,7 +26,7 @@ does not carry it verbatim, `app/src/types.ts` mirrors it field for field, and
 | # | column | meaning |
 |---|---|---|
 | 1 | `t` | minute open |
-| 2 | `spot` | Coinbase BTC-USD close. What both inventories are marked at |
+| 2 | `spot` | Coinbase BTC-USD close. What every inventory is marked at |
 | 3–6 | `bid` `ask` `mark` `oracle` | the L1 book that minute, as the desk read it |
 | 7–8 | `deskBid` `deskAsk` | the desk's own two prices, from `CoreQuote.bounds()` under that book |
 | 9 | `lean` | 0 none, 1 bid, 2 ask — which side is absorbing |
@@ -35,7 +35,7 @@ does not carry it verbatim, `app/src/types.ts` mirrors it field for field, and
 | 13–14 | `forcedSellNtl` `forcedBuyNtl` | forced flow that actually hit the book this minute |
 | 15–16 | `baseDesk` `quoteDesk` | desk inventory after the minute |
 | 17–18 | `baseControl` `quoteControl` | plain-`XYCSwap` control inventory after the minute |
-| 19–20 | `pnlDeskBps` `pnlControlBps` | inventory marked at `spot`, against the starting value, in bps. **The two lines on the screen** |
+| 19–20 | `pnlDeskBps` `pnlControlBps` | inventory marked at `spot`, against the starting value, in bps. **The lines on the screen**; `pnlHardBps` and `pnlPeggedBps` are the other two |
 | 21–22 | `absorbedDeskNtl` `absorbedControlNtl` | forced flow each maker took this minute |
 | 23–24 | `arbDeskNtl` `arbControlNtl` | notional the arbitrage taker extracted from each maker |
 | 25–27 | `markoutDesk5mBps` `markoutDesk15mBps` `markoutDesk60mBps` | this minute's desk fills against spot 5, 15 and 60 minutes later; positive is the maker being right |
@@ -47,14 +47,24 @@ does not carry it verbatim, `app/src/types.ts` mirrors it field for field, and
 | 39 | `absorbedTouchNtl` | the whole minute's pot, as if it had gone to L1's touch instead of to a maker |
 | 40–42 | `markoutTouch5mBps` `markoutTouch15mBps` `markoutTouch60mBps` | that pot marked out from L1's own bid (forced selling) or ask (forced buying) |
 | 43–45 | `lvrDeskNtl` `lvrControlNtl` `lvrHardNtl` | **what the arbitrageur actually took out of each maker**, in USD, closed at L1's touch |
+| 46–47 | `basePegged` `quotePegged` | oracle-pegged control inventory after the minute |
+| 48 | `pnlPeggedBps` | the same mark as `pnlDeskBps`, for the oracle-pegged control |
+| 49–50 | `absorbedPeggedNtl` `arbPeggedNtl` | flow it took, and notional the arbitrageur traded against it |
+| 51–53 | `markoutPegged5mBps` `markoutPegged15mBps` `markoutPegged60mBps` | the same for the oracle-pegged control |
+| 54 | `lvrPeggedNtl` | what the arbitrageur took out of it, in USD, closed at L1's touch |
 
-## The four lines
+The nine `*Pegged` columns are **appended**, not interleaved, so every column before them keeps the
+index it had. A reader that pulls fields by name needs only the new names; one that reads by
+position needs nothing at all until it wants the fourth line.
+
+## The five lines
 
 | line | program | what it is for |
 |---|---|---|
 | desk | `XYCSwap ‖ Extruction(CoreQuote, params) ‖ Salt` | the thing being measured |
 | control | `XYCSwap ‖ Salt` | the **ablation**: `desk` with one instruction removed, so a difference between the two is that instruction and nothing else |
-| hardened control | `FlatFeeIn(3 000 000) ‖ XYCSwap ‖ Salt` | the **competitor**: the same curve charging 30 bps, which is what people deploy. Built out of 1inch's own `Fee` instruction rather than an AMM written here, because a control you wrote yourself is a foil |
+| hardened control | `FlatFeeIn(3 000 000) ‖ XYCSwap ‖ Salt` | the **competitor nobody can call free**: the same curve charging 30 bps, which is what people deploy. Built out of 1inch's own `Fee` instruction rather than an AMM written here, because a control you wrote yourself is a foil |
+| oracle-pegged control | `Extruction(PegQuote, key) ‖ XYCSwap ‖ Salt` | the **competitor nobody can call a straw man**: the same curve, centred on Hyperliquid's oracle as of its last `refresh`. Its price is the oracle, it stands still between refreshes, and it never reads the book it would be closed against — which is what a maker on a perps venue usually is |
 | L1 touch | not a maker | the **benchmark**: the same flow at Hyperliquid's own bid and ask. No inventory, never arbitraged, takes the whole pot rather than competing for it |
 
 The fee is in the router's unit, not in basis points: the deployed revision's `Fee` uses
@@ -62,8 +72,27 @@ The fee is in the router's unit, not in basis points: the deployed revision's `F
 the curve — it drives the rest of the program through `runLoop` and reverts if a leg is already
 written — so `XYCSwap ‖ FlatFeeIn` builds a revert, not a fee'd AMM.
 
-Both AMM lines are in the same race, which means they take flow from each other as well as from
-the desk. Read `absorbedDeskNtl` against the **sum** of the two, not against either alone.
+### The oracle-pegged line's cadence, which is the whole of its number
+
+That maker pays in proportion to how long it goes between refreshes, so a number quoted without one
+is not a measurement. `results/oct10_replay.source` records the setting for whatever run produced
+the file, and the committed run is **a refresh every 60 seconds with the deviation trigger off** —
+one per tape row, which is the fastest a minute-resolution tape can express. Its toll is therefore a
+floor, and `test_report_theCadenceIsTheDial` publishes what the same maker pays at 5 minutes, at 15,
+and at a 25 bps deviation threshold with an hourly heartbeat.
+
+A deviation threshold of **zero means the trigger is off**, not that it fires always: every move
+clears a threshold of zero, so reading it the other way produces a maker repriced by the last
+decimal of the oracle and a line that is the desk drawn in a different colour.
+
+`PegQuote` re-centres the curve with a single signed offset on the quote leg, fixed at each refresh,
+so between refreshes the maker walks along its own curve exactly as the plain control does — it is
+still an AMM, it is just an AMM whose price came from somewhere else. `test/PegQuote.t.sol` asserts
+both halves: that it lands on the oracle when it refreshes, and that it does not follow it when it
+does not.
+
+All three AMM lines are in the same race, which means they take flow from each other as well as
+from the desk. Read `absorbedDeskNtl` against the **sum** of the three, not against any one alone.
 
 A markout is zero rather than missing when the minute had no fill, or when the tape does not reach
 5, 15 or 60 rows past it. The second case is only allowed to happen inside the tail: the tape runs

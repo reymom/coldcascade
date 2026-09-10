@@ -794,6 +794,37 @@ which models did what, on which parts, and what was done by hand instead. Every 
 reviewed, made and pushed by the author; the mechanism, the parameters and every transaction on
 chain 999 are his.
 
+## What this does not answer yet
+
+**The comparator, and what it costs to make it fair.** The plain constant-product curve is the
+weakest baseline there is, so an oracle-anchored maker was built beside it — the same band, the same
+curve arithmetic, priced off HyperCore's oracle at its last refresh instead of off the book. On the
+mainnet fills it pays **nothing**, exactly like the desk: on ordinary flow with a fast oracle there
+is no difference between the two, and the $1.5k the flat curve pays is the drift of this repository's
+own demo pool, not a fact about AMMs. In the cascade the same maker pays **$222** and finishes net
+negative while the desk finishes ahead, and the dial is published: 60 s costs $222, five minutes
+$2,606, fifteen minutes $3,528 — at which point it is indistinguishable from the naive curve. What
+saves an oracle maker in a cascade is the deviation threshold rather than the heartbeat, because a
+cascade trips the threshold by itself. The argument does not turn on which control you pick:
+loss-versus-rebalancing is a property of **any** maker whose price is a function of its own reserves
+or of a price it read earlier, concentrated liquidity included — Milionis, Moallemi, Roughgarden and
+Zhang. A desk whose price is read inside the trade is not in that family.
+
+**Flow that somebody else chose.** Every fill on the demo desk was sent by a schedule in this
+repository, which the artifact declares in `source.demand`. That does not weaken the bound — the
+clamp is a property checkable on one fill against one receipt, and who stood on the other side does
+not enter the arithmetic — but it does mean nothing here measures demand, profitability, or adverse
+selection, and this repository does not claim any of the three.
+
+**A hedged desk's profit and loss.** The replay measures price behaviour against blind takers and
+has no perp leg, so its markout is the markout of uncovered inventory. Spot and short mark at a
+common price and the rebound cancels. That third measurement is not in here.
+
+**The same rule as a Uniswap v4 hook.** `test/v4/` expresses the quote through the hook interface
+against a mock reader, and it passes: the interface can carry a maker that prices off an external
+book. What is missing is topology, not expressiveness — the venue would have to exist on a chain
+whose contracts can read that book in the same call. `FEEDBACK.md` is what came out of writing it.
+
 ## Prior art
 
 - Milionis, Moallemi, Roughgarden, Zhang, arXiv:2208.06046, *Automated Market Making and

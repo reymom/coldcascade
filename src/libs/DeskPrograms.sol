@@ -87,6 +87,36 @@ library DeskPrograms {
         );
     }
 
+    /// @return Extruction(pegQuote, key) || XYCSwap || Salt(salt) — the oracle-pegged comparator.
+    ///
+    /// @notice The third line, and the one a reader will not call a straw man. `PegQuote` puts the
+    ///         curve's marginal price on Hyperliquid's oracle as of its last `refresh`, so what
+    ///         follows is the *same* `XYCSwap` the control runs, on the same reserves, centred
+    ///         somewhere else.
+    ///
+    /// @dev The extruction comes **first**, unlike the desk's, and for the opposite reason. The
+    ///      desk's runs last because it bounds a leg the curve has already filled; this one runs
+    ///      first because it sets the balances the curve is about to read. Swap the order and the
+    ///      re-centring lands after the arithmetic it was supposed to change, which is not a
+    ///      revert — it is a maker that silently quotes off its own reserves and a line on the
+    ///      screen that is the plain control drawn twice.
+    ///
+    ///      The args are the key and nothing else: everything about this maker lives in the
+    ///      `PegQuote` entry that key names, because the peg has to be able to move without the
+    ///      program changing. A program that carried the price would need re-shipping to refresh,
+    ///      and Aqua keys a strategy by its hash, so every refresh would be a different maker.
+    function oraclePegged(address pegQuote, bytes32 key, bytes32 salt)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return bytes.concat(
+            instruction(OP_EXTRUCTION, abi.encodePacked(pegQuote, key)),
+            instruction(OP_XYC_SWAP, ""),
+            instruction(OP_SALT, abi.encodePacked(salt))
+        );
+    }
+
     /// @notice An Aqua order (useAquaInsteadOfSignature) with the desk hook on post-transfer-out.
     /// @param hooks The single `DeskHooks` instance, or zero for a strategy that emits no Fill —
     ///        the control ships that way so the two lines differ by the quote and nothing else.

@@ -17,6 +17,16 @@ export const REPLAY_COLUMNS = [
   "markoutHard5mBps", "markoutHard15mBps", "markoutHard60mBps",
   "absorbedTouchNtl", "markoutTouch5mBps", "markoutTouch15mBps", "markoutTouch60mBps",
   "lvrDeskNtl", "lvrControlNtl", "lvrHardNtl",
+  // the oracle-pegged control, added when a realistic competitor joined the pot
+  "basePegged",
+  "quotePegged",
+  "pnlPeggedBps",
+  "absorbedPeggedNtl",
+  "arbPeggedNtl",
+  "markoutPegged5mBps",
+  "markoutPegged15mBps",
+  "markoutPegged60mBps",
+  "lvrPeggedNtl",
 ];
 
 export const LEAN = ["none", "bid", "ask"];

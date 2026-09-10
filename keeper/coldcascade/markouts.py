@@ -41,7 +41,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import substreams
+from . import substreams, tolls
 from .chain import ChainError, Deployment, desk_params, token_balance_at
 
 HORIZONS_MIN = (5, 15, 60)
@@ -342,6 +342,12 @@ def run(
             "bookOk": f.book_ok,
             "bidRaw": f.bid,
             "askRaw": f.ask,
+            # The other half of the book the quote read. `DeskHooks.Fill` has carried all four
+            # words since the first mainnet fill; this file used to keep only the two sides of the
+            # touch, which is everything the markout needs and not enough to say what a maker
+            # pegged to the oracle would have quoted. `tolls` needs it, so it stops being dropped.
+            "markRaw": f.mark,
+            "oracleRaw": f.oracle,
             "midRaw": f.mid,
             "touchRaw": f.touch,
             "poolDevBps": dev_cache.get(f.tx_hash),
@@ -428,6 +434,14 @@ def run(
     gaps = [b.t - a.t for a, b in zip(c.books, c.books[1:])]
     ts = [f.t for f in c.fills]
 
+    # What the same searcher would have taken out of two other makers over these same fills: a
+    # plain curve on the same reserves, and one whose price is the oracle at its last refresh.
+    # It mutates the rows — each grows a `toll` block — so it runs before `doc` is assembled.
+    cf = tolls.counterfactuals(
+        rows,
+        [{"t": b.t, "bid": b.bid, "ask": b.ask, "mark": b.mark, "oracle": b.oracle} for b in c.books],
+    )
+
     doc = {
         "generatedAt": int(time.time()),
         "chainId": dep.chain_id,
@@ -501,6 +515,7 @@ def run(
                 for name in sorted({r["deskName"] for r in rows})
             },
         },
+        "counterfactuals": cf,
         "fills": rows,
         "postedThisRun": [],
         "failedThisRun": [],
