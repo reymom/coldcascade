@@ -402,7 +402,9 @@ The rule is a single line of `CoreQuote`: in the quiet regime the taker receives
 `min(curve, bound)`. The bound caps how *good* the desk's price is allowed to get and never makes
 it better, so it sets the price only when the desk's own constant-product curve wanted to deal
 inside the band. Which of the two happens is decided by where the pool sits against L1 when the
-fill arrives — `poolDevBps` in the artifact, the pool's implied price of base over L1's, in bps:
+fill arrives — `poolDevBps` in the artifact: the pool's implied price of base over **L1's oracle**,
+in bps. `keeper/coldcascade/markouts.py` measures it against the fill's own oracle word, so every
+`poolDevBps` on this page carries that denominator and not the bid:
 
 | pool against L1 | the desk buying base | the desk selling base |
 |---|---|---|
@@ -411,9 +413,11 @@ fill arrives — `poolDevBps` in the artifact, the pool's implied price of base 
 
 Two named transactions, both mainnet, both in the artifact:
 [`0xfaf1b6c6…ab20`](https://hyperevmscan.io/tx/0xfaf1b6c68aeae9eaed9ff49acc54d0ac7081f1537b602f5609679238c22dab20)
-is a purchase with the pool 160.8 bps above L1 — the bound bit, and the fill printed at −20.0000 bps.
+is a purchase with the pool 160.8 bps above L1's oracle (`poolDevBps`) — the bound bit, and the fill
+printed at −20.0000 bps, which is measured against the **touch**.
 [`0x9407579f…537c`](https://hyperevmscan.io/tx/0x9407579f28988f85c0655637d5437476bf5371b59de63602b13936b10993537c)
-is a sale with the pool 46.5 bps above L1 — nothing to cut, and the curve priced it at +111.2.
+is a sale with the pool 46.5 bps above L1's oracle — nothing to cut, and the curve priced it at
++111.2 against the touch.
 
 Size decides how much cushion the table's first column actually has, because a take large enough
 walks the curve *through* L1 inside the trade. One purchase against a pool only 63.7 bps above L1
@@ -612,8 +616,11 @@ because the desk's own curve wanted to pay far more than L1 for base it was shor
 | L1's bid, in the same call | 796 990 raw = **79 699.00** |
 | | **−20.00 bps**, which is `quietBps` to the basis point |
 
-The pool ratio at that moment was 81 003, so `XYCSwap` alone would have paid **+163 bps over L1** —
-free money for whoever took it. The bound cut it to L1's own bid less the band and stopped there.
+The pool ratio at that moment was 81 003, so `XYCSwap` alone would have paid **+163.6 bps over L1's
+bid** — free money for whoever took it. That is the same quantity the artifact reports as
+`poolDevBps` 160.8, measured against the oracle instead of the bid; the ~2.8 bps between them is
+where the book sat relative to oracle in that block. Two denominators, one pool. The bound cut it to
+L1's own bid less the band and stopped there.
 That is the whole mechanism in one transaction: against the book read in that call, the desk is
 never a better price than crossing L1.
 
