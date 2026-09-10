@@ -22,7 +22,8 @@ CFG = Path.home() / ".config" / "coldcascade"
 # They are estimates and the margin they produce is an estimate; what is exact is the balance.
 BURN = {"poker": 0.015, "taker": 0.011, "poster": 0.001, "operator": 0.001}
 
-# What the runway has to cover: the end of the live finalist round, not the submission deadline.
+# What the runway has to cover: the end of the live finalist round, which falls after the
+# submission close and is therefore the date the balances have to reach.
 DEADLINE = datetime(2026, 9, 14, 20, 0, tzinfo=timezone(timedelta(hours=2)))
 
 # BTC on Hyperliquid: perp index 0, szDecimals 5, max leverage 40 -> maintenance margin 1/80.
