@@ -39,7 +39,7 @@ async function main() {
   const x = xScale(rows.length);
   const edge = cumulative(rows, EDGE);
   const lvr = cumulative(rows, LVR);
-  drawHeadline(rows, edge, lvr);
+  drawHeadline(rows, edge);
   drawSpot(rows, x);
   drawBands(rows, x);
   drawLean(rows, x);
@@ -48,16 +48,15 @@ async function main() {
   wireCrosshair(rows, x);
 }
 
-// ---- the four lines, named once ----
+// ---- the five lines, named once ----
 //
-// Three makers and a venue. The desk; the plain XYCSwap control, which is the desk program with one
-// instruction removed and is therefore the right *ablation*; the same curve charging 30 bps through
-// 1inch's own FlatFeeIn, which is the right *competitor* because that is what people deploy; and
-// Hyperliquid's own touch, which is not a maker at all and is here so that "compared to what?" has
-// an answer nobody can call a strawman.
-
+// The desk; the plain XYCSwap control it is an ablation of; the same curve charging 30 bps, which
+// is what people deploy; a maker pegged to the oracle's last refresh, the realistic competitor that
+// joined the pots the same day; and Hyperliquid's own touch, which is not a maker at all and is
+// here so that "compared to what?" has an answer nobody can call a strawman.
 const LINES = [
   { key: "desk", name: "desk", cls: "desk" },
+  { key: "pegged", name: "oracle-pegged maker", cls: "pegged" },
   { key: "control", name: "control, plain XYCSwap", cls: "control" },
   { key: "hard", name: "control, XYCSwap at 30 bps", cls: "hard" },
   { key: "touch", name: "L1's own touch", cls: "touch" },
@@ -66,6 +65,7 @@ const LINES = [
 /** Each minute's 60 m markout applied to what that line actually absorbed, in dollars. */
 const EDGE = {
   desk: (r) => Math.trunc((r.absorbedDeskNtl * r.markoutDesk60mBps) / 10_000),
+  pegged: (r) => Math.trunc((r.absorbedPeggedNtl * r.markoutPegged60mBps) / 10_000),
   control: (r) => Math.trunc((r.absorbedControlNtl * r.markoutControl60mBps) / 10_000),
   hard: (r) => Math.trunc((r.absorbedHardNtl * r.markoutHard60mBps) / 10_000),
   touch: (r) => Math.trunc((r.absorbedTouchNtl * r.markoutTouch60mBps) / 10_000),
@@ -74,6 +74,7 @@ const EDGE = {
 /** What the arbitrageur took out of each line this minute, closed at L1's touch, in dollars. */
 const LVR = {
   desk: (r) => r.lvrDeskNtl,
+  pegged: (r) => r.lvrPeggedNtl,
   control: (r) => r.lvrControlNtl,
   hard: (r) => r.lvrHardNtl,
   touch: () => 0,
@@ -110,41 +111,24 @@ function totals(rows) {
   };
 }
 
-/// The share of everything a maker traded that was *this* arbitrageur -- the one closing against
-/// L1's touch in the same minute -- rather than someone who needed to trade. It is the same
-/// property as the Floor's round trip, counted over a session instead of priced in one block. A
-/// taker who is right about the next minute is inventory risk and lands in the markout instead.
-const toxicPct = (arb, absorbed) => (arb + absorbed === 0 ? 0 : (arb / (arb + absorbed)) * 100);
+// ---- caption numbers ----
 
-/// One decimal, dropped when it is a whole number. 98.5 shown as "99%" invites an argument about
-/// rounding on the one number the page is asking to be believed.
-const fmtPct = (v) => `${Number.isInteger(v) ? v : v.toFixed(1)}%`;
-
-// ---- headline ----
-
-function drawHeadline(rows, edge, lvr) {
+/**
+ * What the charts' own captions carry: the two edge rates beside the carrying chart, the lean's
+ * minute count, and the trough's price and hour. The big comparison boxes that used to prefix
+ * these are gone — the charts carry the claim themselves now, so only their captions keep the
+ * numbers.
+ */
+function drawHeadline(rows, edge) {
   const trough = rows.reduce((a, b) => (b.spot < a.spot ? b : a));
   const t = totals(rows);
   const set = (id, value, sub) => {
-    document.getElementById(id).textContent = value;
+    const node = document.getElementById(id);
+    if (!node) return;
+    node.textContent = value;
     if (sub !== undefined) document.getElementById(`${id}-sub`).textContent = sub;
   };
 
-  const ammArb = t.arb.control + t.arb.hard;
-  const ammAbsorbed = t.absorbed.control + t.absorbed.hard;
-
-  // The zero first. It is the same claim the Floor makes about this block, held for 123 of them.
-  set("stat-lvr-desk", fmtUsd(last(lvr.desk)), `over ${rows.length} minutes, both directions`);
-  // The value is the plain curve's take alone; the fee'd one rides in the sub so the hero rail
-  // can show them as "$3,558 from a plain XYCSwap · $2,700 at 30 bps".
-  set("stat-lvr-control", fmtUsd(last(lvr.control)),
-    `a plain XYCSwap · ${fmtUsd(last(lvr.hard))} at 30 bps`);
-  set("stat-toxic-desk", fmtPct(toxicPct(t.arb.desk, t.absorbed.desk)),
-    "of everything the desk traded");
-  set("stat-toxic-amm", fmtPct(toxicPct(ammArb, ammAbsorbed)),
-    `${fmtUsd(ammArb)} of ${fmtUsd(ammArb + ammAbsorbed)}`);
-
-  // And what the flow it did take was worth, against the venue rather than against an AMM.
   const perDollar = (e, n) => (n === 0 ? 0 : (e / n) * 10_000);
   set("stat-edge-desk", `${fmtBps(perDollar(last(edge.desk), t.absorbed.desk))} bps`,
     `${fmtUsd(last(edge.desk))} on ${fmtUsd(t.absorbed.desk)} absorbed`);
@@ -244,7 +228,8 @@ function drawLean(rows, x) {
  *
  * So the desk's line is flat on zero, and it is flat on zero because there was never a size that
  * worked, not because nobody looked — the same search ran against every maker on this chart and
- * put $1.3 m of size through the other two.
+ * put $1.4 m of size through the other three, $122 k of it through the pegged one, which keeps the
+ * desk company near zero instead of keeping the AMMs company at thousands.
  *
  * The `lvr` column is named for the loss it attacks: what one arbitrageur extracted against one
  * book in the same minute, which is the channel the clamp is aimed at.
@@ -264,7 +249,10 @@ function drawLvr(rows, x, lvr) {
 
   endLabel(node, y(last(lvr.control)) - 6, fmtUsd(last(lvr.control)), "control");
   endLabel(node, y(last(lvr.hard)) + 14, fmtUsd(last(lvr.hard)), "hard");
-  endLabel(node, y(last(lvr.desk)) - 6, `${fmtUsd(last(lvr.desk))} — the desk`, "desk");
+  // The pegged line ends a few pixels above zero, so the desk's zero gets the slot below the line
+  // and the pegged label the slot above its own — anything else overlaps.
+  endLabel(node, y(last(lvr.pegged)) - 6, `${fmtUsd(last(lvr.pegged))} — pegged`, "pegged");
+  endLabel(node, y(last(lvr.desk)) + 14, `${fmtUsd(last(lvr.desk))} — the desk`, "desk");
 
   xLabels(node, x, rows, H.lvr - 6, LABEL_EVERY, (r) => hhmm(r.t));
 }
@@ -287,7 +275,9 @@ function drawEdge(rows, x, edge) {
     line(node, xs, edge[key].map(y), { class: `edge-${cls}` });
   }
 
-  // The desk's label carries the comparison that matters, and it is not against an AMM.
+  // The desk's label carries the comparison that matters, and it is not against an AMM. The pegged
+  // line closes above the control line, so its label takes the slot above and control's stays below.
+  endLabel(node, y(last(edge.pegged)) - 6, `${fmtUsd(last(edge.pegged))} — pegged`, "pegged");
   endLabel(node, y(last(edge.control)) + 14, fmtUsd(last(edge.control)), "control");
   endLabel(node, y(last(edge.hard)) + 26, fmtUsd(last(edge.hard)), "hard");
   endLabel(node, y(last(edge.touch)) + 14, `${fmtUsd(last(edge.touch))} — L1's touch`, "touch");
@@ -308,7 +298,8 @@ function endLabel(node, py, text, cls) {
 function wireCrosshair(rows, x) {
   const surface = document.getElementById("panels");
   const readout = document.getElementById("readout");
-  const rules = [...document.querySelectorAll(".chart svg")].map((node) => {
+  // Only the carousel's own slides track — the day fold below keeps its two charts still.
+  const rules = [...surface.querySelectorAll(".chart svg")].map((node) => {
     const rule = el("line", { class: "crosshair", y1: 0, y2: node.viewBox.baseVal.height }, node);
     return rule;
   });
@@ -331,26 +322,29 @@ function wireCrosshair(rows, x) {
       ["lean", r.leanName],
       ["dislocation", `${fmtBps(r.dislocationBps)} bps`],
       ["forced sell / buy", `$${r.forcedSellNtl.toLocaleString("en-US")} / $${r.forcedBuyNtl.toLocaleString("en-US")}`],
-      ["absorbed", r.absorbedDeskNtl || r.absorbedControlNtl || r.absorbedHardNtl
+      ["absorbed", r.absorbedDeskNtl || r.absorbedPeggedNtl || r.absorbedControlNtl || r.absorbedHardNtl
         ? `desk $${r.absorbedDeskNtl.toLocaleString("en-US")}`
+          + ` · pegged $${r.absorbedPeggedNtl.toLocaleString("en-US")}`
           + ` · control $${r.absorbedControlNtl.toLocaleString("en-US")}`
           + ` · 30 bps $${r.absorbedHardNtl.toLocaleString("en-US")}`
         : "—"],
-      ["markout rate 60m", r.markoutDesk60mBps || r.markoutControl60mBps || r.markoutHard60mBps
-        ? `desk ${fmtBps(r.markoutDesk60mBps)} · control ${fmtBps(r.markoutControl60mBps)}`
+      ["markout rate 60m", r.markoutDesk60mBps || r.markoutPegged60mBps || r.markoutControl60mBps || r.markoutHard60mBps
+        ? `desk ${fmtBps(r.markoutDesk60mBps)} · pegged ${fmtBps(r.markoutPegged60mBps)} · control ${fmtBps(r.markoutControl60mBps)}`
           + ` · 30 bps ${fmtBps(r.markoutHard60mBps)} · L1 ${fmtBps(r.markoutTouch60mBps)} bps`
         : "—"],
-      ["taken by arbitrageurs", r.arbDeskNtl || r.arbControlNtl || r.arbHardNtl
+      ["taken by arbitrageurs", r.arbDeskNtl || r.arbPeggedNtl || r.arbControlNtl || r.arbHardNtl
         ? `desk $${r.arbDeskNtl.toLocaleString("en-US")}`
+          + ` · pegged $${r.arbPeggedNtl.toLocaleString("en-US")}`
           + ` · control $${r.arbControlNtl.toLocaleString("en-US")}`
           + ` · 30 bps $${r.arbHardNtl.toLocaleString("en-US")}`
         : "—"],
-      ["lvr paid", r.lvrDeskNtl || r.lvrControlNtl || r.lvrHardNtl
+      ["lvr paid", r.lvrDeskNtl || r.lvrPeggedNtl || r.lvrControlNtl || r.lvrHardNtl
         ? `desk $${r.lvrDeskNtl.toLocaleString("en-US")}`
+          + ` · pegged $${r.lvrPeggedNtl.toLocaleString("en-US")}`
           + ` · control $${r.lvrControlNtl.toLocaleString("en-US")}`
           + ` · 30 bps $${r.lvrHardNtl.toLocaleString("en-US")}`
         : "—"],
-      ["pnl, marked at spot", `desk ${fmtBps(r.pnlDeskBps)} · control ${fmtBps(r.pnlControlBps)}`
+      ["pnl, marked at spot", `desk ${fmtBps(r.pnlDeskBps)} · pegged ${fmtBps(r.pnlPeggedBps)} · control ${fmtBps(r.pnlControlBps)}`
         + ` · 30 bps ${fmtBps(r.pnlHardBps)} bps`],
     ]) {
       const cell = document.createElement("div");

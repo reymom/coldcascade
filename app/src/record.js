@@ -114,19 +114,15 @@ export async function mountRecord(root) {
 }
 
 /**
- * What the Desk's hero needs from the record, reduced to four numbers: how long the desks have
- * been quoting, how many fills the chart's set holds, whether any landed inside the band, and
- * the toll a plain curve on the same reserves would have paid over those same trades.
+ * What the Desk's hero needs from the record, reduced to four numbers plus the two controls:
+ * how long the desks have been quoting, how many fills the chart's set holds, whether any landed
+ * inside the band — and the tolls the evaluator measured per line.
  *
- * The toll is the accumulated half of the hero's toll bar, so its rule is written down here
- * rather than in the hero: per fill, the flat curve would have quoted its own ratio —
- * mid × (1 + poolDev) — and an
- * arbitrageur closing at the book's touch takes the gap, when there is one, at the fill's own
- * size and before slippage. (A flat curve fills its whole clip at the ratio; the desk's own
- * curve is bounded. Both approximations are in the curve's favour, so the sum is a floor on
- * what the curve loses, not a ceiling.) Fills without a poolDev — the keeper could not rebuild
- * the reserves for that block — are counted in `fills` but excluded from the sum, and
- * `tollFills` says how many the sum covers.
+ * The flat curve is the plain XYCSwap ablation; the oracle-pegged maker is the realistic
+ * competitor, priced at the oracle's last refresh and quoting the desk's own band either side.
+ * Their totals come from `results/markouts.json`'s `counterfactuals.lines`, not from a re-sum on
+ * the page: the evaluator that read the fills and the chart that draws them look at the same
+ * file, so the hero's toll and this one are the same sum the keeper wrote down.
  */
 export function recordFacts(doc) {
   const all = (doc.fills ?? []).filter((f) => Number.isFinite(f.vsTouchBps) && Number.isFinite(f.at));
@@ -151,7 +147,35 @@ export function recordFacts(doc) {
     : days < 1 ? `${Math.max(1, Math.round(days * 24))} hours`
     : days < 10 ? `${days.toFixed(1)} days`
     : `${Math.round(days)} days`;
-  return { fills: fills.length, inside, daysText, tollUsd, tollFills };
+
+  // The evaluator's two controls, carried by the same file the chart draws: the flat curve is
+  // the left comparator of the hero toll, and the oracle-pegged maker — the realistic one — is
+  // the right. The pegged maker pays zero over ordinary flow, same as the desk, so there is no
+  // headline until The Cascade's tape breaks. `heartbeatSeconds` is the comparator's cadence and
+  // it is shown beside the number that otherwise means nothing.
+  const lines = doc.counterfactuals?.lines ?? {};
+  const pegged = lines.oraclePegged ?? {};
+  const flat = lines.flatCurve ?? {};
+  return {
+    fills: fills.length,
+    inside,
+    daysText,
+    tollUsd,
+    tollFills,
+    flatCurve: {
+      tollUsd: Number.isFinite(flat.tollUsd) ? flat.tollUsd : null,
+      fills: flat.fills ?? 0,
+      priced: flat.priced ?? 0,
+    },
+    oraclePegged: {
+      tollUsd: Number.isFinite(pegged.tollUsd) ? pegged.tollUsd : null,
+      fills: pegged.fills ?? 0,
+      priced: pegged.priced ?? 0,
+      beforeSeries: pegged.beforeSeries ?? 0,
+      gap: pegged.gap ?? 0,
+      cadenceSeconds: pegged.cadence?.heartbeatSeconds ?? null,
+    },
+  };
 }
 
 /** The fill's own quietBps when the file carries it (it does, per fill); the shipped 20 else. */

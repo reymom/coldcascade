@@ -15,7 +15,6 @@ import {
 } from "./chain.js";
 import { waitForReceipt, DEFAULT_RPCS } from "./rpc.js";
 import { chainFor, explorerTx, injected, openPrivy, privyConfig } from "./signer.js";
-import { drawStrip } from "./bands.js";
 import { roundTrip, bestRoundTrip, bestControlToll } from "./arb.js";
 import { recordFacts, onRecord } from "./record.js";
 
@@ -89,6 +88,8 @@ export async function mountFloor(root) {
     // opened. It only ever moves toward zero; the clamp is why it never crosses.
     sessionBest: null,
     mapPending: null,   // {hash, clearing} of a map write whose block has not landed yet
+    regimeHtml: "",     // the last regime line painted — repaints are skipped while it holds
+    bookPrev: null,     // the last book painted — a cell flashes when its raw value moved
   };
 
   const auth = createAuth(view);
@@ -221,17 +222,24 @@ function render(view) {
     ui.zero.className = "zero";
     ui.verdictSub.textContent = "an empty field here means a read failed, not that a number was zero";
     ui.regime.textContent = "";
+    view.regimeHtml = ""; // the memo must not skip the repaint once the book is back
     return;
   }
   const dislocation = Number(book.oracle) === 0 ? 0
     : Number((BigInt(book.oracle) - BigInt(book.mark)) * 10_000n / BigInt(book.oracle));
 
+  // Every number on this row is a live chain read, and the page says so by behaviour rather than
+  // by label: a changed value flashes its own cell for a second and a half, so "live" is seen,
+  // not claimed. The comparison is on the raw bigint, so formatting never masks a move.
+  const prevBook = view.bookPrev;
+  view.bookPrev = { bid: book.bid, ask: book.ask, mark: book.mark, oracle: book.oracle };
+  const moved = (v, k) => prevBook != null && String(prevBook[k]) !== String(v);
   ui.book.replaceChildren(
-    cell("the book's bid", px2(book.bid)),
-    cell("ask", px2(book.ask)),
-    cell("mark", px0(book.mark)),
-    cell("oracle", px0(book.oracle)),
-    cell("oracle − mark", `${dislocation > 0 ? "+" : ""}${dislocation} bps`, "the stress word — past 25 bps the desk steps in on its own"),
+    cell("the book's bid", px2(book.bid), undefined, moved(book.bid, "bid")),
+    cell("ask", px2(book.ask), undefined, moved(book.ask, "ask")),
+    cell("mark", px0(book.mark), undefined, moved(book.mark, "mark")),
+    cell("oracle", px0(book.oracle), undefined, moved(book.oracle, "oracle")),
+    cell("oracle − mark", `${dislocation > 0 ? "+" : ""}${dislocation} bps`, "past 25 bps the desk steps in on its own"),
   );
 
   const best = bestRoundTrip(book, desks);
@@ -241,7 +249,6 @@ function render(view) {
   renderVerdict(view, best);
   renderRegime(view, desks);
 
-  drawStrip(ui.strip, book, desks);
   renderStress(view);
   renderTable(view, desks, book);
   renderPanels(view, desks);
@@ -286,61 +293,48 @@ function renderVerdict(view, best) {
   } else {
     ui.zero.textContent = "$0.00";
     ui.zero.className = "zero";
-    const live = `live now: closest attempt <b>${bpsText(session.trip.best)} bps</b> against ` +
-      `<b>${escape(name(session.desk))}</b>, both directions, closing at Hyperliquid's own prices`;
-    const ground = rec
-      ? `held for <b>${rec.daysText}</b> · <b>${rec.fills}</b> fills signed, ` +
-        (rec.inside === 0
-          ? `<b>none inside the band</b>`
-          : `<b style="color:var(--loss)">${rec.inside} inside the band — look at them</b>`)
+    // The closest live attempt used to be spelled out here. It said the same thing the zero
+    // says, in more words, so the line is the record and nothing else — one flowing sentence
+    // with the page's own separator, so the second clause cannot read as a continuation of the
+    // first. The Record is linked once, from the toll.
+    ui.verdictSub.innerHTML = rec
+      ? (rec.inside === 0
+          ? `none of <b>${rec.fills}</b> fills landed inside the band · ` +
+            `every price it signed sat outside Hyperliquid's own touch, so the round trip loses ` +
+            `by arithmetic`
+          : `<b style="color:var(--loss)">${rec.inside} of ${rec.fills} fills inside the band</b><br>` +
+            `that should not be reachable — look at them`)
       : `the record is loading`;
-    ui.verdictSub.innerHTML =
-      `${ground} — <button class="linky" data-show-tab="tab-record">The Record</button> · ${live}`;
   }
 
-  // The toll, beside the zero, at both its scales in one bar: the accumulated total a plain
-  // curve on the same reserves would have paid over every trade the record holds — the desk is
-  // an invariant of its own code, so its zero beside one block's cents undersells it — and this
-  // block's live slice of it, named by its block number. The total is only credible if the
-  // accumulation is visible, so the slice rides next to it at the smaller size.
-  const toll = bestControlToll(view.floor.book, view.floor.desks);
-  const block = view.floor.blockNumber.toLocaleString("en-US");
-  let liveSlice;
-  if (toll && toll.usd > 0.005) {
-    liveSlice =
-      `<span class="toll-live">this block, ${block}: <b>+$${toll.usd.toFixed(2)} · ` +
-      `+${toll.bps.toFixed(1)} bps</b></span>`;
-  } else if (toll) {
-    // A real answer, not a spinner: there is nothing to take on this block either, and the
-    // block is named so the state is checkable rather than a "calculating" that would be lying.
-    liveSlice =
-      `<span class="toll-live toll-empty">this block, ${block}: nothing to take — a plain ` +
-      `curve pays when its ratio drifts from the book, and right now it has not</span>`;
-  } else {
-    // A null toll is not a zero toll: every desk's reserves were too thin for the search to
-    // quote a rate on. Say which, rather than let the empty panel read as "no arbitrage".
-    liveSlice =
-      `<span class="toll-live">this block, ${block}: <b>reserves too thin to quote a rate</b></span>`;
-  }
-
+  // One number, and the sentence that makes it honest. The toll is the same search run against a
+  // plain curve on the desk's own reserves — the ablation, not a leftover. The oracle-pegged
+  // competitor that joined in the chart pays nothing over this same flow, so the big number is the
+  // plain curve's alone and the pegged zero arrives as a clause with its link, not as a third
+  // column that repeats the desk's figure and reads as equal.
+  const tollLive = buildLiveSlice(view);
   if (rec) {
-    // tollFills is the count the sum actually covers: fills whose reserves the keeper could
-    // rebuild. It is the whole set in practice, and the sentence says so when it is not.
+    const usd2 = (v) => `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const coverage = rec.tollFills === rec.fills
-      ? `the ${rec.fills} trades the record holds`
-      : `${rec.tollFills} of the ${rec.fills} trades the record holds`;
+      ? `over ${rec.fills} trades`
+      : `over ${rec.tollFills} of ${rec.fills} trades`;
     ui.toll.innerHTML =
-      `<span>The same search against a plain curve on the same reserves:</span>` +
-      `<b>$${rec.tollUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b>` +
-      liveSlice +
-      `<span>paid over ${coverage}, ${rec.daysText} — computed per fill from ` +
-      `<code>results/markouts.json</code>, at each fill's own size against the book it read, ` +
-      `before slippage</span>`;
+      `<div class="toll-col">` +
+        `<span>the same search against a plain curve on the same reserves</span>` +
+        `<b>${usd2(rec.flatCurve.tollUsd)}</b>` +
+        `<span class="toll-cov">${coverage} · ` +
+          `<button class="linky" data-show-tab="tab-record">The Record</button></span>` +
+        `<span class="toll-sentence">An oracle-pegged maker paid nothing as well — the difference ` +
+          `shows up when the book breaks → ` +
+          `<button class="linky" data-show-tab="tab-cascade">The Cascade</button></span>` +
+        tollLive +
+      `</div>`;
   } else {
     ui.toll.innerHTML =
-      `<span>The same search against a plain curve on the same reserves:</span>` +
-      `<span>the accumulated total is summed from the record — it is loading</span>` +
-      liveSlice;
+      `<div class="toll-col">` +
+        `<span>The same search against a plain curve on the same reserves:</span>` +
+        `<span>the accumulated total is summed from the record — it is loading</span>` +
+      `</div>`;
   }
 
   // The two legs, for whoever opens the fold: why the zero is arithmetic and not a promise.
@@ -359,16 +353,33 @@ function renderVerdict(view, best) {
 function renderRegime(view, desks) {
   const leaning = desks.filter((d) => d.lean !== 0);
   const { ui } = view;
+  const on = leaning.length > 0;
 
-  if (leaning.length === 0) {
-    ui.regime.textContent = "quiet — sitting outside the book on both sides";
-    ui.regime.className = "regime";
-    return;
+  // Two states, both always named, one of them lit. Which regime the desk is in is the single
+  // most load-bearing fact on this screen, and a sentence that only describes the current one
+  // leaves a reader with no idea that a second one exists.
+  const where = on
+    ? leaning.map((d) => `${name(d)} on the ${d.lean === 1 ? "bid" : "ask"}`).join(", ")
+    : "";
+  // `data-tip`, not `title`: the poll repaints this line every few seconds, and a native
+  // tooltip dies with the node under it before it can open. The CSS bubble reads the attribute
+  // on :hover — and the repaint is skipped outright while nothing changed, so an open bubble
+  // is never clobbered mid-read.
+  const html =
+    `<span class="tag${on ? "" : " tag-on"}" data-tip="The desk quotes outside the book's touch on ` +
+    `both sides, so a round trip through it and back to Hyperliquid always loses. The everyday ` +
+    `state.">quiet</span>` +
+    `<span class="tag${on ? " tag-on tag-step" : ""}" data-tip="Forced sellers are eating the bid, or ` +
+    `a liquidation map says they are about to. One condition flips: the desk quotes inside the gap ` +
+    `they opened and becomes the best bid in the market.">cascade</span>` +
+    (on
+      ? `<span class="tag-note">${escape(where)} — capped at the book's own price</span>`
+      : `<span class="tag-note">sitting outside the book on both sides</span>`);
+  if (view.regimeHtml !== html) {
+    view.regimeHtml = html;
+    ui.regime.innerHTML = html;
   }
-  ui.regime.textContent =
-    `stepping in — ${leaning.map((d) => `${name(d)} on the ${d.lean === 1 ? "bid" : "ask"}`).join(", ")}, ` +
-    `capped at the book's own price`;
-  ui.regime.className = "regime step";
+  ui.regime.className = on ? "regime step" : "regime";
 }
 
 function renderTable(view, desks, book) {
@@ -451,6 +462,7 @@ function renderStress(view) {
   ui.stressGo.hidden = false;
 
   const live = mapLive(demo);
+
   // A pending write is done when the chain's answer matches its intent: a posted map when the lean
   // comes live, a cleared one when it goes dead. Until then the button stays put — re-arming it
   // early is how the same map gets posted twice.
@@ -469,20 +481,28 @@ function renderStress(view) {
     return;
   }
 
+  // Same contract as Take: the button is inactive while no wallet is connected, and nothing is
+  // said about it. The wallet form sits two rows above it; a second message under this one only
+  // duplicated the other.
+  if (live) {
+    ui.stressGo.disabled = !view.signer;
+    ui.stressGo.textContent = "take the map away";
+    // The countdown line is painted by the one-second clock; nothing to say here.
+    return;
+  }
+
   // Already leaning on the book alone: the map would be redundant, and saying so is the demo of
   // the book-only half. The button idles rather than posting a map that changes nothing.
   if (demo.lean !== 0) {
-    ui.stressGo.disabled = true;
+    ui.stressGo.disabled = !view.signer;
     ui.stressGo.textContent = "watch it step in ▸";
     say(ui.stressOut,
       "the book is already stressed — it stepped in without any map. That half needs nothing but the chain.");
     return;
   }
 
-  ui.stressGo.disabled = false;
-  ui.stressGo.textContent = view.signer
-    ? "post a liquidation map — watch it step in"
-    : "watch it step in ▸";
+  ui.stressGo.disabled = !view.signer;
+  ui.stressGo.textContent = "post it and watch ▸";
 }
 
 function wireStress(view) {
@@ -493,16 +513,8 @@ function wireStress(view) {
     if (!demo) return;
     const clearing = mapLive(demo);
 
-    // The first click of a visitor with no wallet cannot fire a transaction — physics, not design.
-    // So the first click *becomes* the wallet: the email row is right here under the strip, and
-    // thirty seconds later the same button is armed.
-    if (!view.signer) {
-      ui.stressAuth.hidden = false;
-      ui.stripEmail.focus();
-      say(ui.stressOut,
-        "this fires a real transaction on the chain you are looking at — an email address is the wallet");
-      return;
-    }
+    // The button stays inactive without a signer, so this branch can only trip on a race.
+    if (!view.signer) return;
 
     try {
       ui.stressGo.disabled = true;
@@ -539,7 +551,7 @@ function wireStress(view) {
           false, explorerTx(view.state.chain, err.hash));
       } else {
         view.mapPending = null;
-        say(ui.stressOut, err.message ?? String(err), true);
+        say(ui.stressOut, walletError(err), true);
       }
       renderStress(view);
     } finally {
@@ -677,7 +689,7 @@ function wireTake(view) {
           + `fail. Check the explorer, then press the button again: whatever landed is skipped.`,
           false, explorerTx(state.chain, err.hash));
       } else {
-        say(ui.takeOut, err.message ?? String(err), true);
+        say(ui.takeOut, walletError(err), true);
       }
     } finally {
       ui.takeGo.disabled = false;
@@ -746,7 +758,7 @@ function wireMap(view) {
         say(ui.mapOut, `${short(err.hash)} is still pending — watch the strip, it shows when it lands.`,
           false, explorerTx(view.state.chain, err.hash));
       } else {
-        say(ui.mapOut, err.message ?? String(err), true);
+        say(ui.mapOut, walletError(err), true);
       }
     } finally {
       ui.mapGo.disabled = false;
@@ -898,7 +910,7 @@ function wireSignInPanel(view, auth) {
       await auth.connectInjected();
       say(ui.signInNote, "");
     } catch (err) {
-      say(ui.signInNote, err.message ?? String(err), true);
+      say(ui.signInNote, walletError(err), true);
     } finally {
       ui.connect.disabled = false;
     }
@@ -919,40 +931,6 @@ function wireSignInPanel(view, auth) {
 function wireStressAuth(view, auth) {
   const { ui } = view;
 
-  auth.subscribe(() => {
-    const signed = Boolean(view.signer);
-    const mailed = Boolean(auth.emailed);
-    if (signed) ui.stressAuth.hidden = true;
-    ui.stripEmail.hidden = signed || mailed;
-    ui.stripCode.hidden = signed || !mailed;
-    ui.stripGo.textContent = mailed ? "sign in" : "email me a code";
-  });
-
-  ui.stripGo.addEventListener("click", async () => {
-    try {
-      ui.stripGo.disabled = true;
-      if (!auth.emailed) {
-        const address = ui.stripEmail.value.trim();
-        if (!address.includes("@")) return say(ui.stripNote, "an email address, please", true);
-        await auth.sendCode(address);
-        say(ui.stripNote, `code sent — check ${address}`);
-        ui.stripCode.focus();
-        return;
-      }
-      const code = ui.stripCode.value.trim();
-      if (!code) return say(ui.stripNote, "the six digits from the email", true);
-      say(ui.stripNote, "signing in and creating a wallet…");
-      await auth.submitCode(code);
-      say(ui.stripNote, "done — press the button again, and this time the chain answers.");
-    } catch (err) {
-      say(ui.stripNote, err.message ?? String(err), true);
-    } finally {
-      ui.stripGo.disabled = false;
-    }
-  });
-
-  ui.stripCode.addEventListener("keydown", (e) => { if (e.key === "Enter") ui.stripGo.click(); });
-  ui.stripEmail.addEventListener("keydown", (e) => { if (e.key === "Enter") ui.stripGo.click(); });
 }
 
 // ---- helpers ----
@@ -991,14 +969,28 @@ const bpsText = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed
 
 const escape = (s) => s.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c]);
 
-function cell(label, value, sub) {
+/**
+ * The wallet's own refusals, translated into what to do about them. -32002 is the one that
+ * matters: a request from this page is still open inside the wallet — usually a popup that
+ * lost focus or survived a reload — and every click fails with the same raw message until the
+ * visitor answers or dismisses the one that is waiting. The raw text says "please wait";
+ * waiting is the one thing that does not help.
+ */
+const walletError = (err) => {
+  if (err?.code === -32002)
+    return "the wallet already has a request from this page waiting on you — open it, answer or dismiss it, then click again";
+  if (err?.code === 4001) return "declined in the wallet — nothing was connected";
+  return err?.message ?? String(err);
+};
+
+function cell(label, value, sub, tick = false) {
   const node = document.createElement("div");
   node.className = "cell";
   const k = document.createElement("div");
   k.className = "cell-k";
   k.textContent = label;
   const v = document.createElement("div");
-  v.className = "cell-v";
+  v.className = tick ? "cell-v tick" : "cell-v";
   v.textContent = value;
   node.append(k, v);
   if (sub) {
@@ -1035,6 +1027,21 @@ function say(node, text, isError = false, link = null) {
   node.append(a);
 }
 
+/** The live slice — the same block-named message either way. */
+function buildLiveSlice(view) {
+  const toll = bestControlToll(view.floor.book, view.floor.desks);
+  const block = view.floor.blockNumber.toLocaleString("en-US");
+  if (toll && toll.usd > 0.005) {
+    return `<span class="toll-live">this block, ${block}: <b>+$${toll.usd.toFixed(2)} · ` +
+      `+${toll.bps.toFixed(1)} bps</b></span>`;
+  }
+  if (toll) {
+    return `<span class="toll-live toll-empty">this block, ${block}: nothing to take — a plain ` +
+      `curve pays when its ratio drifts from the book, and right now it has not</span>`;
+  }
+  return `<span class="toll-live">this block, ${block}: <b>reserves too thin to quote a rate</b></span>`;
+}
+
 function build(root) {
   const id = (name) => root.querySelector(`#${name}`);
   return {
@@ -1042,10 +1049,9 @@ function build(root) {
     mode: id("floor-mode"), meta: id("floor-meta"),
     verdictK: id("verdict-k"), zero: id("hero-zero"), verdictSub: id("hero-sub"),
     toll: id("hero-toll"), legs: id("hero-legs"),
-    book: id("floor-book"), regime: id("floor-regime"), strip: id("floor-strip"),
-    stressGo: id("stress-go"), stressOut: id("stress-out"), stressAuth: id("stress-auth"),
-    stripEmail: id("strip-email"), stripCode: id("strip-code"), stripGo: id("strip-go"),
-    stripNote: id("strip-note"),
+    book: id("floor-book"), regime: id("floor-regime"),
+    stressGo: id("stress-go"), stressOut: id("stress-out"),
+    stressNotional: id("stress-notional"),
     rows: id("floor-rows"),
     who: id("floor-who"), email: id("signin-email"), code: id("signin-code"),
     signInGo: id("signin-go"), signOut: id("signin-out"), signInNote: id("signin-note"),
