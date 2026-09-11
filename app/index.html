@@ -69,37 +69,19 @@ main { max-width: 1080px; margin: 0 auto; padding: 32px 28px 96px; }
   margin-top: 22px; max-width: 62ch; font-style: italic; }
 
 /* ---- the zero ---- */
-.hero { margin-bottom: 20px; max-width: 880px; }
-.hero-k { font: 11px var(--mono); text-transform: uppercase; letter-spacing: 0.18em;
-  color: var(--muted); margin: 0 0 6px; }
-.zero { font: 500 clamp(72px, 12vw, 128px)/1 var(--mono); letter-spacing: -0.045em;
-  color: var(--ink); font-variant-numeric: tabular-nums; }
-.zero.open { color: var(--loss); }
-.hero-sub { color: var(--muted); font-size: 12.5px; line-height: 1.7; margin: 14px 0 0;
-  max-width: 58ch; }
-.hero-sub b { color: var(--ink); font-weight: 500; }
 /* The toll is the other half of the headline: one number and its sentence, beside the zero. The
    delimiter that survived is the one between the accumulated total and this block's live slice —
    the only inside boundary the pair keeps. */
-.hero-toll { font-size: 12.5px; }
-.hero-toll span { color: var(--muted); }
-.hero-toll b { color: var(--loss); font-weight: 500; font-size: 16px;
-  font-variant-numeric: tabular-nums; }
-.hero-toll code { color: var(--ink); font-size: 11px; }
 /* The empty toll is a real answer, not a spinner — so it is small on purpose, tucked into the
    bar instead of dressed up like the number it is not. */
-.hero-toll .toll-empty { font-size: 11.5px; }
 /* The live slice rides next to the accumulated total at text size: it is the proof the total
    still moves block by block, not a second headline. */
-.hero-toll .toll-live b { font-size: 12.5px; }
 details.legs { margin: 16px 0 0; }
 details.legs > summary { cursor: pointer; list-style: none; color: var(--muted); font-size: 11px;
   text-transform: uppercase; letter-spacing: 0.12em; }
 details.legs > summary::-webkit-details-marker { display: none; }
 details.legs > summary::before { content: "+ "; color: var(--desk); }
 details.legs[open] > summary::before { content: "\2212\00a0"; }
-.arb-legs { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px;
-  display: grid; gap: 6px; max-width: 640px; }
 .arb-leg { display: flex; gap: 14px; align-items: baseline; font-size: 12px; }
 .arb-leg-k { color: var(--muted); }
 .arb-leg-v { margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -322,56 +304,23 @@ a .rc-dot { cursor: pointer; }
 .statement .statement-sub { font: italic 400 clamp(16px, 1.9vw, 19px)/1.55 var(--serif);
   color: var(--muted); letter-spacing: 0; margin: 20px 0 0; }
 
-/* ---- the zero and its comparison, side by side ---- */
-.hero-split { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: start;
-  max-width: none; }
-.hero-split .hero-col { display: flex; flex-direction: column; }
-/* One number, and the sentence that carries the honest context. The toll bar is a single plain
-   curve — the ablation — and below it the pegged competitor arrives as a clause with its link,
-   not as a third column that repeats the desk's zero. */
-.hero-toll { display: grid; grid-template-columns: 1fr; gap: 0; font-size: 12.5px; }
-.toll-col > span { display: block; color: var(--muted); font-size: 11px;
-  text-transform: uppercase; letter-spacing: 0.18em; }
-.toll-col > b { display: block; color: var(--loss); font-weight: 400; font-size: 34px;
-  font-family: var(--mono); letter-spacing: -0.02em; margin: 8px 0 8px; }
-.toll-col .toll-cov { text-transform: none; letter-spacing: 0; font-size: 12px; }
-.toll-col .toll-sentence { display: block; margin-top: 14px; color: var(--ink); font-size: 13px;
-  line-height: 1.5; }
-.toll-col .toll-sentence .linky { font-size: 13px; }
-.toll-col .toll-live { display: block; margin-top: 14px; padding-top: 14px;
-  border-top: 1px solid var(--line); color: var(--muted); font-size: 12px;
-  text-transform: none; letter-spacing: 0; }
-.toll-col .toll-live b { display: inline; font-size: 13px; font-family: var(--mono); }
-@media (max-width: 900px) {
-  .hero-toll { gap: 0; }
-}
+/* ---- the live line, and the three doors ---- */
 
-details.legs-wide { border-top: 1px solid var(--line); margin: 30px 0 0; padding-top: 14px; }
-/* One leg per row, stacked, the bps at each row's right edge — the same right edge the pair
-   above ends on, so the fold reads as the hero's arithmetic written out, not a second grid. */
-details.legs-wide .arb-legs { max-width: none; gap: 9px; }
+.doors { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin: 0 0 52px; }
+.door { display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+  text-align: left; background: #0b0f16; border: 1px solid var(--line); border-radius: 3px;
+  padding: 20px 20px 22px; cursor: pointer; font: inherit; color: inherit;
+  transition: border-color 120ms ease; }
+.door:hover { border-color: var(--muted); }
+.door-k { color: var(--muted); font: 10px var(--mono); text-transform: uppercase;
+  letter-spacing: 0.18em; }
+.door-v { color: var(--ink); font: 30px var(--mono); letter-spacing: -0.02em; }
+.door-v small { color: var(--muted); font-size: 13px; letter-spacing: 0; }
+.door-s { color: var(--muted); font-size: 12.5px; line-height: 1.65; }
+.door-s b { font-weight: 500; }
+.door-s code { color: var(--ink); }
 
-.regime .tag { display: inline-block; position: relative; font: 10px var(--mono);
-  text-transform: uppercase; letter-spacing: 0.16em; padding: 3px 9px;
-  border: 1px solid var(--line); border-radius: 2px;
-  color: var(--muted); margin-right: 8px; cursor: help; }
-.regime .tag-on { color: var(--ink); border-color: var(--muted); }
-.regime .tag-on.tag-step { color: var(--bid); border-color: var(--bid); }
-/* A lamp on the regime that is live — the topbar's own green dot, blinking the same blink:
-   the same light means the same thing, "this is the chain, right now". */
-.regime .tag-on::before { content: ""; display: inline-block; width: 5px; height: 5px;
-  border-radius: 50%; background: var(--ask); margin-right: 7px; vertical-align: 1px;
-  animation: blink 2s ease-in-out infinite; }
-/* The explainer rides on :hover from the tag's own attribute. A native `title` dies every
-   time the poll repaints the line under the cursor; a CSS bubble re-applies with the hover. */
-.regime .tag::after { content: attr(data-tip); position: absolute; top: calc(100% + 8px);
-  left: -1px; z-index: 30; width: 330px; max-width: calc(100vw - 64px); padding: 11px 13px;
-  background: var(--panel); border: 1px solid var(--l1-edge); border-radius: 3px;
-  color: var(--ink); font: 11.5px/1.65 var(--mono); text-transform: none; letter-spacing: 0;
-  white-space: normal; pointer-events: none;
-  opacity: 0; visibility: hidden; transition: opacity 0.15s ease, visibility 0.15s; }
-.regime .tag:hover::after { opacity: 1; visibility: visible; }
-.regime .tag-note { color: var(--muted); font-size: 12px; margin-left: 6px; }
+@media (max-width: 900px) { .doors { grid-template-columns: 1fr; } }
 
 /* ---- the block where things execute ---- */
 .act { border: 1px solid var(--line); border-radius: 3px; padding: 26px 26px 22px;
@@ -407,7 +356,6 @@ details.legs-wide .arb-legs { max-width: none; gap: 9px; }
 .qa .fold summary { font-size: 12.5px; color: var(--ink); }
 
 @media (max-width: 900px) {
-  .hero-split, .act-pair { grid-template-columns: 1fr; gap: 28px; }
 }
 
 /* ---- the desks ---- */
@@ -652,20 +600,31 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
 
       <!-- The zero and what the same search takes from an ordinary curve, side by side, because
            the number only means anything against the thing it is being compared to. -->
-      <div class="hero hero-split">
-        <div class="hero-col">
-          <p class="hero-k" id="verdict-k">what an arbitrageur has taken from these desks</p>
-          <div class="zero" id="hero-zero">—</div>
-          <p class="hero-sub" id="hero-sub"></p>
-        </div>
-        <div class="hero-col">
-          <div class="hero-toll" id="hero-toll"></div>
-        </div>
+      <!-- Three doors, one per tab, each carrying the fact that tab proves. The live line
+           above them is the only thing here that changes every block. -->
+      <p class="hero-live" id="hero-live"></p>
+
+      <div class="doors">
+        <button class="door" data-show-tab="tab-record">
+          <span class="door-k">the record</span>
+          <span class="door-v" id="door-record-v">—</span>
+          <span class="door-s" id="door-record-s">every fill this floor has signed, priced against the book its quote read</span>
+        </button>
+
+        <button class="door" data-show-tab="tab-cascade">
+          <span class="door-k">the cascade</span>
+          <span class="door-v" id="door-cascade-v">$222 <small>vs</small> $3,558</span>
+          <span class="door-s">On ordinary flow an oracle-pegged maker costs the same as this
+            desk: nothing. It takes a broken book to separate them — 10 October 2025.</span>
+        </button>
+
+        <button class="door" data-show-tab="tab-keys">
+          <span class="door-k">the keys</span>
+          <span class="door-v">2 <small>live shorts</small></span>
+          <span class="door-s">One the owner sent by hand. One a key that can call
+            <code>cover()</code> and nothing else, with eleven refusals to prove it.</span>
+        </button>
       </div>
-      <details class="legs legs-wide" id="legs-wide">
-        <summary>why the zero is arithmetic, not a promise</summary>
-        <div class="arb-legs" id="hero-legs"></div>
-      </details>
 
       <!-- Everything that executes lives in one block: the live book it prices against, the taker
            side, and the maker side. -->

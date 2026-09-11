@@ -217,10 +217,8 @@ function render(view) {
     ` · ${state.chain.name} · ${new Date().toLocaleTimeString("en-US", { hour12: false })}`;
 
   if (!bookOk) {
-    ui.verdictK.textContent = "the book could not be read";
-    ui.zero.textContent = "—";
-    ui.zero.className = "zero";
-    ui.verdictSub.textContent = "an empty field here means a read failed, not that a number was zero";
+    ui.live.textContent =
+      "the book could not be read this block — an empty field here means a read failed, not that a number was zero";
     ui.regime.textContent = "";
     view.regimeHtml = ""; // the memo must not skip the repaint once the book is back
     return;
@@ -269,92 +267,50 @@ function render(view) {
  */
 function renderVerdict(view, best) {
   const { ui } = view;
+  const rec = view.record;
+
+  // The record door carries the one sentence the whole floor stands on, and the count that
+  // makes it checkable. It waits for the artifact rather than inventing a placeholder.
+  if (rec) {
+    ui.doorRecordV.textContent = `${rec.fills} fills`;
+    ui.doorRecordS.innerHTML = rec.inside === 0
+      ? `not one of them priced inside Hyperliquid's own touch — every quote was read from the ` +
+        `book inside the trade that took it`
+      : `<b style="color:var(--loss)">${rec.inside} priced inside the touch — look at them</b>`;
+  }
+
   if (!best) {
-    ui.zero.textContent = "—";
-    ui.zero.className = "zero";
-    ui.verdictSub.textContent =
-      "No desk on this screen has a price right now, so there is nothing to arbitrage and nothing to claim.";
-    ui.toll.innerHTML = "";
-    ui.legs.replaceChildren();
+    ui.live.textContent =
+      "no desk on this screen has a price right now, so there is nothing to search against.";
     return;
   }
 
+  // The live line: what the same search takes off an ordinary curve on these reserves, this
+  // block. It is cents most blocks and it is named as this block's, not as a rate.
   const session = view.sessionBest;
-  const open = session.trip.best > 0;
-  const rec = view.record;
+  const toll = bestControlToll(view.floor.book, view.floor.desks);
+  const block = view.floor.blockNumber.toLocaleString("en-US");
 
-  if (open) {
-    ui.zero.textContent = `+${session.trip.best.toFixed(2)} bps`;
-    ui.zero.className = "zero open";
-    ui.verdictSub.innerHTML =
-      `<b>${escape(name(session.desk))}</b> can be taken and closed at the book for a profit right now. ` +
-      `That is not supposed to be reachable — read it as a book that moved between two reads, or as a bug, ` +
-      `and take it before it closes.`;
-  } else {
-    ui.zero.textContent = "$0.00";
-    ui.zero.className = "zero";
-    // The closest live attempt used to be spelled out here. It said the same thing the zero
-    // says, in more words, so the line is the record and nothing else — one flowing sentence
-    // with the page's own separator, so the second clause cannot read as a continuation of the
-    // first. The Record is linked once, from the toll.
-    ui.verdictSub.innerHTML = rec
-      ? (rec.inside === 0
-          ? `none of <b>${rec.fills}</b> fills landed inside the band · ` +
-            `every price it signed sat outside Hyperliquid's own touch, so the round trip loses ` +
-            `by arithmetic`
-          : `<b style="color:var(--loss)">${rec.inside} of ${rec.fills} fills inside the band</b><br>` +
-            `that should not be reachable — look at them`)
-      : `the record is loading`;
+  if (session.trip.best > 0) {
+    ui.live.innerHTML =
+      `<b style="color:var(--loss)">${escape(name(session.desk))} can be taken and closed at the ` +
+      `book for a profit right now</b> — that is not supposed to be reachable. Read it as a book ` +
+      `that moved between two reads, or as a bug, and take it before it closes.`;
+    return;
   }
 
-  // One number, and the sentence that makes it honest. The toll is the same search run against a
-  // plain curve on the desk's own reserves — the ablation, not a leftover. The oracle-pegged
-  // competitor that joined in the chart pays nothing over this same flow, so the big number is the
-  // plain curve's alone and the pegged zero arrives as a clause with its link, not as a third
-  // column that repeats the desk's figure and reads as equal.
-  const tollLive = buildLiveSlice(view);
-  if (rec) {
-    const usd2 = (v) => `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    // The coverage has to belong to the number beside it: ten fills carry no reconstructable
-    // peg — seven predate the first poke and three sit in a hole — and they are excluded,
-    // not estimated, so the count says which ones the sum actually covers.
-    const priced = rec.oraclePegged?.priced ?? rec.tollFills;
-    const coverage = priced === rec.fills
-      ? `over ${rec.fills} trades`
-      : `over ${priced} of ${rec.fills} trades`;
-    // The foil used to be the flat curve's accumulated toll. That number is this repository's
-    // own pool drifting, which the README says plainly, so leading with it argued against a
-    // straw man. What separates the makers is a broken book, and that lives in the cascade.
-    ui.toll.innerHTML =
-      `<div class="toll-col">` +
-        `<span>the same search against an oracle-pegged maker</span>` +
-        `<b>${usd2(rec.oraclePegged ? rec.oraclePegged.tollUsd : 0)}</b>` +
-        `<span class="toll-cov">${coverage}, refreshed every 60 s · ` +
-          `<button class="linky" data-show-tab="tab-record">The Record</button></span>` +
-        `<span class="toll-sentence">On ordinary flow it costs the same as this desk: nothing. ` +
-          `It takes a broken book to separate them — through the 10 October cascade the same ` +
-          `maker paid <b>$222</b> and a plain curve <b>$3,558</b> → ` +
-          `<button class="linky" data-show-tab="tab-cascade">The Cascade</button></span>` +
-        tollLive +
-      `</div>`;
+  const head = `this block, ${block}: <b>nothing to take from these desks</b>`;
+  if (toll && toll.usd > 0.005) {
+    ui.live.innerHTML =
+      `${head} — the same search against a baseline curve on the same reserves takes ` +
+      `<b class="loss">+$${toll.usd.toFixed(2)} · +${toll.bps.toFixed(1)} bps</b>`;
+  } else if (toll) {
+    ui.live.innerHTML =
+      `${head}, and nothing from a baseline curve either — a curve pays when its ratio drifts ` +
+      `from the book, and right now it has not`;
   } else {
-    ui.toll.innerHTML =
-      `<div class="toll-col">` +
-        `<span>The same search against a plain curve on the same reserves:</span>` +
-        `<span>the accumulated total is summed from the record — it is loading</span>` +
-      `</div>`;
+    ui.live.innerHTML = `${head} — reserves too thin to quote a rate against a curve`;
   }
-
-  // The two legs, for whoever opens the fold: why the zero is arithmetic and not a promise.
-  const { trip } = session;
-  const who = name(session.desk);
-  ui.legs.replaceChildren(
-    leg(`buy from ${who} at ${px2(trip.prices.deskAsk)}, sell into the book's bid ${px2(trip.prices.bid)}`,
-      `${bpsText(trip.buyFromDesk)} bps`),
-    leg(`sell to ${who} at ${px2(trip.prices.deskBid)}, buy back at the book's ask ${px2(trip.prices.ask)}`,
-      `${bpsText(trip.sellToDesk)} bps`),
-    leg("the book's own spread, which either exit has to cross", `${trip.l1SpreadBps.toFixed(2)} bps`, true),
-  );
 }
 
 /** What the floor is doing, said as what a stranger sees. */
@@ -1055,8 +1011,8 @@ function build(root) {
   return {
     status: id("floor-status"), page: id("floor-page"), error: id("floor-error"),
     mode: id("floor-mode"), meta: id("floor-meta"),
-    verdictK: id("verdict-k"), zero: id("hero-zero"), verdictSub: id("hero-sub"),
-    toll: id("hero-toll"), legs: id("hero-legs"),
+    live: id("hero-live"),
+    doorRecordV: id("door-record-v"), doorRecordS: id("door-record-s"),
     book: id("floor-book"), regime: id("floor-regime"),
     stressGo: id("stress-go"), stressOut: id("stress-out"),
     stressNotional: id("stress-notional"),
