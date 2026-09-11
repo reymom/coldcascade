@@ -299,17 +299,17 @@ function renderVerdict(view, best) {
     return;
   }
 
-  const head = `this block, ${block}: <b>nothing to take from these desks</b>`;
+  // One line, always. The block names itself so the state is checkable; everything else is
+  // the shortest true sentence, because this sits above the doors and must not wrap.
+  const head = `block ${block} · <b>nothing to take here</b>`;
   if (toll && toll.usd > 0.005) {
     ui.live.innerHTML =
-      `${head} — the same search against a baseline curve on the same reserves takes ` +
+      `${head} — a baseline curve on the same reserves leaks ` +
       `<b class="loss">+$${toll.usd.toFixed(2)} · +${toll.bps.toFixed(1)} bps</b>`;
   } else if (toll) {
-    ui.live.innerHTML =
-      `${head}, and nothing from a baseline curve either — a curve pays when its ratio drifts ` +
-      `from the book, and right now it has not`;
+    ui.live.innerHTML = `${head}, and nothing from a baseline curve either`;
   } else {
-    ui.live.innerHTML = `${head} — reserves too thin to quote a rate against a curve`;
+    ui.live.innerHTML = `${head} — reserves too thin to quote a curve against`;
   }
 }
 
