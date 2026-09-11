@@ -38,14 +38,8 @@ for (const { button, panel } of tabs) {
   document.getElementById(button).addEventListener("click", () => show(button, panel));
 }
 
-// The Desk's strip makes a claim about this block; the Cascade makes the same claim about 123 of
-// them. The link between them is in the prose, so it should also be in the page.
-document.getElementById("go-cascade")?.addEventListener("click", () => {
-  show("tab-cascade", "panel-cascade");
-});
-
 // Cross-tab prose links are buttons with data-show-tab (a link would lie about going somewhere).
-// Delegated once: the hero's record grounding lives beside the zero, and its module re-renders
+// Delegated once: the doors are rebuilt whenever the record lands, and their module re-renders
 // the line it sits in.
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-show-tab]");
