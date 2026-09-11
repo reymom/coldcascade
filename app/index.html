@@ -40,7 +40,9 @@ main { max-width: 1080px; margin: 0 auto; padding: 32px 28px 96px; }
 
 /* ---- the shell ---- */
 .topbar { display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; margin-bottom: 8px; }
-.wordmark { font: 500 18px var(--mono); letter-spacing: -0.02em; margin: 0; }
+.wordmark { font: 500 18px var(--mono); letter-spacing: -0.02em; margin: 0;
+  display: flex; align-items: center; gap: 8px; }
+.wordmark svg { display: block; }
 .tabs { display: flex; gap: 2px; margin-left: auto; }
 .tab { background: none; border: none; color: var(--muted); font: 12px var(--mono);
   padding: 6px 10px; cursor: pointer; border-bottom: 1px solid var(--line); }
@@ -53,6 +55,22 @@ main { max-width: 1080px; margin: 0 auto; padding: 32px 28px 96px; }
   letter-spacing: 0.12em; border: 1px solid var(--line); border-radius: 2px; }
 .chip-simulated { color: var(--bid); border-color: #4a3a1e; }
 .chip-deployed { color: var(--ask); border-color: #1e4a42; }
+
+/* The wallet chip: the visitor's identity, next to the block and the hour — a button, because
+   it opens the profile (signed in) or takes you to the invite (signed out). */
+.wallet-chip { background: none; border: 1px solid var(--line); border-radius: 2px;
+  color: var(--muted); font: 11px var(--mono); font-variant-numeric: tabular-nums;
+  padding: 2px 9px; cursor: pointer; }
+.wallet-chip:hover { border-color: var(--l1-edge); color: var(--ink); }
+.wallet-chip.is-signed { color: var(--desk); border-color: rgba(95,178,255,0.35); }
+.wallet-chip .via { color: var(--muted); }
+
+/* The profile the chip opens: above the tabs' panels because it belongs to no tab. */
+#profile { border: 1px solid var(--line); border-radius: 3px; background: #0b0f16;
+  padding: 18px 20px 14px; margin: 14px 0 0; }
+#profile .you-cells { margin: 0; }
+#profile .you-cells .cell { background: #0b0f16; }
+.profile-acts { margin-top: 14px; }
 
 .status { white-space: pre-wrap; color: var(--muted); font-size: 13px; }
 .status.error { color: var(--loss); }
@@ -289,6 +307,9 @@ a .rc-dot { cursor: pointer; }
 .archive-refusal p b { color: var(--ink); font-weight: 500; }
 .archive-refusal code { color: var(--ink); }
 .ba-call { border: 1px solid var(--line); padding: 13px 16px 9px; margin: 16px 0 6px; }
+.mcp-call { margin-top: 30px; }
+.mcp-why { color: var(--muted); font-size: 12px; line-height: 1.65; margin: 8px 0 12px;
+  max-width: 72ch; }
 .ba-call-k { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em;
   color: var(--muted); margin-bottom: 6px; }
 .ba-cmd { display: grid; grid-template-columns: 185px minmax(0, 1fr) auto; gap: 4px 12px;
@@ -336,10 +357,6 @@ a .rc-dot { cursor: pointer; }
 .act .cells { margin: 0; }
 .act .cell { background: #0b0f16; }
 .act .regime { margin-bottom: 4px; }
-.act .act-auth-h { margin: 24px 0 16px; padding-top: 20px; border-top: 1px solid var(--line); }
-.act .signin { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.act .signin input { margin: 0; flex: 0 1 260px; }
-.act .signin input#signin-code { flex: 0 0 auto; }
 .act .controls { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; }
 .act .controls select { flex: 0 1 auto; min-width: 0; }
 .act .controls input { flex: 1 1 60px; min-width: 0; }
@@ -350,8 +367,12 @@ a .rc-dot { cursor: pointer; }
 .act-pair .try { margin: 0; }
 .act-pair h2 { margin: 0 0 10px; border: none; padding: 0; }
 
-/* ---- the visitor's own panel ---- */
-.you { margin: 16px 0 0; }
+/* ---- the invite: a wallet in one tap, above every form ---- */
+/* The same box the action block uses, one step earlier in the page: it is what a visitor with
+   no wallet sees first, and it disappears the moment there is a session. */
+.invite { border: 1px solid var(--line); border-radius: 3px; padding: 22px 24px 18px;
+  margin: 0 0 44px; background: #0b0f16; }
+.invite .signin { margin-top: 16px; }
 .you-lede { color: var(--ink); font-size: 13px; line-height: 1.7; margin: 0; max-width: 70ch; }
 /* The steps carry their own numerals: a list a visitor reads before deciding to sign in has to
    look like a sequence, not like prose that happens to be indented. */
@@ -612,6 +633,16 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
   margin-left: 10px; vertical-align: 2px; opacity: 0.85; }
 /* The highlight is colour, not italics. */
 .keys-lede { color: #93b4d1; font-style: normal; font-weight: 500; }
+
+/* ---- the footer: the docs, the repo, and the promise that every number reproduces ---- */
+.foot { border-top: 1px solid var(--line); margin-top: 72px; padding-top: 20px;
+  color: var(--muted); font-size: 11.5px; line-height: 1.9; }
+.foot p { margin: 0 0 6px; }
+.foot a { color: var(--desk); text-decoration: none;
+  border-bottom: 1px solid rgba(95,178,255,0.4); }
+.foot-k { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; margin-right: 12px; }
+.foot-docs a { margin-right: 14px; white-space: nowrap; }
+.foot-note { margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -683,15 +714,22 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
         </button>
       </div>
 
-      <!-- Everything that executes lives in one block: the live book it prices against, the taker
-           side, and the maker side. -->
-      <div class="act">
-        <div class="cells" id="floor-book"></div>
-        <p class="regime" id="floor-regime"></p>
-
-        <h2 class="act-auth-h" id="act-auth-h">get a wallet in one tap</h2>
+      <!-- The invite: the first thing a visitor with no wallet sees, before the forms below ask
+           for anything. Once there is a session it is gone — the chip up top is the identity
+           from then on, and what the tap did lives in the profile it opens. -->
+      <div class="invite" id="you-invite">
+        <p class="you-lede">You do not need a wallet to use this. One tap and you have one on
+          this chain — no extension, no seed phrase, nothing installed.</p>
+        <ol class="you-steps">
+          <li>sign in with an email address or a Discord account</li>
+          <li>Privy makes you an embedded wallet — the key lives inside Privy's own frame and
+            never touches this page</li>
+          <li>a server wallet held under a policy drips the gas. It may send that and nothing
+            else — <button class="linky" data-show-tab="tab-keys">the policy, and what it
+            refuses</button></li>
+        </ol>
+        <p class="you-then">Then take a desk below: one swap, through 1inch's own router.</p>
         <div class="signin">
-          <span class="who" id="floor-who" hidden></span>
           <input id="signin-email" type="email" autocomplete="email" placeholder="you@example.com"
                  aria-label="email address">
           <input id="signin-code" type="text" inputmode="numeric" autocomplete="one-time-code"
@@ -699,35 +737,15 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
           <button class="go" id="signin-go">email me a code</button>
           <button class="go ghost discord" id="signin-discord">continue with Discord</button>
           <button class="go ghost" id="floor-connect">or a browser wallet</button>
-          <button class="go ghost" id="signin-out" hidden>sign out</button>
         </div>
         <p class="out" id="signin-note"></p>
+      </div>
 
-        <!-- One block, two tenses. Before a visitor signs in it is what a tap is about to do;
-             after, it is what it did, read back off the chain and their own Privy account. An
-             empty frame with four dashes in it would be worse than no frame at all. -->
-        <div class="you">
-          <div id="you-invite">
-            <p class="you-lede">You do not need a wallet to use this. One tap and you have one on
-              this chain — no extension, no seed phrase, nothing installed.</p>
-            <ol class="you-steps">
-              <li>sign in with an email address or a Discord account</li>
-              <li>Privy makes you an embedded wallet — the key lives inside Privy's own frame and
-                never touches this page</li>
-              <li>a server wallet held under a policy drips the gas. It may send that and nothing
-                else — <button class="linky" data-show-tab="tab-keys">the policy, and what it
-                refuses</button></li>
-            </ol>
-            <p class="you-then">Then take a desk below: one swap, through 1inch's own router.</p>
-          </div>
-
-          <div id="you-panel" hidden>
-            <div class="you-cells" id="you-cells"></div>
-            <p class="you-fills-h">your fills</p>
-            <div class="you-fills" id="you-fills"></div>
-            <p class="you-foot" id="you-foot"></p>
-          </div>
-        </div>
+      <!-- Everything that executes lives in one block: the live book it prices against, the taker
+           side, and the maker side. Identity is not here — it is the chip and the profile above. -->
+      <div class="act">
+        <div class="cells" id="floor-book"></div>
+        <p class="regime" id="floor-regime"></p>
 
         <div class="act-pair">
           <div class="try">
@@ -933,6 +951,29 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
         <!-- The old foot is gone — what mattered in it, in plain lines under the answer. -->
         <div class="archive-meta" id="archive-meta"></div>
       </div>
+      </div>
+
+      <!-- Same file, another reader: the config a visitor pastes into their own MCP client to
+           ask this archive from their assistant instead of from this form. Same copyable shape
+           as The Keys' "check it yourself". -->
+      <div class="ba-call mcp-call">
+        <div class="ba-call-k">or ask the archive from your own assistant</div>
+        <p class="mcp-why">Paste this into your MCP client and the archive answers from there —
+          the same file this form reads, the same two neighbours and never an interpolation.
+          Standard-library Python, no install; <code>mcp/README.md</code> has the smoke test.</p>
+        <div class="ba-cmd">
+          <span class="ba-cmd-k">mcpServers</span>
+          <code id="mcp-config">{
+  "mcpServers": {
+    "coldcascade": {
+      "command": "python3",
+      "args": ["-m", "coldcascade_mcp"],
+      "cwd": "/absolute/path/to/coldcascade/mcp"
+    }
+  }
+}</code>
+          <button class="linky" data-copy="mcp-config">copy</button>
+        </div>
       </div>
     </section>
 
@@ -1266,6 +1307,25 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
       </div>
     </div>
   </section>
+
+  <footer class="foot">
+    <p class="foot-docs">
+      <span class="foot-k">docs</span>
+      <a href="../docs/mechanism.md">mechanism</a>
+      <a href="../docs/desk-account.md">desk account</a>
+      <a href="../docs/record.md">record</a>
+      <a href="../docs/console.md">console</a>
+      <a href="../docs/evidence.md">evidence</a>
+      <a href="../docs/mainnet.md">mainnet</a>
+      <a href="../docs/hyperevm-notes.md">hyperevm notes</a>
+    </p>
+    <p class="foot-line">
+      <a href="https://github.com/reymom/coldcascade">the repo</a> ·
+      <a href="../LICENSE">MIT licence</a>
+    </p>
+    <p class="foot-note">Every number on this page reproduces with the command written next to
+      it.</p>
+  </footer>
 </main>
 <script type="module" src="./src/console.js"></script>
 </body>

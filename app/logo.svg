@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>coldcascade</title>
+  <!-- The mechanism as a mark: the grey band is the book's own bid–ask; the two blue marks are
+       the desk's bid and ask, always outside it. The dead zone, drawn. -->
+  <rect width="64" height="64" rx="12" fill="#07090d"/>
+  <rect x="10" y="26" width="44" height="12" fill="#3c4c64"/>
+  <circle cx="32" cy="13" r="6" fill="#5fb2ff"/>
+  <circle cx="32" cy="51" r="6" fill="#5fb2ff"/>
+</svg>

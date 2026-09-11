@@ -94,6 +94,9 @@ export async function mountFloor(root) {
     state, rpc, ui,
     floor: null,
     signer: null,
+    // Set by a fresh sign-in (never by a resumed one): the auth repaint opens the profile once,
+    // so the visitor watches the age counter start from zero rather than finding a finished panel.
+    revealProfile: false,
     // The record the zero stands on: days quoting, fills signed, none inside the band, and the
     // accumulated toll a plain curve would have paid over those trades. Filled by mountRecord's
     // shared read of the same file the Record tab plots; null until the first render arrives.
@@ -112,7 +115,6 @@ export async function mountFloor(root) {
 
   const auth = createAuth(view);
   wireSignInPanel(view, auth);
-  wireStressAuth(view, auth);
   wireTake(view);
   wireStress(view);
   wireMap(view);
@@ -569,7 +571,7 @@ function renderPanels(view, desks) {
   view.ui.takeNote.textContent = none
     ? "No desk is deployed yet; Take turns on when the desks are on chain."
     : !view.signer
-      ? "One swap through the official SwapVM router. An email address or a Discord account is enough — the wallet that appears is the one that signs it."
+      ? "One swap through the official SwapVM router. Sign in above — one tap — and this button is live."
       : mintable
         ? "Three transactions: mint the demo token, approve the router, swap through the official SwapVM router. Sell base to watch the bound bite — the desk's bid is clamped to the book's own."
         : `This desk trades the real pair: bring your own ${chosen ? short(chosen.params.base) : "tokens"}, or take the demo desk for nothing.`;
@@ -776,16 +778,16 @@ function wireMap(view) {
   });
 }
 
-// ---- sign-in, one session shared by the Take panel and the strip's compact row ----
+// ---- sign-in, one session shared by the chip, the invite and the profile ----
 
 /**
- * One wallet, two surfaces.
+ * One wallet, three surfaces.
  *
  * The session — the Privy client, the address a code was mailed to, the signer itself — is a
- * single thing, created once per page. Both the Take panel's full row and the strip's compact row
- * are views over it, subscribing to repaints rather than owning state: a code mailed from the
- * strip is a code the Take panel knows about, because the fifteen-second path and the thirty-
- * second path are the same person.
+ * single thing, created once per page. The chip in the bar, the invite on the Desk and the
+ * profile are views over it, subscribing to repaints rather than owning state: a code mailed
+ * from the invite is a code the chip knows about, because the fifteen-second path and the
+ * thirty-second path are the same person.
  */
 function createAuth(view) {
   const { state } = view;
@@ -794,8 +796,11 @@ function createAuth(view) {
   const paints = new Set();
 
   const repaint = () => { for (const paint of paints) paint(); };
-  const setSigner = (signer) => {
+  const setSigner = (signer, { reveal = false } = {}) => {
     view.signer = signer;
+    // A fresh sign-in opens the profile once — the wallet's age in seconds is the claim, and it
+    // lands while it is still small. A resumed session stays shut: the wallet is old news.
+    if (signer && reveal) view.revealProfile = true;
     // A resumed session can land before the first read does, and `render` wants a floor to draw.
     // The next tick is a few seconds away and repaints everything anyway.
     if (view.floor) render(view);
@@ -820,7 +825,7 @@ function createAuth(view) {
       privySession ??= await openPrivy(state.chain, state.privy);
       const signer = await privySession.submitCode(emailed, code);
       emailed = null;
-      setSigner(signer);
+      setSigner(signer, { reveal: true });
     },
 
     /**
@@ -850,7 +855,7 @@ function createAuth(view) {
         if (view.floor) render(view);
         repaint();
       });
-      setSigner(signer);
+      setSigner(signer, { reveal: true });
     },
 
     async signOut() {
@@ -875,7 +880,7 @@ function createAuth(view) {
       say(view.ui.signInNote, `finishing your ${providerName(callback.provider)} sign-in…`);
       try {
         privySession = await openPrivy(state.chain, state.privy);
-        setSigner(await privySession.completeOAuth(callback));
+        setSigner(await privySession.completeOAuth(callback), { reveal: true });
         say(view.ui.signInNote, "this wallet is yours; nothing was installed.");
       } catch (err) {
         // A spent code, a reload on the callback URL, or a provider the app has not turned on.
@@ -899,15 +904,17 @@ function createAuth(view) {
   return auth;
 }
 
-/** The Take panel's full row: email, code, the injected wallet, sign out. */
+/** Identity's three surfaces: the chip in the bar, the invite on the Desk, the profile. */
 function wireSignInPanel(view, auth) {
   const { ui, state } = view;
 
   auth.subscribe(() => {
     const signed = Boolean(view.signer);
     const mailed = Boolean(auth.emailed);
-    ui.who.hidden = !signed;
-    ui.signOut.hidden = !signed;
+    // The invite is the door while there is no session; the chip is the identity once there is
+    // one, and the profile it opens holds what the tap did. The two never share the screen.
+    ui.youInvite.hidden = signed;
+    ui.chip.hidden = false;
     ui.email.hidden = signed || mailed;
     ui.code.hidden = signed || !mailed;
     ui.signInGo.hidden = signed;
@@ -916,10 +923,31 @@ function wireSignInPanel(view, auth) {
     ui.discord.hidden = signed || mailed || !state.privy;
     ui.connect.hidden = signed || mailed || !globalThis.ethereum;
     if (signed) {
-      ui.who.textContent = `${view.signer.label} · ${short(view.signer.address)}`;
-      ui.who.title = view.signer.address;
+      // Short address, and for a Privy wallet how it got in — the chip says "who" in one glance.
+      const via = view.signer.who?.().via;
+      ui.chip.innerHTML = escape(short(view.signer.address)) +
+        (via && via !== "browser wallet" ? ` <span class="via">· ${escape(via)}</span>` : "");
+      ui.chip.title = view.signer.address;
+      ui.chip.classList.add("is-signed");
+      if (view.revealProfile) { ui.profile.hidden = false; view.revealProfile = false; }
+    } else {
+      ui.chip.textContent = "sign in";
+      ui.chip.title = "";
+      ui.chip.classList.remove("is-signed");
+      ui.profile.hidden = true;
     }
     ui.signInGo.textContent = mailed ? "sign in" : "email me a code";
+  });
+
+  ui.chip.addEventListener("click", () => {
+    if (view.signer) {
+      ui.profile.hidden = !ui.profile.hidden;
+      return;
+    }
+    // No session: the chip is the door to the invite — the Desk tab first, then the email field.
+    document.getElementById("tab-desk")?.click();
+    ui.youInvite.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!ui.email.hidden) ui.email.focus({ preventScroll: true });
   });
 
   if (!state.privy) {
@@ -985,20 +1013,10 @@ function wireSignInPanel(view, auth) {
   });
 }
 
-/**
- * The strip's compact row — the stress button's first click for a visitor with no wallet. It is
- * deliberately narrower than the panel's: no injected option, no sign-out, just the email that
- * arms the button they just pressed. Anything else is a detour from the thing they came to watch.
- */
-function wireStressAuth(view, auth) {
-  const { ui } = view;
-
-}
-
 // ---- the visitor's own half of the screen ----
 
 /**
- * What just happened to *you*.
+ * What just happened to *you* — the profile the chip opens.
  *
  * Everything else on this page is written about a market maker, and a visitor who signs in and
  * takes a desk is left to work out what they got from a transaction hash and a balance they cannot
@@ -1006,10 +1024,9 @@ function wireStressAuth(view, auth) {
  * under, the fill and its price against the book — so the panel asserts nothing new: it reads the
  * same node the rest of the screen reads and says which of the answers are the visitor's.
  *
- * **Signed out it is the same panel, in the future tense.** An empty frame with four dashes in it
- * is worse than no frame, so the block is an invitation instead: what a tap does, in the order it
- * does it. The one thing it must not do is go quiet until somebody signs in, because a visitor
- * deciding whether to sign in is exactly who it is for.
+ * **Signed out there is no panel at all.** An empty frame with four dashes in it is worse than no
+ * frame, so before a session the identity is the invite on the Desk — what a tap does, in the
+ * order it does it — and the profile exists only once there is something to put in it.
  */
 function mountYou(view, auth) {
   auth.subscribe(() => {
@@ -1095,9 +1112,8 @@ async function readWallet(view) {
 function renderYou(view) {
   const { ui, state, you } = view;
   const who = view.signer?.who?.() ?? null;
-  ui.youInvite.hidden = Boolean(who);
-  ui.youPanel.hidden = !who;
-  ui.authH.textContent = who ? "your wallet" : "get a wallet in one tap";
+  // Visibility is the auth repaint's job, not this one's: the invite and the chip are painted
+  // there, and this only fills the profile's cells, fills and footnote when there is a session.
   you.ageNode = null;
   you.ageFrom = null;
   if (!who) return;
@@ -1464,10 +1480,11 @@ function build(root) {
     stressGo: id("stress-go"), stressOut: id("stress-out"),
     stressNotional: id("stress-notional"),
     rows: id("floor-rows"),
-    who: id("floor-who"), email: id("signin-email"), code: id("signin-code"),
+    chip: id("wallet-chip"), profile: id("profile"),
+    email: id("signin-email"), code: id("signin-code"),
     signInGo: id("signin-go"), signOut: id("signin-out"), signInNote: id("signin-note"),
-    connect: id("floor-connect"), discord: id("signin-discord"), authH: id("act-auth-h"),
-    youInvite: id("you-invite"), youPanel: id("you-panel"), youCells: id("you-cells"),
+    connect: id("floor-connect"), discord: id("signin-discord"),
+    youInvite: id("you-invite"), youCells: id("you-cells"),
     youFills: id("you-fills"), youFoot: id("you-foot"),
     takeDesk: id("take-desk"), takeSide: id("take-side"), takeAmount: id("take-amount"),
     takeGo: id("take-go"), takeOut: id("take-out"), takeNote: id("take-note"),
