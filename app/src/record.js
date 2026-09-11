@@ -51,18 +51,24 @@ export async function mountRecord(root) {
   const ui = {
     chart: root.querySelector("#record-chart"),
     count: root.querySelector("#record-count"),
-    why: root.querySelector("#record-why"),
-    whyFull: root.querySelector("#record-why-full"),
-    excluded: root.querySelector("#record-excluded"),
     hover: root.querySelector("#record-hover"),
     decision: root.querySelector("#record-decision"),
     decisionRows: root.querySelector("#record-decision-rows"),
-    decisionTail: root.querySelector("#record-decision-tail"),
+    pager: root.querySelector("#record-pager"),
     markouts: root.querySelector("#record-markouts"),
     foot: root.querySelector("#record-foot"),
     status: root.querySelector("#record-status"),
   };
   if (!ui.chart) return;
+
+  // The decision table paginates: delegated like the chart's dots, so re-renders replace the
+  // buttons, not the listener. The page index lives on ui and survives the next poll.
+  ui.pager?.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-page]");
+    if (!b) return;
+    ui.page = Number(b.dataset.page);
+    render(ui, ui.doc, ui.ledger);
+  });
 
   // Delegated, so the listeners survive the chart re-rendering itself every poll: the dots are
   // replaced, the container is not. Hover shows the fill's row without leaving the page; click
@@ -183,10 +189,12 @@ const zoneOf = (f, doc) =>
   Number.isFinite(f.quietBps) ? f.quietBps : Number.isFinite(doc.quietBps) ? doc.quietBps : 20;
 
 function render(ui, doc, ledger) {
+  // The pager's re-render after a click asks for this pair back.
+  ui.doc = doc;
+  ui.ledger = ledger;
   // allFills is the artifact — every fill the desks have signed, every desk included. fills is
   // the chart — the ones whose price a quote set, which are the ones that speak about the clamp.
   const allFills = (doc.fills ?? []).filter((f) => Number.isFinite(f.vsTouchBps) && Number.isFinite(f.at));
-  const excluded = allFills.filter((f) => NOT_A_CLAMP_FILL.has(f.txHash.toLowerCase()));
   const fills = allFills.filter((f) => !NOT_A_CLAMP_FILL.has(f.txHash.toLowerCase()));
   const books = doc.books ?? {};
   const sum = doc.summary ?? {};
@@ -234,12 +242,13 @@ function render(ui, doc, ledger) {
 
   const parts = [];
 
-  // The dead zone and its edges. Fills pinned on the edge are the bound doing its work.
+  // The dead zone and its edges. Fills pinned on the edge are the bound doing its work. The label
+  // sits above the band, not inside it — inside, a fill pinned on the edge ate the letters.
   parts.push(`<rect class="rc-zone" x="${PAD.left}" y="${y(zone)}" width="${W - PAD.left - PAD.right}" height="${y(-zone) - y(zone)}"/>`);
   for (const e of [zone, -zone]) {
     parts.push(`<line class="rc-zone-edge" x1="${PAD.left}" y1="${y(e)}" x2="${W - PAD.right}" y2="${y(e)}"/>`);
   }
-  parts.push(`<text class="rc-lab" x="${PAD.left + 10}" y="${y(zone) + 13}">the dead zone — the book's touch is the floor; ±${fmtZone(zone)} bps is the margin these desks chose. No fill lands inside.</text>`);
+  parts.push(`<text class="rc-lab" x="${PAD.left + 10}" y="${y(zone) - 7}">the dead zone — the book's touch is the floor; ±${fmtZone(zone)} bps is the margin these desks chose. No fill lands inside.</text>`);
 
   // The touch itself, and the hundred-bps gridlines that fit the domain.
   parts.push(`<line class="rc-touch" x1="${PAD.left}" y1="${y(0)}" x2="${W - PAD.right}" y2="${y(0)}"/>`);
@@ -309,75 +318,35 @@ function render(ui, doc, ledger) {
   ui.chart.innerHTML =
     `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="every fill the desk has signed against the book's touch, over days">${parts.join("")}</svg>`;
 
-  // What the picture leaves out, said next to the picture. The fill stays in the artifact and in
-  // the keeper's decision below — the exclusion is only about what the chart can claim.
-  if (ui.excluded) {
-    ui.excluded.innerHTML = excluded.map((f) => {
-      const link = tx(f.txHash);
-      const hash = link ? `<a href="${link}" target="_blank" rel="noreferrer">${short(f.txHash)}</a>` : short(f.txHash);
-      return `Out of the chart by name: ${hash}, the <b>${escape(f.deskName)}</b> take that built ` +
-        `the exposure the hedge then covered — priced from the reserves the strategy was shipped ` +
-        `with (poolDev ${fmtDev(f.poolDevBps)} bps), not from a quote the bound held against the ` +
-        `book. It stays in the file, and in the keeper's decision below.`;
-    }).join(" ");
-  }
-
-  // Why the series exists, and why it is young. The framing is precise because the imprecise
-  // version — "the only archive of the book" — is false: this is four words a minute, not the
-  // book, and Hyperliquid publishes its own L2 archive. What nothing else reproduces is the join:
-  // the same stream, the same clock, the fill and the book five, fifteen and sixty minutes later.
-  const before = Number.isFinite(books.firstAt) ? allFills.filter((f) => f.at < books.firstAt).length : 0;
-  // Two sentences up, the rest folded: the fact and the consequence carry the section on their
-  // own; the numbers, the before-series count and the join are for whoever opens the fold.
-  ui.why.innerHTML = Number.isFinite(books.firstAt)
-    ? `The book this quote reads is not HyperEVM state: the precompiles answer with the present ` +
-      `whatever block tag you ask for, and asking for the past returns the present without an ` +
-      `error. A Substreams module can only stream what a contract logs, so the floor logs the book ` +
-      `itself.`
-    : "";
-  if (ui.whyFull) {
-    ui.whyFull.innerHTML = Number.isFinite(books.firstAt)
-      ? `Permissionless, four words — bid, ask, mark, oracle — one poke a minute: ` +
-        `<b>${books.count ?? "—"} pokes</b> so far, median gap ` +
-        `${books.medianGapSeconds ?? "—"} s, started ${when(books.firstAt)}. That is why the record ` +
-        `begins there, and why ${before} of the ${allFills.length} fills are marked <b>before the ` +
-        `series</b> rather than given a number they cannot have. The same stream then joins each fill ` +
-        `to the book five, fifteen and sixty minutes later — that join is what the series is for. It ` +
-        `cannot be reconstructed from Hyperliquid's S3 archive or its WebSocket: another domain, ` +
-        `another scale, another clock.`
-      : "";
-  }
-
   renderDecision(ui, doc, allFills, ledger, chain);
 
-  // The markouts: post-fill drift, small n written as the count, every missing horizon named.
-  // Not adverse selection — the flow is this repository's own, so there is no informed taker to
-  // be selected against. They are here because each one exercises the keeper loop end to end.
+  // The markouts: the join's output, compressed to the three numbers that carry it — the median
+  // of the drift, its range, and the count with how long the fill set spans. The flow is this
+  // repository's own, so this is drift, not adverse selection; the boxes are here because they
+  // are what the archive of the book exists to make possible, and three numbers say it.
   const horizons = doc.horizonsMinutes ?? Object.keys(sum.byHorizon ?? {}).map(Number);
+  const days = Number.isFinite(sum.spanDays)
+    ? sum.spanDays < 1
+      ? `${Math.max(1, Math.round(sum.spanDays * 24))} h`
+      : sum.spanDays < 10
+        ? `${sum.spanDays.toFixed(1)} d`
+        : `${Math.round(sum.spanDays)} d`
+    : "—";
   const cells = horizons.map((h) => {
     const st = sum.byHorizon?.[h];
     const n = st?.n ?? 0;
-    let value = "—";
-    if (n === 1) value = fmtBps(st.medianBps ?? st.meanBps);
-    else if (n === 2) value = `${fmtBps(st.minBps)} · ${fmtBps(st.maxBps)}`;
-    else if (n > 2) value = `${fmtBps(st.medianBps)} med · ${fmtBps(st.minBps)}…${fmtBps(st.maxBps)}`;
-    const missing = ["beforeSeries", "pending", "gap", "noBook"]
-      .filter((k) => (st?.[k] ?? 0) > 0)
-      .map((k) => `${st[k]} ${MISSING[k]}`)
-      .join(" · ");
+    const value = n === 0 ? "—" : fmtBps(st.medianBps ?? st.meanBps);
+    const range = n > 1 ? `${fmtBps(st.minBps)}…${fmtBps(st.maxBps)}` : "—";
     return (
       `<div class="record-mk">` +
       `<div class="record-mk-h">${h} min</div>` +
-      `<div class="record-mk-v">${n ? `${value} bps · n=${n}` : `— · n=0`}</div>` +
-      `<div class="record-mk-m">${missing || "all accounted for"}</div>` +
+      `<div class="record-mk-v">${value}<span class="record-mk-u"> bps</span></div>` +
+      `<div class="record-mk-r">range ${range}</div>` +
+      `<div class="record-mk-n">n=${n} · span ${days}</div>` +
       `</div>`
     );
   });
-  ui.markouts.innerHTML =
-    `<p class="record-mk-sub">where the book went after each fill, signed from the desk's side, ` +
-    `over ${sum.spanDays ?? "—"} days. This flow is sent by a schedule in this repository, so it ` +
-    `carries no information and this is drift, not adverse selection and not an edge claim.</p>` +
-    `<div class="record-mk-grid">${cells.join("")}</div>`;
+  ui.markouts.innerHTML = `<div class="record-mk-grid">${cells.join("")}</div>`;
 
   // The file's own freshness and provenance — saying what the artifact is costs zero. The desks
   // are named as they are in the file, all of them, with their counts: naming only the first
@@ -389,10 +358,12 @@ function render(ui, doc, ledger) {
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map(([name, n]) => `<b>${escape(name)}</b> ${n}`)
     .join(" · ");
+  // "last published", not "generated": it is when the publish script ran.
   ui.foot.innerHTML =
-    `generated <b>${ageText(age)}</b> · fills streamed by Substreams on The Graph Market (Pinax) · ` +
-    `module ${escape(doc.source?.module ?? "—")} · blocks ${num(doc.source?.startBlock)}–${num(doc.source?.stopBlock)} · ` +
-    `desks ${desksLine || "—"} · a mock pair · chain ${doc.chainId ?? "—"}`;
+    `last published <b>${ageText(age)}</b> · fills streamed by Substreams on The Graph Market ` +
+    `(Pinax) · module ${escape(doc.source?.module ?? "—")}<br>` +
+    `blocks ${num(doc.source?.startBlock)}–${num(doc.source?.stopBlock)} · desks ` +
+    `${desksLine || "—"} · a mock pair · chain ${doc.chainId ?? "—"}`;
 }
 
 // The keeper's decision, made visible. The scatter is the price claim; this panel is the loop the
@@ -454,16 +425,18 @@ function renderDecision(ui, doc, fills, ledger, chain) {
 
   ui.currentHorizons = horizons;
 
-  // The rows are one per fill, and the fill count grows every day the desks run, so the table
-  // shows its most useful rows and folds the rest: the latest eight, the most recent fill with
-  // every horizon resolved — the table's one worked example — and one from before the series, so
-  // the absence the legend names is a row on the screen rather than only a description.
-  const complete = (f) => horizons.every((h) => f.markouts?.[String(h)]?.status === "ok");
-  const visible = new Set(fills.slice(-8).map((f) => f.fillId));
-  const lastComplete = [...fills].reverse().find((f) => complete(f));
-  if (lastComplete) visible.add(lastComplete.fillId);
-  const preSeries = [...fills].reverse().find((f) => Number.isFinite(books.firstAt) && f.at < books.firstAt);
-  if (preSeries) visible.add(preSeries.fillId);
+  // Ten rows per page, and page one is the newest — not the list's tail page. Fills arrive
+  // oldest-first, so the pages are counted off the reversed list: page zero is its head, the
+  // ten most recent fills, and "older" walks back from there. The last page carries the few
+  // surviving rows, never a half-page under the newest. The click handler is on the pager, set
+  // once at mount; ui.page persists across the one-minute re-render so the table does not yank
+  // the reader back on every poll.
+  const PAGE = 10;
+  const newestFirst = [...fills].reverse();
+  const pages = Math.max(1, Math.ceil(newestFirst.length / PAGE));
+  const cur = Math.max(0, Math.min(ui.page ?? 0, pages - 1));
+  ui.page = cur;
+  const slice = newestFirst.slice(cur * PAGE, cur * PAGE + PAGE);
 
   const rowFor = (f) => {
     const cells = horizons.map((h) => {
@@ -494,28 +467,30 @@ function renderDecision(ui, doc, fills, ledger, chain) {
     );
   };
 
+  // The panel's two sentences, boxed together: what the keeper is and what this pass wrote, with
+  // the ledger's address pushed onto the run line so neither sentence wraps mid-name. The legend
+  // sits on its own below — muted, smaller, bordered off like the Q&A folds, so the table stays
+  // the loudest thing on the panel.
   node.innerHTML =
-    `<div class="record-mk-head">the keeper's decision</div>` +
+    `<div class="rd-note">` +
     `<p class="record-mk-sub">Every twenty minutes a keeper in this repository decides, per fill ` +
-    `and per horizon, whether the markout exists — and writes the ones that do to ${ledgerLink}.</p>` +
-    `<p class="rd-run">this run, <b>${ageText(age)}</b> — ${runLine}${failedLine}</p>` +
-    `<p class="rd-legend"><b>pending</b> — the series has not reached the horizon yet; it resolves ` +
-    `itself · <b>gap</b> — the book arrived past the tolerance; a hole, it never resolves · ` +
-    `<b>before the series</b> — the fill predates the first poke · <b>no book</b> — the fill's own ` +
-    `read failed</p>`;
+    `and per horizon, whether the markout exists — and writes the ones that do.</p>` +
+    `<p class="rd-run">this run, <b>${ageText(age)}</b> — ${runLine} · to ${ledgerLink}` +
+    `${failedLine}</p>` +
+    `</div>`;
 
   const head = `<div class="rd-head"><div>fill · bps vs the touch</div>${horizons.map((h) => `<div>${h} min</div>`).join("")}</div>`;
-  const shown = fills.filter((f) => visible.has(f.fillId));
-  const rest = fills.filter((f) => !visible.has(f.fillId));
-  if (ui.decisionRows) ui.decisionRows.innerHTML = head + shown.map(rowFor).join("");
-  if (ui.decisionTail) {
-    ui.decisionTail.innerHTML = rest.map(rowFor).join("");
-    const fold = ui.decisionTail.closest("details");
-    if (fold) {
-      fold.hidden = rest.length === 0;
-      const summary = fold.querySelector("summary");
-      if (summary) summary.textContent = `the other ${rest.length} fills, row by row`;
-    }
+  if (ui.decisionRows) ui.decisionRows.innerHTML = head + slice.map(rowFor).join("");
+  if (ui.pager) {
+    ui.pager.innerHTML =
+      `<button class="go ghost" data-page="${cur - 1}" ${cur === 0 ? "disabled" : ""}>← older</button>` +
+      `<span class="rd-pager-n">${cur + 1} / ${pages}</span>` +
+      `<button class="go ghost" data-page="${cur + 1}" ${cur >= pages - 1 ? "disabled" : ""}>newer →</button>`
+      +
+      `<p class="rd-legend"><b>pending</b> — not reached yet, resolves itself · ` +
+      `<b>gap</b> — a hole, never resolves · <b>before the series</b> — predates the first poke · ` +
+      `<b>no book</b> — the fill's own read failed</p>`;
+    ui.pager.hidden = pages <= 1;
   }
 }
 
@@ -528,8 +503,8 @@ const MISSING = {
 
 // Hover on a dot: the fill's row, one line under the chart, without leaving the page — when it
 // happened, which desk and side, where it printed against the touch, and where the book went
-// after. The matching table row lights up if it is one of the visible ones, and "the book it
-// read" asks the archive this fill's own instant.
+// after. The line holds no link: a link inside a hover is gone the moment the hover is, and the
+// dot itself already is the link — a click on it opens the transaction on the explorer.
 function showHover(ui, f) {
   if (!ui.hover) return;
   const hs = ui.currentHorizons ?? [5, 15, 60];
@@ -542,18 +517,15 @@ function showHover(ui, f) {
   ui.hover.innerHTML =
     `<b>${when(f.at)}</b> · <b>${escape(f.deskName)}</b> ${f.makerBuysBase ? "bought" : "sold"} ` +
     `${amt} base · printed <b>${fmtVs(f.vsTouchBps)} bps</b> vs the touch` +
-    `${f.bookOk === false ? " (its book read failed)" : ""} · ${marks} · ` +
-    `<button class="linky" data-archive-at="${f.at}">the book it read ▸</button>`;
+    `${f.bookOk === false ? " (its book read failed)" : ""} · ${marks}`;
   ui.hover.hidden = false;
   ui.decisionRows?.querySelector(`[data-fill="${f.txHash}"]`)?.classList.add("rd-hl");
-  ui.decisionTail?.querySelector(`[data-fill="${f.txHash}"]`)?.classList.add("rd-hl");
 }
 
 function hideHover(ui) {
   if (!ui.hover) return;
   ui.hover.hidden = true;
   ui.decisionRows?.querySelectorAll(".rd-hl").forEach((el) => el.classList.remove("rd-hl"));
-  ui.decisionTail?.querySelectorAll(".rd-hl").forEach((el) => el.classList.remove("rd-hl"));
 }
 
 /** A signed bps figure, adverse in red, favorable in ink — a cost is coloured, a gain is not. */

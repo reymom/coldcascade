@@ -296,9 +296,10 @@ function endLabel(node, py, text, cls) {
 // ---- the readout ----
 
 function wireCrosshair(rows, x) {
-  const surface = document.getElementById("panels");
+  const surface = document.getElementById("charts");
   const readout = document.getElementById("readout");
-  // Only the carousel's own slides track — the day fold below keeps its two charts still.
+  // Every figure on the page tracks together — the four stand visible at once, so a hover on one
+  // lands the same minute on all.
   const rules = [...surface.querySelectorAll(".chart svg")].map((node) => {
     const rule = el("line", { class: "crosshair", y1: 0, y2: node.viewBox.baseVal.height }, node);
     return rule;

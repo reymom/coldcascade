@@ -149,10 +149,12 @@ function provenance(doc, blk) {
     topic0: TOPIC_BOOKED,
   };
   if (blk) {
-    p.reproduce = `substreams run -e ${endpoint} ${pkg} ${mod} -s ${blk} -t +1 -o json`;
+    // Continuation backslashes, like The Keys' "check it yourself": the command wraps where a
+    // shell would, not mid-token where the column ends.
+    p.reproduce =
+      `substreams run -e ${endpoint} \\\n  ${pkg} ${mod} -s ${blk} -t +1 -o json`;
     p.verifyAgainstTheChain =
-      `cast logs --from-block ${blk} --to-block ${blk} --address ${doc.contract} ` +
-      `${TOPIC_BOOKED} --rpc-url $HYPEREVM_RPC_URL`;
+      `cast logs --from-block ${blk} --to-block ${blk} \\\n  --address ${doc.contract} \\\n  ${TOPIC_BOOKED} \\\n  --rpc-url $HYPEREVM_RPC_URL`;
   }
   // The server's constant points at markouts.json; the artifact this panel serves is this one.
   p.artifact = "https://coldcascade.vercel.app/results/book-archive.json";
@@ -178,7 +180,7 @@ export async function mountArchive(root) {
     reproduce: root.querySelector("#archive-reproduce"),
     verify: root.querySelector("#archive-verify"),
     json: root.querySelector("#archive-json"),
-    foot: root.querySelector("#archive-foot"),
+    meta: root.querySelector("#archive-meta"),
     start: root.querySelector("#archive-start"),
   };
   if (!ui.input) return;
@@ -275,18 +277,19 @@ function render(ui, doc, body) {
 
   if (beforeSeries) {
     // The refusal is the exhibit. No book is returned for the asked instant, and the reason an
-    // RPC cannot bail the question out is stated in full, because that is the claim.
+    // RPC cannot bail the question out is stated in full, because that is the claim. The bracket
+    // cards are cleared, not just hidden — a grid rule can override [hidden] and leave a stale
+    // card visible next to the refusal.
+    ui.bracket.innerHTML = "";
     ui.refusal.innerHTML =
       `<h3>never observed — and unrecoverable from anywhere</h3>` +
-      `<p>Ask the chain for this instant and it answers anyway, with the present: the HyperCore ` +
-      `precompiles ignore the block tag and the official RPC serves the latest block only, so a ` +
-      `request for the past returns the current book <b>without an error</b>. No archive node ` +
-      `does better — the book was node state, never chain state. Nobody wrote this moment down ` +
-      `while it was true, so for every endpoint that exists, it does not.</p>` +
+      `<p>The chain answers this anyway, with the present: the precompiles ignore the block tag, ` +
+      `so asking for the past returns the current book without an error. No archive node does ` +
+      `better — the book was node state, never chain state. Nobody wrote this moment down while ` +
+      `it was true.</p>` +
       `<p>The series starts <b>${body.seriesStart.atTime}</b>, block ` +
-      `<b>${num(body.seriesStart.atBlock)}</b>. The call below regenerates that first poke from ` +
-      `the stream; run the same <code>cast logs</code> over any earlier range and it comes back ` +
-      `empty.</p>`;
+      `<b>${num(body.seriesStart.atBlock)}</b>. Run the call below over any earlier range and it ` +
+      `comes back empty.</p>`;
     ui.gapline.textContent = "";
     ui.nointerp.textContent = "";
     ui.warn.hidden = true;
@@ -305,13 +308,13 @@ function render(ui, doc, body) {
       }
     }
     ui.bracket.innerHTML = cards.join("");
+    ui.refusal.innerHTML = "";
     ui.gapline.textContent = body.observationGapSeconds
       ? `the two observations are ${num(body.observationGapSeconds)} s apart — ` +
         (body.observationGapSeconds > 60 ? "over" : "inside") + " the 60 s cadence"
       : "";
     ui.nointerp.innerHTML = body.status === "bracketed"
-      ? `<code>interpolated: false</code> — nothing between the two observations was observed. ` +
-        `The truth is inside the bracket; this page does not guess where.`
+      ? `<code>interpolated: false</code> — nothing between the two observations was observed.`
       : body.status === "stale"
         ? `<code>interpolated: false</code> — the series in this file has not reached that ` +
           `moment yet; what you see is its newest observation, not a guess at the present.`
@@ -357,15 +360,16 @@ function renderFoot(ui, doc) {
       ` The series starts ${iso(first.t)}, block ${num(first.block)}; before it there is ` +
       `nothing, and the panel says so.`;
   }
-  ui.foot.innerHTML =
-    `<b>${num(obs.length)} observations</b>, ${iso(first.t)} → ${iso(last.t)} · blocks ` +
-    `${num(first.block)}–${num(last.block)} · target cadence 60 s · <b>${holes}</b> ` +
-    `hole${holes === 1 ? "" : "s"} over 180 s · streamed by Substreams on ` +
-    `${escapeHtml(src.provider ?? "The Graph Market for Substreams")} · module ` +
-    `${escapeHtml(src.module ?? MODULE)} · blocks ${num(src.startBlock)}–${num(src.stopBlock)} · ` +
-    `generated <b>${ageText(age)}</b><br>` +
-    `it cannot answer: the book before the first poke, anything between two observations, depth ` +
-    `beyond the touch — four uint64 are a touch, not a book.`;
+  // What the old foot carried, rebuilt as short lines under the answer — not a duplication of the
+  // cards above: the corpus' own size, its holes, and what the file cannot answer for a moment.
+  ui.meta.innerHTML =
+    `<div><b>${num(obs.length)} observations</b> · ${iso(first.t)} → ${iso(last.t)} · ` +
+    `blocks ${num(first.block)}–${num(last.block)}</div>` +
+    `<div>60 s cadence · <b>${holes}</b> hole${holes === 1 ? "" : "s"} over 180 s · streamed by ` +
+    `Substreams on ${escapeHtml(src.provider ?? "The Graph Market for Substreams")} · module ` +
+    `${escapeHtml(src.module ?? MODULE)}</div>` +
+    `<div>last published <b>${ageText(age)}</b> · the file cannot answer before the first poke, ` +
+    `between two observations, or depth beyond the touch — four uint64 are a touch, not a book.</div>`;
 }
 
 async function copyCommand(btn, root) {

@@ -4,8 +4,7 @@
 // the take; the Record is every fill against the band and the archive that answers for any
 // instant; the Cascade is the same zero over 123 minutes of 10 Oct 2025; the Keys is who is
 // trusted with what. The Cascade's replay is imported only when it is first opened — it fetches
-// a 200-row CSV and the other three should not wait for it. The Cascade's carousel wires itself
-// with the shell: the slides are markup, the chart joins them when the tab first opens.
+// a 200-row CSV and the other three should not wait for it.
 
 import { mountFloor } from "./floor.js";
 import { mountRecord } from "./record.js";
@@ -62,7 +61,8 @@ mountRecord(document);
 // The archive is the record's other half: the record shows the fills, the archive answers for any
 // instant. Same keeper pass, same cadence, and no chain needed — the file alone carries it.
 mountArchive(document);
-// The carousel hides before there are charts and shows with them — the slides are six sections
-// (the film's three stills, then the three at-la charts) and the counter says so the moment
-// there is something to count. The day itself and the lean live in the fold below it.
-mountCarousel(document, "carousel");
+// The Cascade runs two galleries: the film's stills with their YouTube thumb above, and the
+// four figures below — the three argument charts plus the day that grounds them. Same pattern,
+// one instance each.
+mountCarousel(document, "mech-carousel");
+mountCarousel(document, "charts");
