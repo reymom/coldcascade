@@ -39,15 +39,18 @@ body {
 main { max-width: 1080px; margin: 0 auto; padding: 32px 28px 96px; }
 
 /* ---- the shell ---- */
-.topbar { display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; margin-bottom: 8px; }
+/* One row, always: the identity row (wordmark, mode, block, wallet) on the left, the tabs pushed
+   right. The meta gives ground first — it shrinks with an ellipsis before the tab row ever wraps. */
+.topbar { display: flex; align-items: center; gap: 16px; flex-wrap: nowrap; margin-bottom: 8px; }
 .wordmark { font: 500 18px var(--mono); letter-spacing: -0.02em; margin: 0;
   display: flex; align-items: center; gap: 8px; }
 .wordmark svg { display: block; }
-.tabs { display: flex; gap: 2px; margin-left: auto; }
+.tabs { display: flex; gap: 2px; margin-left: auto; flex-shrink: 0; }
 .tab { background: none; border: none; color: var(--muted); font: 12px var(--mono);
   padding: 6px 10px; cursor: pointer; border-bottom: 1px solid var(--line); }
 .tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--desk); }
-#floor-meta { color: var(--muted); font-size: 11px; margin: 0; font-variant-numeric: tabular-nums; }
+#floor-meta { color: var(--muted); font-size: 11px; margin: 0; font-variant-numeric: tabular-nums;
+  min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; flex-shrink: 1; }
 #floor-meta .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%;
   background: var(--ask); margin-right: 7px; animation: blink 2s ease-in-out infinite; }
 @keyframes blink { 50% { opacity: 0.25; } }
@@ -64,6 +67,13 @@ main { max-width: 1080px; margin: 0 auto; padding: 32px 28px 96px; }
 .wallet-chip:hover { border-color: var(--l1-edge); color: var(--ink); }
 .wallet-chip.is-signed { color: var(--desk); border-color: rgba(95,178,255,0.35); }
 .wallet-chip .via { color: var(--muted); }
+/* A signed chip is a toggle; the chevron says it flips the profile, and the expanded state —
+   chevron up, filled — says the second click closes what the first opened. */
+.wallet-chip.is-signed::after { content: "▾"; display: inline-block; margin-left: 7px;
+  font-size: 9px; opacity: 0.55; transition: transform 0.15s ease; }
+.wallet-chip[aria-expanded="true"] { background: rgba(95,178,255,0.09);
+  border-color: rgba(95,178,255,0.55); }
+.wallet-chip[aria-expanded="true"]::after { transform: rotate(180deg); opacity: 0.9; }
 
 /* The profile the chip opens: above the tabs' panels because it belongs to no tab. */
 #profile { border: 1px solid var(--line); border-radius: 3px; background: #0b0f16;
@@ -641,7 +651,13 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
 .foot a { color: var(--desk); text-decoration: none;
   border-bottom: 1px solid rgba(95,178,255,0.4); }
 .foot-k { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; margin-right: 12px; }
-.foot-docs a { margin-right: 14px; white-space: nowrap; }
+/* One row: the docs on the left, the repo and the licence pushed to the right. */
+.foot-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 0; }
+.foot-row a { margin-right: 14px; white-space: nowrap; }
+.foot-links { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+.foot-gh { border-bottom: none; margin: 0; display: inline-flex; }
+.foot-gh svg { display: block; fill: var(--muted); }
+.foot-gh:hover svg { fill: var(--ink); }
 .foot-note { margin-top: 10px; }
 </style>
 </head>
@@ -1309,7 +1325,7 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
   </section>
 
   <footer class="foot">
-    <p class="foot-docs">
+    <p class="foot-row">
       <span class="foot-k">docs</span>
       <a href="../docs/mechanism.md">mechanism</a>
       <a href="../docs/desk-account.md">desk account</a>
@@ -1318,10 +1334,10 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
       <a href="../docs/evidence.md">evidence</a>
       <a href="../docs/mainnet.md">mainnet</a>
       <a href="../docs/hyperevm-notes.md">hyperevm notes</a>
-    </p>
-    <p class="foot-line">
-      <a href="https://github.com/reymom/coldcascade">the repo</a> ·
-      <a href="../LICENSE">MIT licence</a>
+      <span class="foot-links">
+        <a class="foot-gh" href="https://github.com/reymom/coldcascade" aria-label="the repo on GitHub"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19.01-.82.01-2-2.01.37-2.53-.49-2.69-.49-.58-.75-1.45-1.41-1.45-1.41-.93-.64.07-.63.07-.63.99.07 1.53 1.03 1.53 1.03.89 1.52 2.34 1.08 2.75.83.08-.65.35-1.09.6-1.34-1.78-.2-3.65-.89-3.65-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.22 2.2.9.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.12 2.2-.9 2.2-.9.44 1.11.16 1.93.08 2.13.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.41.37.76 1.03.76 1.98 0 1.43-.01 2.76-.01 3.14 0 .21.15.46.55.38C13.71 14.53 16 11.54 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
+        <a href="../LICENSE">MIT licence</a>
+      </span>
     </p>
     <p class="foot-note">Every number on this page reproduces with the command written next to
       it.</p>

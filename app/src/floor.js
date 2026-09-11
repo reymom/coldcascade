@@ -237,8 +237,7 @@ function render(view) {
   ui.mode.textContent = state.mode === "deployed" ? "live" : "simulated";
   ui.mode.className = `chip chip-${state.mode}`;
   ui.meta.innerHTML =
-    `<span class="dot"></span>block ${floor.blockNumber.toLocaleString("en-US")}` +
-    ` · ${state.chain.name} · ${new Date().toLocaleTimeString("en-US", { hour12: false })}`;
+    `<span class="dot"></span>block ${floor.blockNumber.toLocaleString("en-US")} · ${state.chain.name}`;
 
   if (!bookOk) {
     ui.live.textContent =
@@ -363,10 +362,10 @@ function renderRegime(view, desks) {
   const html =
     `<span class="tag${on ? "" : " tag-on"}" data-tip="The desk quotes outside the book's touch on ` +
     `both sides, so a round trip through it and back to Hyperliquid always loses. The everyday ` +
-    `state.">quiet</span>` +
+    `state.">quiet</span> ` +
     `<span class="tag${on ? " tag-on tag-step" : ""}" data-tip="Forced sellers are eating the bid, or ` +
     `a liquidation map says they are about to. One condition flips: the desk quotes inside the gap ` +
-    `they opened and becomes the best bid in the market.">cascade</span>` +
+    `they opened and becomes the best bid in the market.">cascade</span> ` +
     (on
       ? `<span class="tag-note">${escape(where)} — capped at the book's own price</span>`
       : `<span class="tag-note">sitting outside the book on both sides</span>`);
@@ -930,10 +929,12 @@ function wireSignInPanel(view, auth) {
       ui.chip.title = view.signer.address;
       ui.chip.classList.add("is-signed");
       if (view.revealProfile) { ui.profile.hidden = false; view.revealProfile = false; }
+      ui.chip.setAttribute("aria-expanded", String(!ui.profile.hidden));
     } else {
       ui.chip.textContent = "sign in";
       ui.chip.title = "";
       ui.chip.classList.remove("is-signed");
+      ui.chip.setAttribute("aria-expanded", "false");
       ui.profile.hidden = true;
     }
     ui.signInGo.textContent = mailed ? "sign in" : "email me a code";
@@ -942,6 +943,7 @@ function wireSignInPanel(view, auth) {
   ui.chip.addEventListener("click", () => {
     if (view.signer) {
       ui.profile.hidden = !ui.profile.hidden;
+      ui.chip.setAttribute("aria-expanded", String(!ui.profile.hidden));
       return;
     }
     // No session: the chip is the door to the invite — the Desk tab first, then the email field.
@@ -1150,38 +1152,32 @@ function ageCell(view, who) {
   return node;
 }
 
+/** The faucet's name-link, built once per render — the policy paragraph lives under BALANCE. */
+function faucetLink() {
+  const b = document.createElement("button");
+  b.className = "linky";
+  b.dataset.showTab = "tab-keys";
+  b.textContent = FAUCET_POLICY.name;
+  return b;
+}
+
 /**
- * The drip, and the rule it was allowed under — which is the whole Privy argument in one cell.
- *
- * The amount is the faucet's own answer where there is one. A visitor who was funded on another
- * day arrives carrying only the mark Privy wrote into their metadata, so the cell says what is
- * true of every drip — one per account — instead of inventing the wei it cannot see.
+ * The drip, and no more. What it was allowed under — the whole Privy argument — moves to the
+ * balance cell below, where what the wallet holds is printed; this one keeps only who sends it.
  */
 function gasCell(view, who) {
-  const policy = () => {
-    const b = document.createElement("button");
-    b.className = "linky";
-    b.dataset.showTab = "tab-keys";
-    b.textContent = FAUCET_POLICY.name;
-    return b;
-  };
-  const rule = ` — its one rule: “${FAUCET_POLICY.rule}”`;
-
   if (who.via === "browser wallet") {
     return youCell("gas", "your own", "nothing was dripped here — a wallet you brought pays for itself");
   }
   const funded = who.funding;
   if (!funded) {
-    return youCell("gas, given under a rule", "on your first trade",
-      [txt("a Privy server wallet sends it, held under the policy "), policy(), txt(rule)]);
+    return youCell("gas, given on a rule", "on your first trade",
+      "a Privy server wallet sends it, held under the policy");
   }
-  const sub = [
-    txt(funded.at ? `${agoText(nowSeconds() - funded.at)} · under the policy ` : "under the policy "),
-    policy(), txt(rule),
-  ];
+  const sub = [txt(funded.at ? `${agoText(nowSeconds() - funded.at)} under the policy` : "under the policy")];
   if (funded.hash) {
-    sub.push(txt(" · "));
     const link = explorerTx(view.state.chain, funded.hash);
+    sub.push(txt(" · "));
     if (link) {
       const a = document.createElement("a");
       a.href = link; a.target = "_blank"; a.rel = "noreferrer";
@@ -1191,9 +1187,14 @@ function gasCell(view, who) {
       sub.push(txt(short(funded.hash)));
     }
   }
-  return youCell("gas, given under a rule", funded.wei ? hype(BigInt(funded.wei)) : "once per account", sub);
+  return youCell("gas, given on a rule", funded.wei ? hype(BigInt(funded.wei)) : "once per account", sub);
 }
 
+/**
+ * What the wallet holds — and, for a privy wallet, the rule its gas arrived under, the faucet's
+ * name linking to the Keys tab where the policy itself is printed and checkable. Gas got the
+ * sender; balance gets the rule.
+ */
 function balanceCell(view, who) {
   const b = view.you.balances;
   if (!b || b.address !== who.address) return youCell("balance", "reading…", "");
@@ -1203,7 +1204,15 @@ function balanceCell(view, who) {
       return meta ? `${amount(raw, meta.decimals)} ${meta.symbol}` : null;
     })
     .filter(Boolean);
-  return youCell("balance", hype(b.gas), held.length ? held.join(" · ") : "gas is all this wallet needs here");
+  const cell = youCell("balance", hype(b.gas),
+    held.length ? held.join(" · ") : "gas is all this wallet needs here");
+  if (who.via !== "browser wallet") {
+    const faucet = document.createElement("div");
+    faucet.className = "cell-s";
+    faucet.append(faucetLink(), txt(` — with one Privy rule: “${FAUCET_POLICY.rule}”`));
+    cell.append(faucet);
+  }
+  return cell;
 }
 
 // ---- the fills that are yours ----
