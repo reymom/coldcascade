@@ -12,7 +12,7 @@ through the official router. **The Record** is every fill against the band, the 
 and the book archive. **The Cascade** is the film and the replay of 10 October 2025. **The Keys**
 is the two live shorts and what the operator's wallet refuses.
 
-**Taking a desk needs an email address and nothing else.** Type one, receive a six-digit code, and a
+**Taking a desk needs an email address, or a Discord account, and nothing else.** Type one, receive a six-digit code, and a
 Privy embedded wallet appears on the chain the page is reading — then mint the demo token, approve
 the router, swap. Three transactions, no extension, no seed phrase, no funding step. A wallet minted
 this way holds no HYPE and Privy's gas sponsorship does not cover chain 999, so `api/faucet.mjs`

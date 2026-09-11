@@ -23,7 +23,7 @@ keeper turn it into a record nobody else on this chain can query.
 | if you are here for | start with | on the site |
 |---|---|---|
 | **1inch** — an Aqua app with a SwapVM instruction that reads an order book | [`src/CoreQuote.sol`](src/CoreQuote.sol) · [`src/libs/DeskPrograms.sol`](src/libs/DeskPrograms.sol) · the clamp on mainnet, [`0xfaf1b6c6…dab20`](https://hyperevmscan.io/tx/0xfaf1b6c68aeae9eaed9ff49acc54d0ac7081f1537b602f5609679238c22dab20) · [`test/Inarbitrable.t.sol`](test/Inarbitrable.t.sol) · [`test/fork/OfficialRouter.fork.t.sol`](test/fork/OfficialRouter.fork.t.sol) | **The Desk** |
-| **Privy** — a taker from an email address, and a server wallet that can hedge and nothing else | [`api/faucet.mjs`](api/faucet.mjs) · [`keeper/policy.json`](keeper/policy.json) · [`keeper/hedge-policy.json`](keeper/hedge-policy.json) · [`script/hedge-check.mjs`](script/hedge-check.mjs) · the unattended cover, [`0x932aeaa5…e6b7`](https://hyperevmscan.io/tx/0x932aeaa549b09de47a819287f6cbf77a327046164a38cbee5c228ed26207e6b7) · [`FEEDBACK-PRIVY.md`](FEEDBACK-PRIVY.md) | **The Keys** |
+| **Privy** — a taker from an email address or a Discord account, and a server wallet that can hedge and nothing else | [`api/faucet.mjs`](api/faucet.mjs) · [`keeper/policy.json`](keeper/policy.json) · [`keeper/hedge-policy.json`](keeper/hedge-policy.json) · [`script/hedge-check.mjs`](script/hedge-check.mjs) · the unattended cover, [`0x932aeaa5…e6b7`](https://hyperevmscan.io/tx/0x932aeaa549b09de47a819287f6cbf77a327046164a38cbee5c228ed26207e6b7) · [`FEEDBACK-PRIVY.md`](FEEDBACK-PRIVY.md) | **The Keys** |
 | **The Graph** — Substreams on The Graph Market, a keeper that writes back to the chain, an MCP server | [`substreams/`](substreams/) · [`keeper/coldcascade/markouts.py`](keeper/coldcascade/markouts.py) · [`mcp/`](mcp/) and its [`SKILL.md`](mcp/SKILL.md) · [`results/markouts.json`](results/markouts.json) | **The Record** |
 | the mechanism in 54 seconds, on the real 10 October 2025 tape | [`film/`](film/) | **The Cascade** |
 | the measurements | [`results/`](results/) and [`docs/evidence.md`](docs/evidence.md) | — |
@@ -150,8 +150,8 @@ contract maker costs 98 962 gas and against an EOA 98 989. Aqua custodies nothin
 keeps its own inventory. Where 1inch's own words apply: a maker whose automation can act but cannot
 move funds is the opposite of a rug-pull shape.
 
-**Privy.** Two flows, two server wallets, two policies. A visitor types an email address, receives
-a code, and has an embedded wallet on chain 999; `api/faucet.mjs` drips 0.002 HYPE once per Privy
+**Privy.** Two flows, two server wallets, two policies. A visitor signs in with an email address or a
+Discord account, and has an embedded wallet on chain 999; `api/faucet.mjs` drips 0.002 HYPE once per Privy
 user from a server wallet whose policy allows that and nothing else, and the visitor takes a desk
 through the official router in three transactions. The second wallet is `hedgeOperator` on the
 operator desk: its policy allows `eth_sendTransaction` only where the chain is 999, the recipient is
