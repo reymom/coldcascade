@@ -231,7 +231,14 @@ function render(view) {
   // not claimed. The comparison is on the raw bigint, so formatting never masks a move.
   const prevBook = view.bookPrev;
   view.bookPrev = { bid: book.bid, ask: book.ask, mark: book.mark, oracle: book.oracle };
-  const moved = (v, k) => prevBook != null && String(prevBook[k]) !== String(v);
+  // Which way it went, not just that it went: a trading screen tells you the direction in the
+  // colour, and a flash that says only "something changed" makes the reader look for what.
+  const moved = (v, k) => {
+    if (prevBook == null) return null;
+    const was = BigInt(prevBook[k]);
+    const now = BigInt(v);
+    return now > was ? "up" : now < was ? "down" : null;
+  };
   ui.book.replaceChildren(
     cell("the book's bid", px2(book.bid), undefined, moved(book.bid, "bid")),
     cell("ask", px2(book.ask), undefined, moved(book.ask, "ask")),
@@ -947,14 +954,16 @@ const walletError = (err) => {
   return err?.message ?? String(err);
 };
 
-function cell(label, value, sub, tick = false) {
+function cell(label, value, sub, moved = null) {
   const node = document.createElement("div");
   node.className = "cell";
   const k = document.createElement("div");
   k.className = "cell-k";
   k.textContent = label;
   const v = document.createElement("div");
-  v.className = tick ? "cell-v tick" : "cell-v";
+  // Not ".tick": that class already belongs to the SVG axis marks, and inheriting their
+  // 10px font is what made the number appear to shrink while it flashed.
+  v.className = moved ? `cell-v flash-${moved}` : "cell-v";
   v.textContent = value;
   node.append(k, v);
   if (sub) {

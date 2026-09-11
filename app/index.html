@@ -99,8 +99,12 @@ details.legs[open] > summary::before { content: "\2212\00a0"; }
 /* A value that changed lights up once, color-only: the desk's blue, gone in a second and a
    half. No filter, no will-change, no GPU layer — the glyph's metric stays identical, so
    nothing shrinks or deforms. The flash fires only when the raw value moved. */
-@keyframes cellFlash { from { color: var(--desk); } to { color: var(--ink); } }
-.cell-v.tick { animation: cellFlash 1.4s ease-out; }
+/* Direction in the colour, the way a trading screen does it. Colour only — the glyph's
+   metric never changes, so nothing shrinks or reflows while it fades back. */
+@keyframes flashUp   { from { color: var(--ask);  } to { color: var(--ink); } }
+@keyframes flashDown { from { color: var(--loss); } to { color: var(--ink); } }
+.cell-v.flash-up   { animation: flashUp   1.1s ease-out; }
+.cell-v.flash-down { animation: flashDown 1.1s ease-out; }
 
 .regime { margin: 18px 0 10px; font-size: 12.5px; color: var(--muted); }
 .regime.step { color: var(--bid); }
