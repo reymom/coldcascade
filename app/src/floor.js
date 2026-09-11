@@ -608,15 +608,17 @@ function wireTake(view) {
   ui.takeGo.addEventListener("click", async () => {
     const desk = view.floor.desks.find((d) => d.account === ui.takeDesk.value);
     if (!desk) return;
+    const log = stepper(ui.takeOut);
+    log.start();
     const sellBase = ui.takeSide.value === "sell";
     const [tokenIn, tokenOut] = sellBase ? [desk.params.base, desk.params.quote] : [desk.params.quote, desk.params.base];
     const decimalsIn = sellBase ? 8 : 6;
     const amountIn = units(ui.takeAmount.value, decimalsIn);
-    if (amountIn <= 0n) return say(ui.takeOut, "enter an amount", true);
+    if (amountIn <= 0n) return log.step("enter an amount", true);
 
     const { rpc, state } = view;
     const signer = view.signer;
-    if (!signer) return say(ui.takeOut, "sign in first — an email address is enough", true);
+    if (!signer) return log.step("sign in first — an email address is enough", true);
 
     try {
       ui.takeGo.disabled = true;
@@ -630,14 +632,15 @@ function wireTake(view) {
       // Say so *first*. The faucet calls Privy and then waits for the drip's receipt, which is ten
       // seconds of nothing on screen — long enough that the first person to use this reloaded the
       // page in the middle of it. Every step below announces itself before it blocks, not after.
-      say(ui.takeOut, "checking this wallet for gas…");
+      log.step("checking this wallet for gas…");
       const funded = await signer.fund(rpc);
-      say(ui.takeOut, funded
-        ? `funded this wallet with gas — ${short(funded)}. reading the desk's order…`
-        : "reading the desk's order…");
+      log.step(funded
+        ? `funded this wallet with gas — ${short(funded)}`
+        : "this wallet already has gas");
 
+      log.step("reading the desk's order…");
       const order = await readOrder(rpc, state.sel, desk.account);
-      say(ui.takeOut, "pricing it against the live book…");
+      log.step("pricing it against the live book…");
       const traits = takerTraits({ isExactIn: true, minOut: 0n });
       const quoted = await rpc.call({
         from: account,
@@ -651,19 +654,19 @@ function wireTake(view) {
         ? amountIn * BigInt(view.floor.book.bid) * desk.params.pxNum / desk.params.pxDen
         : amountIn * desk.params.pxDen / (BigInt(view.floor.book.ask) * desk.params.pxNum);
       const edge = crossing === 0n ? 0 : Number((amountOut - crossing) * 10_000n / crossing);
-      say(ui.takeOut,
+      log.step(
         `quote: ${amount(amountOut, sellBase ? 6 : 8)} out for ${amount(amountInQ, decimalsIn)} in — ` +
         `${edge >= 0 ? "+" : ""}${edge} bps against crossing the book. three transactions from here; ` +
         `each waits for its receipt, so give it a moment and do not reload.`);
 
-      await ensureAllowance(view, signer, tokenIn, state.addresses.router, amountInQ, ui.takeOut);
-      say(ui.takeOut, "swapping through the official router — 3 of 3");
+      await ensureAllowance(view, signer, tokenIn, state.addresses.router, amountInQ, log);
+      log.step("swapping through the official router — 3 of 3");
       const hash = await signer.send({
         from: account,
         to: state.addresses.router,
         data: swapCall(state.sel, order, tokenIn, tokenOut, amountIn, traits),
       });
-      say(ui.takeOut, `swap sent ${short(hash)} — waiting`);
+      log.step(`swap sent ${short(hash)} — waiting`);
       const receipt = await waitForReceipt(rpc, hash);
       const link = explorerTx(state.chain, hash);
       if (receipt.status === "0x1") {
@@ -682,7 +685,7 @@ function wireTake(view) {
         });
         refreshYou(view).catch(() => {});
       }
-      say(ui.takeOut,
+      log.step(
         receipt.status === "0x1"
           ? `filled. ${amount(amountOut, sellBase ? 6 : 8)} out, ${short(hash)}`
           : `reverted, ${short(hash)}`,
@@ -694,14 +697,15 @@ function wireTake(view) {
       // is skipped once the balance is there, the approve once the allowance is — so the honest
       // message is what is true and what to do about it.
       if (err.pending) {
-        say(ui.takeOut,
+        log.step(
           `${short(err.hash)} was sent and is still pending — this page stopped waiting, it did not `
           + `fail. Check the explorer, then press the button again: whatever landed is skipped.`,
           false, explorerTx(state.chain, err.hash));
       } else {
-        say(ui.takeOut, walletError(err), true);
+        log.step(walletError(err), true);
       }
     } finally {
+      log.done();
       ui.takeGo.disabled = false;
     }
   });
@@ -712,7 +716,7 @@ function wireTake(view) {
  * both are said out loud: three transactions is what taking a desk costs, and a flow that hides two
  * of them behind a spinner is a flow a judge cannot check.
  */
-async function ensureAllowance(view, signer, token, spender, needed, out) {
+async function ensureAllowance(view, signer, token, spender, needed, log) {
   const { rpc, state } = view;
   const account = signer.address;
   // The two reads are independent of each other and of the mint below, so they go as one
@@ -723,12 +727,12 @@ async function ensureAllowance(view, signer, token, spender, needed, out) {
   ]);
   const balance = BigInt(balanceHex);
   if (balance < needed && isDemoToken(state, token)) {
-    say(out, "minting the demo token — 1 of 3");
+    log.step("minting the demo token — 1 of 3");
     const hash = await signer.send({ from: account, to: token, data: erc20.mint(state.sel, account, needed - balance) });
     await waitForReceipt(rpc, hash);
   }
   if (BigInt(allowanceHex) >= needed) return;
-  say(out, "approving the router — 2 of 3");
+  log.step("approving the router — 2 of 3");
   const hash = await signer.send({ from: account, to: token, data: erc20.approve(state.sel, spender, needed) });
   await waitForReceipt(rpc, hash);
 }
@@ -1132,8 +1136,7 @@ function renderYou(view) {
   renderYourFills(view, who);
   ui.youFoot.textContent = who.via === "browser wallet"
     ? "Read from the chain this page is connected to. Nothing here is stored by this page."
-    : "Read from the chain this page is connected to and from your own Privy account. "
-      + "This page keeps no database: the drip is limited once per Privy user, written into that "
+    : "This page keeps no database: the drip is limited once per Privy user, written into that "
       + "account's own metadata.";
 }
 
@@ -1451,6 +1454,57 @@ function leg(label, value, muted = false) {
   return row;
 }
 
+/**
+ * The take's running log.
+ *
+ * Every step of a take used to overwrite the same line, so a run was only legible to somebody
+ * already looking at it: the drip, the mint, the approve and the swap each erased the last. They
+ * stack now. The step in flight is lit, a finished one dims and keeps the seconds it took — which
+ * is the honest answer to "is this hung?", and the reason the ten seconds the faucet spends
+ * waiting for its own receipt reads as work instead of as nothing.
+ */
+function stepper(node) {
+  let running = null;
+  let since = 0;
+  const close = () => {
+    if (!running) return;
+    const seconds = (Date.now() - since) / 1000;
+    if (seconds >= 0.15) {
+      const el = document.createElement("span");
+      el.className = "step-el";
+      el.textContent = `${seconds.toFixed(1)} s`;
+      running.append(el);
+    }
+    running.classList.remove("step-now");
+    running = null;
+  };
+  return {
+    /** A new run wipes the last one: two takes' steps interleaved are worse than none. */
+    start() {
+      close();
+      node.replaceChildren();
+    },
+    step(text, isError = false, link = null) {
+      close();
+      const li = document.createElement("li");
+      li.className = isError ? "step step-now step-error" : "step step-now";
+      li.append(document.createTextNode(text));
+      if (link) {
+        const a = document.createElement("a");
+        a.href = link;
+        a.target = "_blank";
+        a.rel = "noreferrer";
+        a.textContent = "on the explorer";
+        li.append(document.createTextNode(" — "), a);
+      }
+      node.append(li);
+      running = li;
+      since = Date.now();
+    },
+    done: close,
+  };
+}
+
 function say(node, text, isError = false, link = null) {
   node.textContent = text;
   node.className = isError ? "out out-error" : "out";
@@ -1459,8 +1513,8 @@ function say(node, text, isError = false, link = null) {
   a.href = link;
   a.target = "_blank";
   a.rel = "noreferrer";
-  a.textContent = " — on the explorer";
-  node.append(a);
+  a.textContent = "on the explorer";
+  node.append(document.createTextNode(" — "), a);
 }
 
 /** The live slice — the same block-named message either way. */

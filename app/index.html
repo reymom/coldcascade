@@ -189,6 +189,18 @@ button.go.ghost:hover:not(:disabled) { background: rgba(95,178,255,0.08); color:
   word-break: break-word; line-height: 1.6; }
 .out-error { color: var(--loss); }
 .out a { color: var(--desk); text-decoration: none; border-bottom: 1px solid rgba(95,178,255,0.4); }
+/* The take's steps stack instead of overwriting one line: the gas drip is the one moment where a
+   wallet that had nothing acquires it under a policy, and it used to be on screen for as long as
+   it took the next message to replace it. Done steps dim, the running one stays lit, and each
+   closed step carries what it cost. */
+.trail { list-style: none; padding: 0; }
+.step { position: relative; padding-left: 14px; margin: 2px 0; }
+.step::before { content: "\00B7"; position: absolute; left: 3px; color: var(--l1); }
+.step-now { color: var(--ink); }
+.step-now::before { color: var(--desk); }
+.step-error { color: var(--loss); }
+.step-error::before { color: var(--loss); }
+.step-el { margin-left: 8px; color: var(--l1); font-variant-numeric: tabular-nums; }
 
 /* ---- the record ---- */
 .record { margin: 0 0 48px; }
@@ -411,8 +423,7 @@ a .rc-dot { cursor: pointer; }
 .you-fill .h a { color: var(--desk); text-decoration: none;
   border-bottom: 1px solid rgba(95,178,255,0.4); font-variant-numeric: tabular-nums; }
 .you-empty { color: var(--muted); font-size: 12px; padding: 7px 0; margin: 0; }
-.you-foot { color: var(--muted); font-size: 11px; line-height: 1.7; margin: 14px 0 0;
-  max-width: 82ch; }
+.you-foot { color: var(--muted); font-size: 11px; line-height: 1.7; margin: 14px 0 0; }
 /* The second door, marked by its own colour rather than by a logo: the page carries no brand
    marks, and the provider is named in the label anyway. */
 .signin .go.discord { border-color: #2b3157; color: #98a3e6; }
@@ -776,7 +787,7 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
               <input id="take-amount" type="text" inputmode="decimal" value="0.001" aria-label="amount in">
               <button class="go" id="take-go">quote and swap</button>
             </div>
-            <p class="out" id="take-out"></p>
+            <ol class="out trail" id="take-out"></ol>
           </div>
 
           <div class="try">
