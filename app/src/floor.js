@@ -315,17 +315,25 @@ function renderVerdict(view, best) {
   const tollLive = buildLiveSlice(view);
   if (rec) {
     const usd2 = (v) => `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    const coverage = rec.tollFills === rec.fills
+    // The coverage has to belong to the number beside it: ten fills carry no reconstructable
+    // peg — seven predate the first poke and three sit in a hole — and they are excluded,
+    // not estimated, so the count says which ones the sum actually covers.
+    const priced = rec.oraclePegged?.priced ?? rec.tollFills;
+    const coverage = priced === rec.fills
       ? `over ${rec.fills} trades`
-      : `over ${rec.tollFills} of ${rec.fills} trades`;
+      : `over ${priced} of ${rec.fills} trades`;
+    // The foil used to be the flat curve's accumulated toll. That number is this repository's
+    // own pool drifting, which the README says plainly, so leading with it argued against a
+    // straw man. What separates the makers is a broken book, and that lives in the cascade.
     ui.toll.innerHTML =
       `<div class="toll-col">` +
-        `<span>the same search against a plain curve on the same reserves</span>` +
-        `<b>${usd2(rec.flatCurve.tollUsd)}</b>` +
-        `<span class="toll-cov">${coverage} · ` +
+        `<span>the same search against an oracle-pegged maker</span>` +
+        `<b>${usd2(rec.oraclePegged ? rec.oraclePegged.tollUsd : 0)}</b>` +
+        `<span class="toll-cov">${coverage}, refreshed every 60 s · ` +
           `<button class="linky" data-show-tab="tab-record">The Record</button></span>` +
-        `<span class="toll-sentence">An oracle-pegged maker paid nothing as well — the difference ` +
-          `shows up when the book breaks → ` +
+        `<span class="toll-sentence">On ordinary flow it costs the same as this desk: nothing. ` +
+          `It takes a broken book to separate them — through the 10 October cascade the same ` +
+          `maker paid <b>$222</b> and a plain curve <b>$3,558</b> → ` +
           `<button class="linky" data-show-tab="tab-cascade">The Cascade</button></span>` +
         tollLive +
       `</div>`;

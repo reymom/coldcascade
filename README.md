@@ -812,9 +812,11 @@ mainnet fills it pays **nothing**, exactly like the desk: on ordinary flow with 
 is no difference between the two, and the $1.5k the flat curve pays is the drift of this repository's
 own demo pool, not a fact about AMMs. In the cascade the same maker pays **$222** and finishes net
 negative while the desk finishes ahead, and the dial is published: 60 s costs $222, five minutes
-$2,606, fifteen minutes $3,528 — at which point it is indistinguishable from the naive curve. What
-saves an oracle maker in a cascade is the deviation threshold rather than the heartbeat, because a
-cascade trips the threshold by itself. The argument does not turn on which control you pick:
+$2,606, fifteen minutes $3,528 — at which point it is indistinguishable from the naive curve. And
+the 60 s row is already one refresh per tape minute, so there is no staleness left in it to
+remove and the $222 is what remains: the basis. A deviation threshold does not get under it — at
+25 bps the same maker pays $294, because a threshold fires on movement and a cascade is movement
+it was right to follow. The argument does not turn on which control you pick:
 loss-versus-rebalancing is a property of **any** maker whose price is a function of its own reserves
 or of a price it read earlier, concentrated liquidity included — Milionis, Moallemi, Roughgarden and
 Zhang. A desk whose price is read inside the trade is not in that family.
