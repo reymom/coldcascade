@@ -114,11 +114,11 @@ details.legs[open] > summary::before { content: "\2212\00a0"; }
 .cell-v { font-size: 19px; font-weight: 500; margin-top: 5px; font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em; }
 .cell-s { color: var(--muted); font-size: 10.5px; margin-top: 4px; line-height: 1.5; }
-/* A value that changed lights up, trading-terminal style: same size, same weight — a brief
-   brightness sweep, gone in a second and a half. Color-only was reading as the number
-   shrinking; brightness keeps the glyph's metric identical, so nothing deforms. */
-@keyframes cellFlash { from { filter: brightness(1.75); } to { filter: brightness(1); } }
-.cell-v.tick { animation: cellFlash 1.4s ease-out; will-change: filter; }
+/* A value that changed lights up once, color-only: the desk's blue, gone in a second and a
+   half. No filter, no will-change, no GPU layer — the glyph's metric stays identical, so
+   nothing shrinks or deforms. The flash fires only when the raw value moved. */
+@keyframes cellFlash { from { color: var(--desk); } to { color: var(--ink); } }
+.cell-v.tick { animation: cellFlash 1.4s ease-out; }
 
 .regime { margin: 18px 0 10px; font-size: 12.5px; color: var(--muted); }
 .regime.step { color: var(--bid); }
@@ -428,7 +428,7 @@ table.desks td.rt-bad { color: var(--loss); }
 /* ---- take ---- */
 .try { border-top: 1px solid var(--line); padding-top: 28px; margin-bottom: 64px; }
 .try h2 { margin-bottom: 8px; }
-.try .why { color: var(--muted); font-size: 12.5px; margin: 0 0 16px; max-width: 66ch;
+.try .why { color: var(--muted); font-size: 12.5px; margin: 0 0 16px;
   line-height: 1.65; }
 .try .why b { color: var(--ink); font-weight: 500; }
 .signin { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
@@ -446,7 +446,7 @@ details.fold > summary::-webkit-details-marker { display: none; }
 details.fold > summary::before { content: "+ "; color: var(--desk); }
 details.fold[open] > summary::before { content: "\2212\00a0"; }
 details.fold > :not(summary) { margin-top: 12px; }
-details.fold .why { color: var(--muted); font-size: 12.5px; line-height: 1.7; max-width: 72ch; }
+details.fold .why { color: var(--muted); font-size: 12.5px; line-height: 1.7; }
 details.fold .why b { color: var(--ink); font-weight: 500; }
 details.fold code { color: var(--ink); }
 details.small > summary { font-size: 10px; }
@@ -462,7 +462,7 @@ details.small > summary { font-size: 10px; }
 .proof-row .s { color: var(--muted); font-size: 11.5px; margin-top: 3px; line-height: 1.6; }
 
 footer { color: var(--muted); font-size: 12px; line-height: 1.7; border-top: 1px solid var(--line);
-  padding-top: 20px; margin-top: 48px; max-width: 78ch; }
+  padding-top: 20px; margin-top: 48px; }
 footer code { color: var(--ink); }
 
 /* ================= The Cascade tab ================= */
@@ -540,7 +540,9 @@ table.sweep td.now { color: var(--desk); }
 .car > figure.on, .car > section.on { display: block; }
 .car figure { margin: 0; }
 .car figcaption { color: var(--muted); font-size: 11px; margin-top: 6px; line-height: 1.5; }
-.frame-img { width: 100%; display: block; }
+/* Stills and the film share the carousel's one frame width — a video has an intrinsic size,
+   unlike an img it does not shrink to fit without a rule, so it needs the same width: 100%. */
+.frame-img, .film { width: 100%; display: block; }
 .film-thumb { display: block; position: relative; }
 .film-thumb img { width: 100%; display: block; }
 .film-thumb .film-play { position: absolute; inset: 0; display: flex; align-items: center;
@@ -993,10 +995,11 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
         <p class="note">absorbed $36,878 of notional, and the reversion paid $1,306 — leaning does
           not capture a spread, it buys a dislocated asset and is paid when the price comes back.
           The line to beat is the dashed one: Hyperliquid's own touch.</p>
+        <!-- One line: the desk's rate, the separator, the venue's own touch — the comparison
+             reads as a sentence, not as a pair of headline fragments. -->
         <p class="fig"><b id="stat-edge-desk">—</b> per dollar —
-          <span id="stat-edge-desk-sub"></span><br>
-          the venue's own touch: <b id="stat-edge-touch">—</b> per dollar —
-          <span id="stat-edge-touch-sub"></span></p>
+          <span id="stat-edge-desk-sub"></span> · the venue's own touch: <b id="stat-edge-touch">—</b>
+          per dollar — <span id="stat-edge-touch-sub"></span></p>
         <div id="chart-edge"></div>
         <div class="legend">
           <span><i class="swatch" style="background:var(--desk)"></i>desk</span>
