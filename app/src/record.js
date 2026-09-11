@@ -35,6 +35,9 @@ const NOT_A_CLAMP_FILL = new Set([
   "0x17f1ab1670e3175cf738e16efc7156e341253f13f9ec054a55de87c0150b3799",
 ]);
 
+/** The same rule, for the Desk's own panel: one list, not a second copy of it going stale. */
+export const notAClampFill = (txHash) => NOT_A_CLAMP_FILL.has((txHash ?? "").toLowerCase());
+
 // One poll, every reader. The Record tab renders the panel; the Desk's hero only reduces each
 // fresh document with recordFacts — both read the same fetch, so the hero subscribes instead of
 // mounting a second poller.

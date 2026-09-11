@@ -14,9 +14,10 @@ import {
   erc20, mapUpdate, paramsTuple, decode,
 } from "./chain.js";
 import { waitForReceipt, DEFAULT_RPCS } from "./rpc.js";
-import { chainFor, explorerTx, injected, openPrivy, privyConfig } from "./signer.js";
+import { chainFor, explorerTx, explorerAddress, injected, oauthCallback, openPrivy, privyConfig }
+  from "./signer.js";
 import { roundTrip, bestRoundTrip, bestControlToll } from "./arb.js";
-import { recordFacts, onRecord } from "./record.js";
+import { recordFacts, onRecord, notAClampFill } from "./record.js";
 
 // Four seconds, not two: HyperEVM blocks are not twice-a-second events, and nothing a visitor can
 // see changes between two polls that a slightly slower one misses. What the faster cadence did buy
@@ -49,6 +50,19 @@ const CANONICAL_PREVIEW = {
   mapMinNotional: 5_000_000n,
   minBase: 0n,
   maxBase: (1n << 128n) - 1n,
+};
+
+/**
+ * The Privy policy the faucet's server wallet is held under, as `keeper/policy.json` names it.
+ *
+ * The panel names the rule rather than the amount, and the rule's own name carries the amount —
+ * so the ceiling on this screen is quoted from the policy that enforces it instead of being a
+ * second copy of the number that goes stale when the policy moves. The wei the visitor was
+ * actually sent comes back from the faucet itself; this is what it was allowed to send.
+ */
+const FAUCET_POLICY = {
+  name: "coldcascade gas faucet",
+  rule: "drip at most 0.002 HYPE on chain 999",
 };
 
 /**
@@ -87,6 +101,10 @@ export async function mountFloor(root) {
     // The live accumulator: the best (least negative) round trip offered since this page was
     // opened. It only ever moves toward zero; the clamp is why it never crosses.
     sessionBest: null,
+    // Everything the visitor's own panel draws. `record` is the keeper's fills, filtered to this
+    // address when it paints; `session` is what this tab has watched land, which is the same fill
+    // twenty minutes before the keeper has streamed, joined and published it.
+    you: { record: [], session: [], balances: null, meta: new Map(), ageNode: null, ageFrom: null },
     mapPending: null,   // {hash, clearing} of a map write whose block has not landed yet
     regimeHtml: "",     // the last regime line painted — repaints are skipped while it holds
     bookPrev: null,     // the last book painted — a cell flashes when its raw value moved
@@ -98,11 +116,15 @@ export async function mountFloor(root) {
   wireTake(view);
   wireStress(view);
   wireMap(view);
+  mountYou(view, auth);
 
   // The zero's ground is the record, not the session: the Record tab's mount already polls the
   // file on its own cadence, so the hero subscribes to the same read rather than fetching a copy.
   onRecord((doc) => {
     view.record = recordFacts(doc);
+    // The same document answers a second question: which of those fills were *this* visitor's.
+    view.you.record = doc.fills ?? [];
+    renderYou(view);
     if (view.floor) render(view);
   });
 
@@ -547,7 +569,7 @@ function renderPanels(view, desks) {
   view.ui.takeNote.textContent = none
     ? "No desk is deployed yet; Take turns on when the desks are on chain."
     : !view.signer
-      ? "One swap through the official SwapVM router. An email address is enough — the wallet that appears is the one that signs it."
+      ? "One swap through the official SwapVM router. An email address or a Discord account is enough — the wallet that appears is the one that signs it."
       : mintable
         ? "Three transactions: mint the demo token, approve the router, swap through the official SwapVM router. Sell base to watch the bound bite — the desk's bid is clamped to the book's own."
         : `This desk trades the real pair: bring your own ${chosen ? short(chosen.params.base) : "tokens"}, or take the demo desk for nothing.`;
@@ -643,6 +665,22 @@ function wireTake(view) {
       say(ui.takeOut, `swap sent ${short(hash)} — waiting`);
       const receipt = await waitForReceipt(rpc, hash);
       const link = explorerTx(state.chain, hash);
+      if (receipt.status === "0x1") {
+        // Shaped like one of the keeper's own fills, because the panel above reads both from one
+        // list. The keeper's copy carries the price recomputed off the stream and replaces this
+        // one by hash as soon as the next pass publishes; until then this is what the visitor saw.
+        view.you.session.unshift({
+          txHash: hash,
+          at: Math.floor(Date.now() / 1000),
+          taker: account,
+          desk: desk.account,
+          makerBuysBase: sellBase,
+          baseRaw: (sellBase ? amountInQ : amountOut).toString(),
+          quoteRaw: (sellBase ? amountOut : amountInQ).toString(),
+          quotedBps: edge,
+        });
+        refreshYou(view).catch(() => {});
+      }
       say(ui.takeOut,
         receipt.status === "0x1"
           ? `filled. ${amount(amountOut, sellBase ? 6 : 8)} out, ${short(hash)}`
@@ -682,7 +720,8 @@ async function ensureAllowance(view, signer, token, spender, needed, out) {
     { method: "eth_call", params: [{ to: token, data: erc20.balanceOf(state.sel, account) }, "latest"] },
     { method: "eth_call", params: [{ to: token, data: erc20.allowance(state.sel, account, spender) }, "latest"] },
   ]);
-  if (BigInt(balanceHex) < needed && isDemoToken(state, token)) {
+  const balance = BigInt(balanceHex);
+  if (balance < needed && isDemoToken(state, token)) {
     say(out, "minting the demo token — 1 of 3");
     const hash = await signer.send({ from: account, to: token, data: erc20.mint(state.sel, account, needed - balance) });
     await waitForReceipt(rpc, hash);
@@ -784,6 +823,21 @@ function createAuth(view) {
       setSigner(signer);
     },
 
+    /**
+     * The second door, and it leaves the page.
+     *
+     * A visitor who has a Discord account already has an identity this app can trust, and asking
+     * them for an email address and a six-digit code is three steps where there is one. The trip
+     * is a full-page redirect rather than a popup: no opener to lose, no blocker to argue with,
+     * and no second HTML file on this origin whose only job is to close itself. The page comes
+     * back where it left, finishes the handshake below, and the visitor has a wallet.
+     */
+    async loginWithOAuth(provider) {
+      if (!state.privy) throw new Error("Privy is not configured on this deployment (app/privy.json has no app id).");
+      privySession ??= await openPrivy(state.chain, state.privy);
+      await privySession.loginWithOAuth(provider);
+    },
+
     async connectInjected() {
       const signer = injected(state.chain);
       if (!signer) throw new Error("no wallet in this browser");
@@ -811,7 +865,27 @@ function createAuth(view) {
   // The Privy half is guarded on the refresh token Privy's own storage adapter leaves behind. A
   // visitor who has never signed in has no such key, so the 836 kB bundle is not fetched to be told
   // there is no session — which is the whole reason it is a lazy import.
+  //
+  // The trip back from a provider is the one load where that guard is wrong: the redirect lands
+  // before there is a session to find, carrying the code that creates one. So it is checked first,
+  // off the URL, and it is what decides whether the SDK is fetched on this load.
   (async () => {
+    const callback = state.privy ? oauthCallback() : null;
+    if (callback) {
+      say(view.ui.signInNote, `finishing your ${providerName(callback.provider)} sign-in…`);
+      try {
+        privySession = await openPrivy(state.chain, state.privy);
+        setSigner(await privySession.completeOAuth(callback));
+        say(view.ui.signInNote, "this wallet is yours; nothing was installed.");
+      } catch (err) {
+        // A spent code, a reload on the callback URL, or a provider the app has not turned on.
+        // Whatever it was, the page is usable and the other door is still open.
+        say(view.ui.signInNote,
+          `that sign-in did not complete — ${err.message ?? err}. Try again, or use an email address.`,
+          true);
+      }
+      return;
+    }
     const already = injected(state.chain);
     if (already && (await already.resume()) && (await already.onChain())) return setSigner(already);
     if (!state.privy || !hasPrivySession()) return;
@@ -837,6 +911,9 @@ function wireSignInPanel(view, auth) {
     ui.email.hidden = signed || mailed;
     ui.code.hidden = signed || !mailed;
     ui.signInGo.hidden = signed;
+    // Hidden while a code is in flight: two half-finished sign-ins on one screen is a way to lose
+    // the one that was working. It comes back if the visitor signs out.
+    ui.discord.hidden = signed || mailed || !state.privy;
     ui.connect.hidden = signed || mailed || !globalThis.ethereum;
     if (signed) {
       ui.who.textContent = `${view.signer.label} · ${short(view.signer.address)}`;
@@ -875,6 +952,20 @@ function wireSignInPanel(view, auth) {
   ui.code.addEventListener("keydown", (e) => { if (e.key === "Enter") ui.signInGo.click(); });
   ui.email.addEventListener("keydown", (e) => { if (e.key === "Enter") ui.signInGo.click(); });
 
+  ui.discord.addEventListener("click", async () => {
+    try {
+      ui.discord.disabled = true;
+      say(ui.signInNote, "sending you to Discord — this page comes back signed in.");
+      await auth.loginWithOAuth("discord");
+    } catch (err) {
+      // The commonest one by far is the provider being off in the Privy dashboard, and its raw
+      // message says so in Privy's words. It is passed through rather than translated: a wrong
+      // guess about which of the two ends is unconfigured costs more than the raw sentence does.
+      say(ui.signInNote, err.message ?? String(err), true);
+      ui.discord.disabled = false;
+    }
+  });
+
   ui.connect.addEventListener("click", async () => {
     try {
       ui.connect.disabled = true;
@@ -903,6 +994,353 @@ function wireStressAuth(view, auth) {
   const { ui } = view;
 
 }
+
+// ---- the visitor's own half of the screen ----
+
+/**
+ * What just happened to *you*.
+ *
+ * Everything else on this page is written about a market maker, and a visitor who signs in and
+ * takes a desk is left to work out what they got from a transaction hash and a balance they cannot
+ * see. All of it is already on the chain — the address, its age, the drip and the rule it came
+ * under, the fill and its price against the book — so the panel asserts nothing new: it reads the
+ * same node the rest of the screen reads and says which of the answers are the visitor's.
+ *
+ * **Signed out it is the same panel, in the future tense.** An empty frame with four dashes in it
+ * is worse than no frame, so the block is an invitation instead: what a tap does, in the order it
+ * does it. The one thing it must not do is go quiet until somebody signs in, because a visitor
+ * deciding whether to sign in is exactly who it is for.
+ */
+function mountYou(view, auth) {
+  auth.subscribe(() => {
+    renderYou(view);
+    // A fresh signer means a different address, so the balances on screen belong to somebody else
+    // until the next read answers. Asking immediately is what keeps "0.002 HYPE" from arriving
+    // six seconds after the sentence that says it was sent.
+    refreshYou(view).catch(() => {});
+  });
+
+  // The wallet's own reads, on their own loop. The floor's tick is one HTTP request by
+  // construction and this is a second one, so it is not folded into it: a visitor who never signs
+  // in never makes it, and one who does pays a batch every six seconds for four numbers.
+  const poll = async () => {
+    try {
+      if (view.signer) { await readWallet(view); renderYou(view); }
+    } catch { /* the panel keeps the last numbers it had, like the rest of the page */ }
+    setTimeout(poll, 6000);
+  };
+  poll();
+
+  // The age is the only figure here that moves without the chain moving, and seconds is the unit
+  // that lands: a wallet thirty seconds old is the whole claim about this flow.
+  setInterval(() => {
+    const { ageNode, ageFrom } = view.you;
+    if (ageNode && ageFrom) ageNode.textContent = ageText(nowSeconds() - ageFrom);
+  }, 1000);
+}
+
+const refreshYou = async (view) => {
+  await readWallet(view);
+  renderYou(view);
+};
+
+/**
+ * One batch: the gas, the two demo balances, and the names of any token this panel has to print.
+ *
+ * Token names and decimals are read from the tokens themselves rather than written here. The demo
+ * pair and the real one have the same decimals and different names, and a panel that prints the
+ * demo desk's symbol beside a canonical desk's fill is telling a visitor they hold something they
+ * do not. Each address is asked once and then remembered.
+ */
+async function readWallet(view) {
+  const { rpc, state, you } = view;
+  const address = view.signer?.address;
+  if (!address) { you.balances = null; return; }
+
+  const demo = [state.deployment?.demoBase, state.deployment?.demoQuote].filter(Boolean);
+  const unknown = [...new Set(
+    [...demo, ...(view.floor?.desks ?? []).flatMap((d) => [d.params.base, d.params.quote])]
+      .filter((t) => t && t !== ZERO && !you.meta.has(t.toLowerCase())),
+  )];
+  // Claimed before the call so a slow answer is not asked for again by the next tick.
+  for (const t of unknown) you.meta.set(t.toLowerCase(), null);
+
+  const calls = [
+    { method: "eth_getBalance", params: [address, "latest"] },
+    ...demo.map((t) => (
+      { method: "eth_call", params: [{ to: t, data: erc20.balanceOf(state.sel, address) }, "latest"] })),
+    ...unknown.flatMap((t) => ([
+      { method: "eth_call", params: [{ to: t, data: state.sel.symbol }, "latest"] },
+      { method: "eth_call", params: [{ to: t, data: state.sel.decimals }, "latest"] },
+    ])),
+  ];
+  const out = await rpc.batch(calls);
+
+  you.balances = {
+    address,
+    gas: BigInt(out[0]),
+    tokens: demo.map((token, i) => ({ token, raw: BigInt(out[1 + i]) })),
+  };
+  unknown.forEach((token, i) => {
+    const at = 1 + demo.length + i * 2;
+    try {
+      you.meta.set(token.toLowerCase(), {
+        symbol: decode(["string"], out[at])[0],
+        decimals: Number(decode(["uint8"], out[at + 1])[0]),
+      });
+    } catch { /* not a token that answers those; the row says "base" and is still true */ }
+  });
+}
+
+function renderYou(view) {
+  const { ui, state, you } = view;
+  const who = view.signer?.who?.() ?? null;
+  ui.youInvite.hidden = Boolean(who);
+  ui.youPanel.hidden = !who;
+  ui.authH.textContent = who ? "your wallet" : "get a wallet in one tap";
+  you.ageNode = null;
+  you.ageFrom = null;
+  if (!who) return;
+
+  const cells = [
+    youCell("the address that signs", short(who.address), sourceLine(who), {
+      href: explorerAddress(state.chain, who.address), title: who.address,
+    }),
+    ageCell(view, who),
+    gasCell(view, who),
+    balanceCell(view, who),
+  ];
+  ui.youCells.replaceChildren(...cells);
+  renderYourFills(view, who);
+  ui.youFoot.textContent = who.via === "browser wallet"
+    ? "Read from the chain this page is connected to. Nothing here is stored by this page."
+    : "Read from the chain this page is connected to and from your own Privy account. "
+      + "This page keeps no database: the drip is limited once per Privy user, written into that "
+      + "account's own metadata.";
+}
+
+const sourceLine = (who) => who.via === "browser wallet"
+  ? "your own wallet, connected — this page made nothing and holds nothing"
+  : `made by Privy when you signed in with ${who.via} · the key lives in Privy's iframe, never on this page`;
+
+function ageCell(view, who) {
+  if (!who.createdAt) {
+    return youCell("age", "—", "you brought this wallet; it is older than this page");
+  }
+  const node = youCell("age", ageText(nowSeconds() - who.createdAt),
+    "this address did not exist before you signed in");
+  view.you.ageNode = node.querySelector(".cell-v");
+  view.you.ageFrom = who.createdAt;
+  return node;
+}
+
+/**
+ * The drip, and the rule it was allowed under — which is the whole Privy argument in one cell.
+ *
+ * The amount is the faucet's own answer where there is one. A visitor who was funded on another
+ * day arrives carrying only the mark Privy wrote into their metadata, so the cell says what is
+ * true of every drip — one per account — instead of inventing the wei it cannot see.
+ */
+function gasCell(view, who) {
+  const policy = () => {
+    const b = document.createElement("button");
+    b.className = "linky";
+    b.dataset.showTab = "tab-keys";
+    b.textContent = FAUCET_POLICY.name;
+    return b;
+  };
+  const rule = ` — its one rule: “${FAUCET_POLICY.rule}”`;
+
+  if (who.via === "browser wallet") {
+    return youCell("gas", "your own", "nothing was dripped here — a wallet you brought pays for itself");
+  }
+  const funded = who.funding;
+  if (!funded) {
+    return youCell("gas, given under a rule", "on your first trade",
+      [txt("a Privy server wallet sends it, held under the policy "), policy(), txt(rule)]);
+  }
+  const sub = [
+    txt(funded.at ? `${agoText(nowSeconds() - funded.at)} · under the policy ` : "under the policy "),
+    policy(), txt(rule),
+  ];
+  if (funded.hash) {
+    sub.push(txt(" · "));
+    const link = explorerTx(view.state.chain, funded.hash);
+    if (link) {
+      const a = document.createElement("a");
+      a.href = link; a.target = "_blank"; a.rel = "noreferrer";
+      a.textContent = short(funded.hash);
+      sub.push(a);
+    } else {
+      sub.push(txt(short(funded.hash)));
+    }
+  }
+  return youCell("gas, given under a rule", funded.wei ? hype(BigInt(funded.wei)) : "once per account", sub);
+}
+
+function balanceCell(view, who) {
+  const b = view.you.balances;
+  if (!b || b.address !== who.address) return youCell("balance", "reading…", "");
+  const held = b.tokens
+    .map(({ token, raw }) => {
+      const meta = view.you.meta.get(token.toLowerCase());
+      return meta ? `${amount(raw, meta.decimals)} ${meta.symbol}` : null;
+    })
+    .filter(Boolean);
+  return youCell("balance", hype(b.gas), held.length ? held.join(" · ") : "gas is all this wallet needs here");
+}
+
+// ---- the fills that are yours ----
+
+/**
+ * This visitor's own fills, newest first.
+ *
+ * Two sources and they overlap. The keeper's document is the authority — it carries the price the
+ * fill printed against the book its quote read — but it is published every twenty minutes, and a
+ * judge who has just pressed the button is not going to wait. So the tab keeps what it watched
+ * land and drops its copy the moment the same hash arrives from the record.
+ *
+ * The one fill the Record's chart leaves out is left out here too — it is this repository's own
+ * operator take, priced off the reserves the strategy shipped with rather than by a quote the
+ * bound held, and a row reading "8 412 bps against the book" says nothing true about the desk.
+ */
+function yourFills(view, address) {
+  const mine = address.toLowerCase();
+  const recorded = (view.you.record ?? [])
+    .filter((f) => (f.taker ?? "").toLowerCase() === mine && !notAClampFill(f.txHash));
+  const seen = new Set(recorded.map((f) => f.txHash.toLowerCase()));
+  const session = view.you.session.filter(
+    (f) => f.taker.toLowerCase() === mine && !seen.has(f.txHash.toLowerCase()));
+  return [...session, ...recorded].sort((a, b) => (b.at ?? 0) - (a.at ?? 0)).slice(0, 6);
+}
+
+function renderYourFills(view, who) {
+  const fills = yourFills(view, who.address);
+  if (fills.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "you-empty";
+    empty.textContent = "no fills yet — take a desk below and it lands here, with its hash.";
+    view.ui.youFills.replaceChildren(empty);
+    return;
+  }
+  view.ui.youFills.replaceChildren(...fills.map((f) => fillRow(view, f)));
+}
+
+function fillRow(view, f) {
+  const row = document.createElement("div");
+  row.className = "you-fill";
+
+  const when = document.createElement("span");
+  when.className = "t";
+  when.textContent = fillWhen(f.at);
+
+  const base = tokenOf(view, f, "base");
+  const quote = tokenOf(view, f, "quote");
+  const what = document.createElement("span");
+  what.className = "d";
+  // `makerBuysBase` is the desk's side. The taker's is the other one, and this row is the taker's.
+  what.innerHTML =
+    `${f.makerBuysBase ? "sold" : "bought"} <b>${amount(BigInt(f.baseRaw), base.decimals)}</b> ` +
+    `${escape(base.symbol)} for <b>${amount(BigInt(f.quoteRaw), quote.decimals)}</b> ` +
+    `${escape(quote.symbol)} · ${priceText(f)}`;
+
+  const hash = document.createElement("span");
+  hash.className = "h";
+  const link = explorerTx(view.state.chain, f.txHash);
+  if (link) {
+    const a = document.createElement("a");
+    a.href = link; a.target = "_blank"; a.rel = "noreferrer";
+    a.textContent = short(f.txHash);
+    hash.append(a);
+  } else {
+    hash.textContent = short(f.txHash);
+  }
+
+  row.append(when, what, hash);
+  return row;
+}
+
+/**
+ * The one number on the row, and which of the two measurements it is.
+ *
+ * The keeper's `vsTouchBps` is the fill priced against the book the quote read, recomputed off the
+ * stream. Until it lands, the row carries what the router quoted this page against crossing the
+ * book at the moment it asked. They are close and they are not the same measurement, so the row
+ * says which one it is holding rather than letting one stand in for the other.
+ */
+function priceText(f) {
+  if (Number.isFinite(f.vsTouchBps)) {
+    return `<b>${bpsText(f.vsTouchBps)} bps</b> against the book's own touch`;
+  }
+  if (Number.isFinite(f.quotedBps)) {
+    return `<b>${bpsText(f.quotedBps)} bps</b> against crossing the book, as quoted`;
+  }
+  return "priced against the book it read";
+}
+
+/** A fill's token, named by the token itself where the panel has asked it, and "base" until then. */
+function tokenOf(view, f, side) {
+  const desk = (view.floor?.desks ?? []).find(
+    (d) => d.account.toLowerCase() === (f.desk ?? f.deskAccount ?? "").toLowerCase());
+  const address = side === "base" ? desk?.params.base : desk?.params.quote;
+  const meta = address ? view.you.meta.get(address.toLowerCase()) : null;
+  return meta ?? { symbol: side, decimals: side === "base" ? 8 : 6 };
+}
+
+// ---- the panel's own small pieces ----
+
+const txt = (s) => document.createTextNode(s);
+/** The Record tab's own stamp, so one fill reads the same on both screens. */
+const fillWhen = (at) => new Date((at ?? 0) * 1000).toLocaleString("en-US",
+  { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+const nowSeconds = () => Math.floor(Date.now() / 1000);
+const hype = (wei) => `${(Number(wei) / 1e18).toLocaleString("en-US", { maximumFractionDigits: 5 })} HYPE`;
+
+/** Seconds while seconds are the story, then minutes, then the units nobody counts. */
+function ageText(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "just now";
+  if (seconds < 90) return `${seconds} s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} m ${String(seconds % 60).padStart(2, "0")} s`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours} h ${String(minutes % 60).padStart(2, "0")} m`;
+  return `${Math.floor(hours / 24)} days`;
+}
+
+const agoText = (seconds) => (seconds < 90 ? `${Math.max(0, seconds)} s ago` : `${ageText(seconds)} ago`);
+
+/** `cell()`'s shape, with a link where the value is an address and nodes where the note has one. */
+function youCell(label, value, sub, { href = null, title = null } = {}) {
+  const node = document.createElement("div");
+  node.className = "cell";
+  const k = document.createElement("div");
+  k.className = "cell-k";
+  k.textContent = label;
+  const v = document.createElement("div");
+  v.className = "cell-v";
+  if (title) v.title = title;
+  if (href) {
+    const a = document.createElement("a");
+    a.href = href; a.target = "_blank"; a.rel = "noreferrer";
+    a.textContent = value;
+    v.append(a);
+  } else {
+    v.textContent = value;
+  }
+  node.append(k, v);
+  if (sub) {
+    const s = document.createElement("div");
+    s.className = "cell-s";
+    if (typeof sub === "string") s.textContent = sub;
+    else s.append(...sub);
+    node.append(s);
+  }
+  return node;
+}
+
+/** The word for the provider, for the one line that names it while the page is still coming back. */
+const providerName = (provider) =>
+  provider === "discord" ? "Discord" : provider ? provider.replace(/^privy:/, "") : "social";
 
 // ---- helpers ----
 
@@ -1028,7 +1466,9 @@ function build(root) {
     rows: id("floor-rows"),
     who: id("floor-who"), email: id("signin-email"), code: id("signin-code"),
     signInGo: id("signin-go"), signOut: id("signin-out"), signInNote: id("signin-note"),
-    connect: id("floor-connect"),
+    connect: id("floor-connect"), discord: id("signin-discord"), authH: id("act-auth-h"),
+    youInvite: id("you-invite"), youPanel: id("you-panel"), youCells: id("you-cells"),
+    youFills: id("you-fills"), youFoot: id("you-foot"),
     takeDesk: id("take-desk"), takeSide: id("take-side"), takeAmount: id("take-amount"),
     takeGo: id("take-go"), takeOut: id("take-out"), takeNote: id("take-note"),
     mapDesk: id("map-desk"), mapSide: id("map-side"), mapNotional: id("map-notional"),

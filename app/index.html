@@ -8,6 +8,8 @@
      404s. Pinning the base keeps all three URL forms — /app, /app/, /app/index.html — working. -->
 <base href="/app/">
 <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+<link rel="icon" type="image/png" sizes="512x512" href="./logo-512.png">
+<link rel="apple-touch-icon" href="./logo-512.png">
 <title>coldcascade — a maker that reads the book</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -347,7 +349,44 @@ a .rc-dot { cursor: pointer; }
 .act-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; margin-top: 26px; }
 .act-pair .try { margin: 0; }
 .act-pair h2 { margin: 0 0 10px; border: none; padding: 0; }
-.signin-why { margin: 12px 0 0; font-size: 12px; }
+
+/* ---- the visitor's own panel ---- */
+.you { margin: 16px 0 0; }
+.you-lede { color: var(--ink); font-size: 13px; line-height: 1.7; margin: 0; max-width: 70ch; }
+/* The steps carry their own numerals: a list a visitor reads before deciding to sign in has to
+   look like a sequence, not like prose that happens to be indented. */
+.you-steps { list-style: none; counter-reset: step; margin: 12px 0 0; padding: 0;
+  display: grid; gap: 7px; max-width: 76ch; }
+.you-steps li { counter-increment: step; position: relative; padding-left: 26px;
+  color: var(--muted); font-size: 12.5px; line-height: 1.65; }
+.you-steps li::before { content: counter(step); position: absolute; left: 0; top: 0;
+  color: var(--desk); font: 11px var(--mono); }
+.you-then { color: var(--muted); font-size: 12.5px; line-height: 1.65; margin: 12px 0 0; }
+/* Four cells, on the surface the act block already uses for the book's five. */
+.you-cells { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+  background: var(--line); border: 1px solid var(--line); border-radius: 3px; margin: 4px 0 0; }
+.you-cells .cell-v { font-size: 15px; }
+.you-cells .cell-v a { color: var(--ink); text-decoration: none;
+  border-bottom: 1px solid var(--l1-edge); }
+.you-cells .cell-s a { color: var(--desk); text-decoration: none;
+  border-bottom: 1px solid rgba(95,178,255,0.4); }
+.you-fills-h { color: var(--muted); font: 10px var(--mono); text-transform: uppercase;
+  letter-spacing: 0.14em; margin: 22px 0 6px; }
+.you-fill { display: grid; grid-template-columns: 104px minmax(0, 1fr) auto; gap: 14px;
+  align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 12px; }
+.you-fill .t { color: var(--muted); font-variant-numeric: tabular-nums; }
+.you-fill .d { color: var(--muted); }
+.you-fill .d b { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+.you-fill .h a { color: var(--desk); text-decoration: none;
+  border-bottom: 1px solid rgba(95,178,255,0.4); font-variant-numeric: tabular-nums; }
+.you-empty { color: var(--muted); font-size: 12px; padding: 7px 0; margin: 0; }
+.you-foot { color: var(--muted); font-size: 11px; line-height: 1.7; margin: 14px 0 0;
+  max-width: 82ch; }
+/* The second door, marked by its own colour rather than by a logo: the page carries no brand
+   marks, and the provider is named in the label anyway. */
+.signin .go.discord { border-color: #2b3157; color: #98a3e6; }
+.signin .go.discord:hover:not(:disabled) { background: rgba(88,101,242,0.12);
+  border-color: #5865f2; color: #c6ccf6; }
 
 #regime-lean.is-live .rg-desk-in { fill: var(--bid); }
 
@@ -360,6 +399,8 @@ a .rc-dot { cursor: pointer; }
 .qa .fold summary { font-size: 12.5px; color: var(--ink); }
 
 @media (max-width: 900px) {
+  .you-cells { grid-template-columns: repeat(2, 1fr); }
+  .you-fill { grid-template-columns: 1fr; gap: 2px; }
 }
 
 /* ---- the desks ---- */
@@ -576,9 +617,10 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
 <body>
 <main>
   <div class="topbar">
-    <h1 class="wordmark">coldcascade</h1>
+    <h1 class="wordmark"><svg viewBox="0 0 64 64" width="17" height="17" aria-hidden="true"><rect x="10" y="26" width="44" height="12" fill="#3c4c64"/><circle cx="32" cy="13" r="6" fill="#5fb2ff"/><circle cx="32" cy="51" r="6" fill="#5fb2ff"/></svg>coldcascade</h1>
     <span id="floor-mode" class="chip">—</span>
     <p id="floor-meta">reading the chain…</p>
+    <button id="wallet-chip" class="wallet-chip" type="button" hidden aria-label="your wallet"></button>
     <div class="tabs" role="tablist">
       <button class="tab" id="tab-desk" role="tab" aria-selected="true" aria-controls="panel-desk">The Desk</button>
       <button class="tab" id="tab-record" role="tab" aria-selected="false" aria-controls="panel-record">The Record</button>
@@ -586,6 +628,17 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
       <button class="tab" id="tab-keys" role="tab" aria-selected="false" aria-controls="panel-keys">The Keys</button>
     </div>
   </div>
+
+  <!-- The visitor's identity, outside every tab and every form: the chip in the topbar opens
+       and closes it. It only exists signed in — before that, the invite on the Desk is the
+       whole story. -->
+  <section id="profile" hidden>
+    <div class="you-cells" id="you-cells"></div>
+    <p class="you-fills-h">your fills</p>
+    <div class="you-fills" id="you-fills"></div>
+    <p class="you-foot" id="you-foot"></p>
+    <div class="profile-acts"><button class="go ghost" id="signin-out">sign out</button></div>
+  </section>
 
   <section id="panel-desk" role="tabpanel">
     <div class="statement">
@@ -636,7 +689,7 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
         <div class="cells" id="floor-book"></div>
         <p class="regime" id="floor-regime"></p>
 
-        <h2 class="act-auth-h">connect a wallet</h2>
+        <h2 class="act-auth-h" id="act-auth-h">get a wallet in one tap</h2>
         <div class="signin">
           <span class="who" id="floor-who" hidden></span>
           <input id="signin-email" type="email" autocomplete="email" placeholder="you@example.com"
@@ -644,13 +697,37 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
           <input id="signin-code" type="text" inputmode="numeric" autocomplete="one-time-code"
                  placeholder="6-digit code" aria-label="the code from the email" hidden>
           <button class="go" id="signin-go">email me a code</button>
+          <button class="go ghost discord" id="signin-discord">continue with Discord</button>
           <button class="go ghost" id="floor-connect">or a browser wallet</button>
           <button class="go ghost" id="signin-out" hidden>sign out</button>
         </div>
         <p class="out" id="signin-note"></p>
-        <p class="why signin-why">An email address is enough: Privy makes the wallet, and a
-          policy-held server wallet drips the gas.<br>It can spend that gas and nothing else —
-          <button class="linky" data-show-tab="tab-keys">the policy, and what it refuses</button>.</p>
+
+        <!-- One block, two tenses. Before a visitor signs in it is what a tap is about to do;
+             after, it is what it did, read back off the chain and their own Privy account. An
+             empty frame with four dashes in it would be worse than no frame at all. -->
+        <div class="you">
+          <div id="you-invite">
+            <p class="you-lede">You do not need a wallet to use this. One tap and you have one on
+              this chain — no extension, no seed phrase, nothing installed.</p>
+            <ol class="you-steps">
+              <li>sign in with an email address or a Discord account</li>
+              <li>Privy makes you an embedded wallet — the key lives inside Privy's own frame and
+                never touches this page</li>
+              <li>a server wallet held under a policy drips the gas. It may send that and nothing
+                else — <button class="linky" data-show-tab="tab-keys">the policy, and what it
+                refuses</button></li>
+            </ol>
+            <p class="you-then">Then take a desk below: one swap, through 1inch's own router.</p>
+          </div>
+
+          <div id="you-panel" hidden>
+            <div class="you-cells" id="you-cells"></div>
+            <p class="you-fills-h">your fills</p>
+            <div class="you-fills" id="you-fills"></div>
+            <p class="you-foot" id="you-foot"></p>
+          </div>
+        </div>
 
         <div class="act-pair">
           <div class="try">
