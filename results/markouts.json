@@ -1,5 +1,5 @@
 {
-  "generatedAt": 1789067410,
+  "generatedAt": 1789152611,
   "chainId": 999,
   "source": {
     "provider": "The Graph Market for Substreams",
@@ -7,7 +7,7 @@
     "package": "coldcascade-v0.1.0.spkg",
     "module": "desk_events",
     "startBlock": 45135453,
-    "stopBlock": 45557959,
+    "stopBlock": 45644579,
     "demand": {
       "scripted": true,
       "generator": "script/demo-cadence.sh",
@@ -26,264 +26,264 @@
     "60": 360
   },
   "books": {
-    "count": 2869,
+    "count": 4204,
     "firstAt": 1788870223,
-    "lastAt": 1789067350,
-    "medianGapSeconds": 60.0
+    "lastAt": 1789152551,
+    "medianGapSeconds": 60
   },
   "summary": {
-    "fills": 118,
-    "fillsWithCompleteHorizons": 93,
+    "fills": 162,
+    "fillsWithCompleteHorizons": 129,
     "firstFillAt": 1788708512,
-    "lastFillAt": 1789066045,
-    "spanDays": 4.14,
+    "lastFillAt": 1789152192,
+    "spanDays": 5.14,
     "byHorizon": {
       "5": {
-        "n": 101,
-        "meanBps": 1.507,
-        "medianBps": 0.509,
+        "n": 143,
+        "meanBps": 0.809,
+        "medianBps": 0.391,
         "minBps": -33.575,
         "maxBps": 39.309,
         "pending": 0,
-        "gap": 9,
+        "gap": 11,
         "noBook": 0,
         "beforeSeries": 8
       },
       "15": {
-        "n": 103,
-        "meanBps": -0.514,
-        "medianBps": -0.754,
+        "n": 142,
+        "meanBps": -0.904,
+        "medianBps": -0.703,
         "minBps": -57.286,
         "maxBps": 43.761,
-        "pending": 0,
-        "gap": 7,
+        "pending": 2,
+        "gap": 10,
         "noBook": 0,
         "beforeSeries": 8
       },
       "60": {
-        "n": 106,
-        "meanBps": -2.681,
-        "medianBps": -5.559,
-        "minBps": -122.68,
-        "maxBps": 94.415,
-        "pending": 2,
-        "gap": 2,
+        "n": 147,
+        "meanBps": -6.093,
+        "medianBps": -5.34,
+        "minBps": -217.026,
+        "maxBps": 117.036,
+        "pending": 4,
+        "gap": 3,
         "noBook": 0,
         "beforeSeries": 8
       }
     },
     "vsTouch": {
-      "n": 118,
-      "meanBps": -59.274,
+      "n": 162,
+      "meanBps": -43.584,
       "medianBps": -20.0,
       "minBps": -8412.255,
       "maxBps": 269.801
     },
     "bySide": {
       "buysBase": {
-        "fills": 66,
-        "atTheBand": 50,
+        "fills": 89,
+        "atTheBand": 64,
         "vsTouch": {
-          "n": 66,
-          "meanBps": -171.175,
+          "n": 89,
+          "meanBps": -142.992,
           "medianBps": -20.0,
           "minBps": -8412.255,
           "maxBps": -20.0
         },
         "poolDev": {
-          "n": 66,
-          "meanBps": 4055.066,
-          "medianBps": 181.356,
-          "minBps": -139.137,
+          "n": 87,
+          "meanBps": 3096.913,
+          "medianBps": 168.818,
+          "minBps": -257.909,
           "maxBps": 167764.234
         },
         "byHorizon": {
           "5": {
-            "n": 56,
-            "meanBps": 0.805,
-            "medianBps": 0.192,
+            "n": 77,
+            "meanBps": -0.002,
+            "medianBps": 0.128,
             "minBps": -33.575,
             "maxBps": 21.178
           },
           "15": {
-            "n": 55,
-            "meanBps": -1.975,
-            "medianBps": -2.54,
+            "n": 76,
+            "meanBps": -1.685,
+            "medianBps": -2.122,
             "minBps": -57.286,
             "maxBps": 43.761
           },
           "60": {
-            "n": 59,
-            "meanBps": -5.495,
-            "medianBps": -3.575,
-            "minBps": -122.68,
-            "maxBps": 85.213
+            "n": 80,
+            "meanBps": -7.386,
+            "medianBps": -3.571,
+            "minBps": -132.703,
+            "maxBps": 117.036
           }
         }
       },
       "sellsBase": {
-        "fills": 52,
-        "atTheBand": 28,
+        "fills": 73,
+        "atTheBand": 40,
         "vsTouch": {
-          "n": 52,
-          "meanBps": 82.755,
-          "medianBps": 20.021,
+          "n": 73,
+          "meanBps": 77.612,
+          "medianBps": 20.019,
           "minBps": 20.001,
           "maxBps": 269.801
         },
         "poolDev": {
-          "n": 52,
-          "meanBps": -64.944,
-          "medianBps": -53.005,
+          "n": 71,
+          "meanBps": -71.31,
+          "medianBps": -70.937,
           "minBps": -344.453,
           "maxBps": 151.372
         },
         "byHorizon": {
           "5": {
-            "n": 45,
-            "meanBps": 2.382,
-            "medianBps": 1.137,
-            "minBps": -18.001,
+            "n": 66,
+            "meanBps": 1.755,
+            "medianBps": 0.764,
+            "minBps": -19.087,
             "maxBps": 39.309
           },
           "15": {
-            "n": 48,
-            "meanBps": 1.161,
-            "medianBps": 0.572,
+            "n": 66,
+            "meanBps": -0.005,
+            "medianBps": 0.255,
             "minBps": -28.292,
             "maxBps": 40.77
           },
           "60": {
-            "n": 47,
-            "meanBps": 0.852,
-            "medianBps": -8.185,
-            "minBps": -78.482,
-            "maxBps": 94.415
+            "n": 67,
+            "meanBps": -4.549,
+            "medianBps": -7.004,
+            "minBps": -217.026,
+            "maxBps": 95.406
           }
         }
       }
     },
     "byDesk": {
       "demoDesk": {
-        "fills": 116,
-        "atTheBand": 77,
+        "fills": 160,
+        "atTheBand": 103,
         "vsTouch": {
-          "n": 116,
-          "meanBps": 12.396,
+          "n": 160,
+          "meanBps": 8.573,
           "medianBps": -20.0,
-          "minBps": -232.487,
+          "minBps": -257.798,
           "maxBps": 269.801
         },
         "poolDev": {
-          "n": 116,
-          "meanBps": 50.319,
-          "medianBps": 75.397,
+          "n": 156,
+          "meanBps": 38.129,
+          "medianBps": 58.716,
           "minBps": -344.453,
           "maxBps": 421.158
         },
         "byHorizon": {
           "5": {
-            "n": 100,
-            "meanBps": 1.493,
-            "medianBps": 0.446,
+            "n": 142,
+            "meanBps": 0.794,
+            "medianBps": 0.387,
             "minBps": -33.575,
             "maxBps": 39.309
           },
           "15": {
-            "n": 102,
-            "meanBps": -0.494,
-            "medianBps": -0.377,
+            "n": 141,
+            "meanBps": -0.893,
+            "medianBps": -0.651,
             "minBps": -57.286,
             "maxBps": 43.761
           },
           "60": {
-            "n": 105,
-            "meanBps": -2.343,
-            "medianBps": -5.48,
-            "minBps": -122.68,
-            "maxBps": 94.415
+            "n": 146,
+            "meanBps": -5.874,
+            "medianBps": -5.065,
+            "minBps": -217.026,
+            "maxBps": 117.036
           }
         },
         "bySide": {
           "buysBase": {
-            "fills": 64,
-            "atTheBand": 49,
+            "fills": 87,
+            "atTheBand": 63,
             "vsTouch": {
-              "n": 64,
-              "meanBps": -44.77,
+              "n": 87,
+              "meanBps": -49.357,
               "medianBps": -20.0,
-              "minBps": -232.487,
+              "minBps": -257.798,
               "maxBps": -20.0
             },
             "poolDev": {
-              "n": 64,
-              "meanBps": 143.97,
-              "medianBps": 176.256,
-              "minBps": -139.137,
+              "n": 85,
+              "meanBps": 129.543,
+              "medianBps": 167.612,
+              "minBps": -257.909,
               "maxBps": 421.158
             },
             "byHorizon": {
               "5": {
-                "n": 55,
-                "meanBps": 0.766,
-                "medianBps": 0.128,
+                "n": 76,
+                "meanBps": -0.04,
+                "medianBps": 0.064,
                 "minBps": -33.575,
                 "maxBps": 21.178
               },
               "15": {
-                "n": 54,
-                "meanBps": -1.964,
-                "medianBps": -2.295,
+                "n": 75,
+                "meanBps": -1.674,
+                "medianBps": -1.913,
                 "minBps": -57.286,
                 "maxBps": 43.761
               },
               "60": {
-                "n": 58,
-                "meanBps": -4.933,
-                "medianBps": -3.571,
-                "minBps": -122.68,
-                "maxBps": 85.213
+                "n": 79,
+                "meanBps": -6.997,
+                "medianBps": -3.567,
+                "minBps": -132.703,
+                "maxBps": 117.036
               }
             }
           },
           "sellsBase": {
-            "fills": 52,
-            "atTheBand": 28,
+            "fills": 73,
+            "atTheBand": 40,
             "vsTouch": {
-              "n": 52,
-              "meanBps": 82.755,
-              "medianBps": 20.021,
+              "n": 73,
+              "meanBps": 77.612,
+              "medianBps": 20.019,
               "minBps": 20.001,
               "maxBps": 269.801
             },
             "poolDev": {
-              "n": 52,
-              "meanBps": -64.944,
-              "medianBps": -53.005,
+              "n": 71,
+              "meanBps": -71.31,
+              "medianBps": -70.937,
               "minBps": -344.453,
               "maxBps": 151.372
             },
             "byHorizon": {
               "5": {
-                "n": 45,
-                "meanBps": 2.382,
-                "medianBps": 1.137,
-                "minBps": -18.001,
+                "n": 66,
+                "meanBps": 1.755,
+                "medianBps": 0.764,
+                "minBps": -19.087,
                 "maxBps": 39.309
               },
               "15": {
-                "n": 48,
-                "meanBps": 1.161,
-                "medianBps": 0.572,
+                "n": 66,
+                "meanBps": -0.005,
+                "medianBps": 0.255,
                 "minBps": -28.292,
                 "maxBps": 40.77
               },
               "60": {
-                "n": 47,
-                "meanBps": 0.852,
-                "medianBps": -8.185,
-                "minBps": -78.482,
-                "maxBps": 94.415
+                "n": 67,
+                "meanBps": -4.549,
+                "medianBps": -7.004,
+                "minBps": -217.026,
+                "maxBps": 95.406
               }
             }
           }
@@ -555,18 +555,19 @@
       "desk": {
         "what": "the price the fill printed at \u2014 the receipt, not a counterfactual",
         "tollUsd": 0.0,
-        "fills": 116,
-        "priced": 116,
+        "fills": 160,
+        "priced": 160,
         "paying": 0,
         "worstFillUsd": 0.0
       },
       "flatCurve": {
         "what": "a plain constant-product curve on the desk's own reserves at that block, priced off the oracle the deviation was measured against",
-        "tollUsd": 1561.89,
-        "fills": 116,
-        "priced": 116,
-        "paying": 81,
-        "worstFillUsd": 82.78
+        "tollUsd": 2155.18,
+        "fills": 160,
+        "priced": 156,
+        "paying": 109,
+        "worstFillUsd": 87.7,
+        "noReserves": 4
       },
       "oraclePegged": {
         "what": "a maker whose price is the oracle at its last refresh, quoting the desk's own band either side of it and standing still in between",
@@ -579,8 +580,8 @@
         },
         "band": "the fill's own quietBps, so the two makers quote the same width",
         "tollUsd": 0.0,
-        "fills": 116,
-        "priced": 106,
+        "fills": 160,
+        "priced": 150,
         "paying": 0,
         "worstFillUsd": 0.0,
         "beforeSeries": 7,
@@ -588,7 +589,7 @@
       }
     },
     "over": {
-      "fills": 116,
+      "fills": 160,
       "rule": "|poolDevBps| <= 10000",
       "why": "a pool ratio further from L1 than this is not a maker quoting, it is the reserves a strategy was shipped with. Both such fills are takes this repository sent to build an exposure for the hedge to cover; either one alone is worth more toll than every other fill together. Their per-fill numbers stay on the fills.",
       "excluded": [
@@ -613,9 +614,9 @@
         "heartbeatSeconds": 60,
         "reference": "oracle",
         "bandBps": "the fill's own quietBps",
-        "refreshes": 2340,
+        "refreshes": 3517,
         "tollUsd": 0.0,
-        "priced": 106,
+        "priced": 150,
         "paying": 0
       },
       {
@@ -624,9 +625,9 @@
         "heartbeatSeconds": 300,
         "reference": "oracle",
         "bandBps": "the fill's own quietBps",
-        "refreshes": 586,
+        "refreshes": 851,
         "tollUsd": 0.0,
-        "priced": 106,
+        "priced": 150,
         "paying": 0
       },
       {
@@ -635,10 +636,10 @@
         "heartbeatSeconds": 900,
         "reference": "oracle",
         "bandBps": "the fill's own quietBps",
-        "refreshes": 210,
-        "tollUsd": 18.23,
-        "priced": 106,
-        "paying": 6
+        "refreshes": 303,
+        "tollUsd": 23.93,
+        "priced": 150,
+        "paying": 8
       },
       {
         "name": "deviation-25bps-hourly",
@@ -646,10 +647,10 @@
         "heartbeatSeconds": 3600,
         "reference": "oracle",
         "bandBps": "the fill's own quietBps",
-        "refreshes": 104,
-        "tollUsd": 2.76,
-        "priced": 106,
-        "paying": 6
+        "refreshes": 154,
+        "tollUsd": 3.1,
+        "priced": 150,
+        "paying": 9
       },
       {
         "name": "deviation-50bps-hourly",
@@ -657,10 +658,10 @@
         "heartbeatSeconds": 3600,
         "reference": "oracle",
         "bandBps": "the fill's own quietBps",
-        "refreshes": 60,
-        "tollUsd": 18.41,
-        "priced": 106,
-        "paying": 17
+        "refreshes": 90,
+        "tollUsd": 26.52,
+        "priced": 150,
+        "paying": 24
       },
       {
         "name": "every-observation-on-mark",
@@ -668,9 +669,9 @@
         "heartbeatSeconds": 60,
         "reference": "mark",
         "bandBps": "the fill's own quietBps",
-        "refreshes": 2340,
+        "refreshes": 3517,
         "tollUsd": 0.0,
-        "priced": 106,
+        "priced": 150,
         "paying": 0
       },
       {
@@ -679,10 +680,10 @@
         "heartbeatSeconds": 60,
         "reference": "oracle",
         "bandBps": 10.0,
-        "refreshes": 2340,
-        "tollUsd": 0.52,
-        "priced": 106,
-        "paying": 3
+        "refreshes": 3517,
+        "tollUsd": 0.54,
+        "priced": 150,
+        "paying": 4
       },
       {
         "name": "every-observation-band-5bps",
@@ -690,10 +691,10 @@
         "heartbeatSeconds": 60,
         "reference": "oracle",
         "bandBps": 5.0,
-        "refreshes": 2340,
-        "tollUsd": 6.99,
-        "priced": 106,
-        "paying": 24
+        "refreshes": 3517,
+        "tollUsd": 8.51,
+        "priced": 150,
+        "paying": 29
       },
       {
         "name": "every-observation-band-0bps",
@@ -701,10 +702,10 @@
         "heartbeatSeconds": 60,
         "reference": "oracle",
         "bandBps": 0.0,
-        "refreshes": 2340,
-        "tollUsd": 28.2,
-        "priced": 106,
-        "paying": 57
+        "refreshes": 3517,
+        "tollUsd": 36.86,
+        "priced": 150,
+        "paying": 76
       },
       {
         "name": "fifteen-minute-band-5bps",
@@ -712,10 +713,10 @@
         "heartbeatSeconds": 900,
         "reference": "oracle",
         "bandBps": 5.0,
-        "refreshes": 210,
-        "tollUsd": 49.07,
-        "priced": 106,
-        "paying": 46
+        "refreshes": 303,
+        "tollUsd": 65.58,
+        "priced": 150,
+        "paying": 61
       }
     ]
   },
@@ -9647,10 +9648,13 @@
           "toleranceSeconds": 120
         },
         "60": {
-          "bps": null,
-          "status": "pending",
-          "toleranceSeconds": 360,
-          "nearestLagSeconds": null
+          "bps": 1.556,
+          "status": "ok",
+          "midRaw": 771195.0,
+          "bookAt": 1789068191,
+          "bookBlock": 45558762,
+          "lagSeconds": 5,
+          "toleranceSeconds": 360
         }
       },
       "toll": {
@@ -9719,10 +9723,13 @@
           "toleranceSeconds": 120
         },
         "60": {
-          "bps": null,
-          "status": "pending",
-          "toleranceSeconds": 360,
-          "nearestLagSeconds": null
+          "bps": -7.004,
+          "status": "ok",
+          "midRaw": 771555.0,
+          "bookAt": 1789069692,
+          "bookBlock": 45560288,
+          "lagSeconds": 47,
+          "toleranceSeconds": 360
         }
       },
       "toll": {
@@ -9750,20 +9757,3436 @@
           "bandBps": 20
         }
       }
+    },
+    {
+      "fillId": "0x72b61facd56bf538ca2c3c195337d9fb9d63d04a033f540d23417c6e00000002",
+      "txHash": "0x72b61facd56bf538ca2c3c195337d9fb9d63d04a033f540d23417c6e302bdfcf",
+      "logIndex": 2,
+      "block": 45558137,
+      "at": 1789067577,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "299766",
+      "quoteRaw": "230669313",
+      "bookOk": true,
+      "bidRaw": 771040,
+      "askRaw": 771050,
+      "markRaw": 771040,
+      "oracleRaw": 771290,
+      "midRaw": 771045.0,
+      "touchRaw": 771040,
+      "poolDevBps": 187.32,
+      "quietBps": 20,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": {
+          "bps": 2.983,
+          "status": "ok",
+          "midRaw": 771275.0,
+          "bookAt": 1789067891,
+          "bookBlock": 45558457,
+          "lagSeconds": 14,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": 10.376,
+          "status": "ok",
+          "midRaw": 771845.0,
+          "bookAt": 1789068490,
+          "bookBlock": 45559066,
+          "lagSeconds": 13,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": 21.14,
+          "status": "ok",
+          "midRaw": 772675.0,
+          "bookAt": 1789071191,
+          "bookBlock": 45561812,
+          "lagSeconds": 14,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.129,
+          "pxRaw": 769497.92
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 4.4029,
+          "bps": 190.491,
+          "pxRaw": 785737.8,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -12.881,
+          "pxRaw": 770056.8,
+          "pegRaw": 771600.0,
+          "pegAt": 1789067472,
+          "pegAgeSeconds": 105,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x54209c70d1dbcdbacdd8d243ad647f11a29381292f5f2a8c72f457ef00000015",
+      "txHash": "0x54209c70d1dbcdbacdd8d243ad647f11a29381292f5f2a8c72f457ef79096fc1",
+      "logIndex": 21,
+      "block": 45558907,
+      "at": 1789068334,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "2833273",
+      "quoteRaw": "2183505979",
+      "bookOk": true,
+      "bidRaw": 772210,
+      "askRaw": 772220,
+      "markRaw": 772210,
+      "oracleRaw": 772456,
+      "midRaw": 772215.0,
+      "touchRaw": 772210,
+      "poolDevBps": 142.17,
+      "quietBps": 20,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": {
+          "bps": -15.54,
+          "status": "ok",
+          "midRaw": 771015.0,
+          "bookAt": 1789068714,
+          "bookBlock": 45559293,
+          "lagSeconds": 80,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -2.331,
+          "status": "ok",
+          "midRaw": 772035.0,
+          "bookAt": 1789069271,
+          "bookBlock": 45559860,
+          "lagSeconds": 37,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": 3.885,
+          "status": "ok",
+          "midRaw": 772515.0,
+          "bookAt": 1789071971,
+          "bookBlock": 45562605,
+          "lagSeconds": 37,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.129,
+          "pxRaw": 770665.58
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 31.7835,
+          "bps": 145.27,
+          "pxRaw": 783438.01,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -17.544,
+          "pxRaw": 770865.18,
+          "pegRaw": 772410.0,
+          "pegAt": 1789068324,
+          "pegAgeSeconds": 10,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x897643ccda7f737f2dbb4081ba5796be4d3a3a00c18ed1b4c218ee4600000002",
+      "txHash": "0x897643ccda7f737f2dbb4081ba5796be4d3a3a00c18ed1b4c218ee4626e93baa",
+      "logIndex": 2,
+      "block": 45560071,
+      "at": 1789069479,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "2312830",
+      "quoteRaw": "1789516803",
+      "bookOk": true,
+      "bidRaw": 772180,
+      "askRaw": 772190,
+      "markRaw": 772090,
+      "oracleRaw": 772360,
+      "midRaw": 772185.0,
+      "touchRaw": 772190,
+      "poolDevBps": -133.919,
+      "quietBps": 20,
+      "vsTouchBps": 20.004,
+      "markouts": {
+        "5": {
+          "bps": 18.26,
+          "status": "ok",
+          "midRaw": 770775.0,
+          "bookAt": 1789069832,
+          "bookBlock": 45560430,
+          "lagSeconds": 53,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": 8.288,
+          "status": "ok",
+          "midRaw": 771545.0,
+          "bookAt": 1789070411,
+          "bookBlock": 45561019,
+          "lagSeconds": 32,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": -7.252,
+          "status": "ok",
+          "midRaw": 772745.0,
+          "bookAt": 1789073111,
+          "bookBlock": 45563764,
+          "lagSeconds": 32,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.134,
+          "pxRaw": 773734.69
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 23.5063,
+          "bps": 131.619,
+          "pxRaw": 762016.63,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -23.348,
+          "pxRaw": 773982.88,
+          "pegRaw": 772438.0,
+          "pegAt": 1789069452,
+          "pegAgeSeconds": 27,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x4386839fe9c25f32abf6f4c32e6d42bb9c299ea14d2d35e6bd2847d300000002",
+      "txHash": "0x4386839fe9c25f32abf6f4c32e6d42bb9c299ea14d2d35e6bd2847d33e45bd1c",
+      "logIndex": 2,
+      "block": 45561256,
+      "at": 1789070644,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "973145",
+      "quoteRaw": "762210158",
+      "bookOk": true,
+      "bidRaw": 771240,
+      "askRaw": 771250,
+      "markRaw": 771240,
+      "oracleRaw": 771550,
+      "midRaw": 771245.0,
+      "touchRaw": 771250,
+      "poolDevBps": 102.952,
+      "quietBps": 20,
+      "vsTouchBps": 155.516,
+      "markouts": {
+        "5": {
+          "bps": -12.577,
+          "status": "ok",
+          "midRaw": 772215.0,
+          "bookAt": 1789070951,
+          "bookBlock": 45561568,
+          "lagSeconds": 7,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -22.691,
+          "status": "ok",
+          "midRaw": 772995.0,
+          "bookAt": 1789071551,
+          "bookBlock": 45562178,
+          "lagSeconds": 7,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": -10.891,
+          "status": "ok",
+          "midRaw": 772085.0,
+          "bookAt": 1789074251,
+          "bookBlock": 45564923,
+          "lagSeconds": 7,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -155.648,
+          "pxRaw": 783244.17
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -107.013,
+          "pxRaw": 779493.26,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -26.132,
+          "pxRaw": 773255.42,
+          "pegRaw": 771712.0,
+          "pegAt": 1789070535,
+          "pegAgeSeconds": 109,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x7b4861f89b4379613212c89b7cdbed357e29f6bb565dfa79da0e8fbc00000002",
+      "txHash": "0x7b4861f89b4379613212c89b7cdbed357e29f6bb565dfa79da0e8fbc1ccb54aa",
+      "logIndex": 2,
+      "block": 45563104,
+      "at": 1789072462,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "1920888",
+      "quoteRaw": "1480784014",
+      "bookOk": true,
+      "bidRaw": 772430,
+      "askRaw": 772440,
+      "markRaw": 772400,
+      "oracleRaw": 772660,
+      "midRaw": 772435.0,
+      "touchRaw": 772430,
+      "poolDevBps": 185.747,
+      "quietBps": 20,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": {
+          "bps": 1.424,
+          "status": "ok",
+          "midRaw": 772545.0,
+          "bookAt": 1789072811,
+          "bookBlock": 45563459,
+          "lagSeconds": 49,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -2.46,
+          "status": "ok",
+          "midRaw": 772245.0,
+          "bookAt": 1789073411,
+          "bookBlock": 45564069,
+          "lagSeconds": 49,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": -4.79,
+          "status": "ok",
+          "midRaw": 772065.0,
+          "bookAt": 1789076111,
+          "bookBlock": 45566814,
+          "lagSeconds": 49,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.129,
+          "pxRaw": 770885.14
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 27.9909,
+          "bps": 188.648,
+          "pxRaw": 787011.93,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.0,
+          "pxRaw": 770895.12,
+          "pegRaw": 772440.0,
+          "pegAt": 1789072398,
+          "pegAgeSeconds": 64,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x00c04eb636b49fc932245ccb7a5368cfda16dfba33b6eb358f48017100000003",
+      "txHash": "0x00c04eb636b49fc932245ccb7a5368cfda16dfba33b6eb358f4801711f819cd9",
+      "logIndex": 3,
+      "block": 45564312,
+      "at": 1789073650,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "517907",
+      "quoteRaw": "401026259",
+      "bookOk": true,
+      "bidRaw": 772590,
+      "askRaw": 772600,
+      "markRaw": 772600,
+      "oracleRaw": 772900,
+      "midRaw": 772595.0,
+      "touchRaw": 772600,
+      "poolDevBps": -7.038,
+      "quietBps": 20,
+      "vsTouchBps": 22.275,
+      "markouts": {
+        "5": {
+          "bps": 2.071,
+          "status": "ok",
+          "midRaw": 772435.0,
+          "bookAt": 1789073951,
+          "bookBlock": 45564618,
+          "lagSeconds": 1,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": 2.459,
+          "status": "ok",
+          "midRaw": 772405.0,
+          "bookAt": 1789074551,
+          "bookBlock": 45565228,
+          "lagSeconds": 1,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": 16.697,
+          "status": "ok",
+          "midRaw": 771305.0,
+          "bookAt": 1789077251,
+          "bookBlock": 45567973,
+          "lagSeconds": 1,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -22.405,
+          "pxRaw": 774320.97
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 0.1212,
+          "bps": 3.028,
+          "pxRaw": 772356.03,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -22.464,
+          "pxRaw": 774325.56,
+          "pegRaw": 772780.0,
+          "pegAt": 1789073591,
+          "pegAgeSeconds": 59,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x5fb1d06b8bad254d56d56b5d8818d1211779d73e01a94de0838b08c800000002",
+      "txHash": "0x5fb1d06b8bad254d56d56b5d8818d1211779d73e01a94de0838b08c8f573d8c0",
+      "logIndex": 2,
+      "block": 45565596,
+      "at": 1789074913,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "3232032",
+      "quoteRaw": "2469797630",
+      "bookOk": true,
+      "bidRaw": 772380,
+      "askRaw": 772390,
+      "markRaw": 772320,
+      "oracleRaw": 772550,
+      "midRaw": 772385.0,
+      "touchRaw": 772380,
+      "poolDevBps": 48.399,
+      "quietBps": 20,
+      "vsTouchBps": -106.392,
+      "markouts": {
+        "5": {
+          "bps": -8.027,
+          "status": "ok",
+          "midRaw": 771765.0,
+          "bookAt": 1789075214,
+          "bookBlock": 45565902,
+          "lagSeconds": 1,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -4.92,
+          "status": "ok",
+          "midRaw": 772005.0,
+          "bookAt": 1789075870,
+          "bookBlock": 45566569,
+          "lagSeconds": 57,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": -12.429,
+          "status": "ok",
+          "midRaw": 771425.0,
+          "bookAt": 1789078572,
+          "bookBlock": 45569316,
+          "lagSeconds": 59,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -106.52,
+          "pxRaw": 764162.49
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 12.6018,
+          "bps": 50.481,
+          "pxRaw": 776289.06,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -17.933,
+          "pxRaw": 771004.9,
+          "pegRaw": 772550.0,
+          "pegAt": 1789074911,
+          "pegAgeSeconds": 2,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0xc3e9bf9a4a52d5b1708d770ad53ba5feb21500124e168632af9f01ad00000002",
+      "txHash": "0xc3e9bf9a4a52d5b1708d770ad53ba5feb21500124e168632af9f01ad052ebd04",
+      "logIndex": 2,
+      "block": 45566292,
+      "at": 1789075598,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "570441",
+      "quoteRaw": "441187159",
+      "bookOk": true,
+      "bidRaw": 771860,
+      "askRaw": 771870,
+      "markRaw": 771870,
+      "oracleRaw": 772160,
+      "midRaw": 771865.0,
+      "touchRaw": 771870,
+      "poolDevBps": -258.167,
+      "quietBps": 20,
+      "vsTouchBps": 20.006,
+      "markouts": {
+        "5": {
+          "bps": 0.518,
+          "status": "ok",
+          "midRaw": 771825.0,
+          "bookAt": 1789075931,
+          "bookBlock": 45566631,
+          "lagSeconds": 33,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": 2.591,
+          "status": "ok",
+          "midRaw": 771665.0,
+          "bookAt": 1789076531,
+          "bookBlock": 45567241,
+          "lagSeconds": 33,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": 9.717,
+          "status": "ok",
+          "midRaw": 771115.0,
+          "bookAt": 1789079231,
+          "bookBlock": 45569986,
+          "lagSeconds": 33,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.136,
+          "pxRaw": 773414.2
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 11.2005,
+          "bps": 254.381,
+          "pxRaw": 752225.38,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -23.894,
+          "pxRaw": 773704.32,
+          "pegRaw": 772160.0,
+          "pegAt": 1789075571,
+          "pegAgeSeconds": 27,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x289c0d40c5d4466b4b986119ff062bf69440ba7253004550c1bc11dc00000007",
+      "txHash": "0x289c0d40c5d4466b4b986119ff062bf69440ba7253004550c1bc11dc5611405f",
+      "logIndex": 7,
+      "block": 45567414,
+      "at": 1789076701,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "472980",
+      "quoteRaw": "365553700",
+      "bookOk": true,
+      "bidRaw": 771320,
+      "askRaw": 771330,
+      "markRaw": 771303,
+      "oracleRaw": 771564,
+      "midRaw": 771325.0,
+      "touchRaw": 771330,
+      "poolDevBps": -195.975,
+      "quietBps": 20,
+      "vsTouchBps": 20.011,
+      "markouts": {
+        "5": {
+          "bps": 0.519,
+          "status": "ok",
+          "midRaw": 771285.0,
+          "bookAt": 1789077011,
+          "bookBlock": 45567729,
+          "lagSeconds": 10,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": 1.815,
+          "status": "ok",
+          "midRaw": 771185.0,
+          "bookAt": 1789077612,
+          "bookBlock": 45568340,
+          "lagSeconds": 11,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": 39.153,
+          "status": "ok",
+          "midRaw": 768305.0,
+          "bookAt": 1789080311,
+          "bookBlock": 45571084,
+          "lagSeconds": 10,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.141,
+          "pxRaw": 772873.51
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 7.0364,
+          "bps": 192.874,
+          "pxRaw": 756443.27,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -22.858,
+          "pxRaw": 773083.08,
+          "pegRaw": 771540.0,
+          "pegAt": 1789076651,
+          "pegAgeSeconds": 50,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0xf3cf61a997e5976e5789f67617dbeeb7b01120e8eecc429d51c0cb8400000005",
+      "txHash": "0xf3cf61a997e5976e5789f67617dbeeb7b01120e8eecc429d51c0cb84ea75dcef",
+      "logIndex": 5,
+      "block": 45569177,
+      "at": 1789078436,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "2374586",
+      "quoteRaw": "1834420281",
+      "bookOk": true,
+      "bidRaw": 770970,
+      "askRaw": 770980,
+      "markRaw": 770900,
+      "oracleRaw": 771142,
+      "midRaw": 770975.0,
+      "touchRaw": 770980,
+      "poolDevBps": -145.044,
+      "quietBps": 20,
+      "vsTouchBps": 20.002,
+      "markouts": {
+        "5": {
+          "bps": -9.987,
+          "status": "ok",
+          "midRaw": 771745.0,
+          "bookAt": 1789078752,
+          "bookBlock": 45569499,
+          "lagSeconds": 16,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": 1.946,
+          "status": "ok",
+          "midRaw": 770825.0,
+          "bookAt": 1789079351,
+          "bookBlock": 45570108,
+          "lagSeconds": 15,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": 70.041,
+          "status": "ok",
+          "midRaw": 765575.0,
+          "bookAt": 1789082051,
+          "bookBlock": 45572853,
+          "lagSeconds": 15,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.132,
+          "pxRaw": 772522.11
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 26.1514,
+          "bps": 142.845,
+          "pxRaw": 759957.05,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -26.108,
+          "pxRaw": 772982.88,
+          "pegRaw": 771440.0,
+          "pegAt": 1789078391,
+          "pegAgeSeconds": 45,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x66e73770fe00d41a7b46a204b3ea763dfb9ab986d97e44ddaf75e1c100000002",
+      "txHash": "0x66e73770fe00d41a7b46a204b3ea763dfb9ab986d97e44ddaf75e1c1caa73b38",
+      "logIndex": 2,
+      "block": 45569743,
+      "at": 1789078992,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "2876905",
+      "quoteRaw": "2206576471",
+      "bookOk": true,
+      "bidRaw": 771640,
+      "askRaw": 771650,
+      "markRaw": 771610,
+      "oracleRaw": 771774,
+      "midRaw": 771645.0,
+      "touchRaw": 771640,
+      "poolDevBps": 78.607,
+      "quietBps": 20,
+      "vsTouchBps": -60.175,
+      "markouts": {
+        "5": {
+          "bps": -10.627,
+          "status": "ok",
+          "midRaw": 770825.0,
+          "bookAt": 1789079351,
+          "bookBlock": 45570108,
+          "lagSeconds": 59,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -39.137,
+          "status": "ok",
+          "midRaw": 768625.0,
+          "bookAt": 1789079951,
+          "bookBlock": 45570718,
+          "lagSeconds": 59,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": -65.315,
+          "status": "ok",
+          "midRaw": 766605.0,
+          "bookAt": 1789082651,
+          "bookBlock": 45573463,
+          "lagSeconds": 59,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -60.304,
+          "pxRaw": 766996.66
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 17.8099,
+          "bps": 80.227,
+          "pxRaw": 777840.68,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -18.396,
+          "pxRaw": 770230.45,
+          "pegRaw": 771774.0,
+          "pegAt": 1789078991,
+          "pegAgeSeconds": 1,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x891ee191dfad3eb67b3366fbde764f55a2c165c63adbfa293967697e00000002",
+      "txHash": "0x891ee191dfad3eb67b3366fbde764f55a2c165c63adbfa293967697e6a192607",
+      "logIndex": 2,
+      "block": 45571251,
+      "at": 1789080476,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "592792",
+      "quoteRaw": "456947359",
+      "bookOk": true,
+      "bidRaw": 769290,
+      "askRaw": 769300,
+      "markRaw": 769300,
+      "oracleRaw": 769568,
+      "midRaw": 769295.0,
+      "touchRaw": 769300,
+      "poolDevBps": -172.359,
+      "quietBps": 20,
+      "vsTouchBps": 20.009,
+      "markouts": {
+        "5": {
+          "bps": 5.46,
+          "status": "ok",
+          "midRaw": 768875.0,
+          "bookAt": 1789080851,
+          "bookBlock": 45571633,
+          "lagSeconds": 75,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": 10.919,
+          "status": "ok",
+          "midRaw": 768455.0,
+          "bookAt": 1789081391,
+          "bookBlock": 45572182,
+          "lagSeconds": 15,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": 26.908,
+          "status": "ok",
+          "midRaw": 767225.0,
+          "bookAt": 1789084091,
+          "bookBlock": 45574927,
+          "lagSeconds": 15,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.139,
+          "pxRaw": 770839.29
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 7.6982,
+          "bps": 168.808,
+          "pxRaw": 756303.8,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.781,
+          "pxRaw": 770888.7,
+          "pegRaw": 769350.0,
+          "pegAt": 1789080431,
+          "pegAgeSeconds": 45,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x03fc0b3c99406f35b39d314718804b4fdbe5f608ee3421313afc00cb00000013",
+      "txHash": "0x03fc0b3c99406f35b39d314718804b4fdbe5f608ee3421313afc00cbaf6189fb",
+      "logIndex": 19,
+      "block": 45572708,
+      "at": 1789081909,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "745249",
+      "quoteRaw": "564867529",
+      "bookOk": true,
+      "bidRaw": 766750,
+      "askRaw": 766760,
+      "markRaw": 766760,
+      "oracleRaw": 767077,
+      "midRaw": 766755.0,
+      "touchRaw": 766750,
+      "poolDevBps": -83.091,
+      "quietBps": 20,
+      "vsTouchBps": -114.664,
+      "markouts": {
+        "5": {
+          "bps": -7.173,
+          "status": "ok",
+          "midRaw": 766205.0,
+          "bookAt": 1789082230,
+          "bookBlock": 45573035,
+          "lagSeconds": 21,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": 5.999,
+          "status": "ok",
+          "midRaw": 767215.0,
+          "bookAt": 1789082830,
+          "bookBlock": 45573645,
+          "lagSeconds": 21,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": 14.216,
+          "status": "ok",
+          "midRaw": 767845.0,
+          "bookAt": 1789085531,
+          "bookBlock": 45576391,
+          "lagSeconds": 22,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -114.793,
+          "pxRaw": 757958.14
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -78.991,
+          "pxRaw": 760703.28,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -16.824,
+          "pxRaw": 765469.99,
+          "pegRaw": 767004.0,
+          "pegAt": 1789081812,
+          "pegAgeSeconds": 97,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x9c9d651db9701773ab2232fbc3ad40d40ea4033ca3d066bc50e1288a00000003",
+      "txHash": "0x9c9d651db9701773ab2232fbc3ad40d40ea4033ca3d066bc50e1288a728df354",
+      "logIndex": 3,
+      "block": 45573405,
+      "at": 1789082594,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "1075283",
+      "quoteRaw": "826499380",
+      "bookOk": true,
+      "bidRaw": 767090,
+      "askRaw": 767100,
+      "markRaw": 767100,
+      "oracleRaw": 767410,
+      "midRaw": 767095.0,
+      "touchRaw": 767100,
+      "poolDevBps": -158.809,
+      "quietBps": 20,
+      "vsTouchBps": 20.001,
+      "markouts": {
+        "5": {
+          "bps": -5.41,
+          "status": "ok",
+          "midRaw": 767510.0,
+          "bookAt": 1789082951,
+          "bookBlock": 45573768,
+          "lagSeconds": 57,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -4.954,
+          "status": "ok",
+          "midRaw": 767475.0,
+          "bookAt": 1789083551,
+          "bookBlock": 45574378,
+          "lagSeconds": 57,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": -15.904,
+          "status": "ok",
+          "midRaw": 768315.0,
+          "bookAt": 1789086250,
+          "bookBlock": 45577122,
+          "lagSeconds": 56,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.132,
+          "pxRaw": 768634.28
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 12.7606,
+          "bps": 154.704,
+          "pxRaw": 755222.84,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -24.193,
+          "pxRaw": 768945.82,
+          "pegRaw": 767411.0,
+          "pegAt": 1789082591,
+          "pegAgeSeconds": 3,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x6739be445c8ce38f7f535f7d48f82ec2eeb040a92bf380f5df79e31800000002",
+      "txHash": "0x6739be445c8ce38f7f535f7d48f82ec2eeb040a92bf380f5df79e31876420982",
+      "logIndex": 2,
+      "block": 45575315,
+      "at": 1789084473,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "509988",
+      "quoteRaw": "388258451",
+      "bookOk": true,
+      "bidRaw": 766660,
+      "askRaw": 766670,
+      "markRaw": 766658,
+      "oracleRaw": 767020,
+      "midRaw": 766665.0,
+      "touchRaw": 766660,
+      "poolDevBps": -49.817,
+      "quietBps": 20,
+      "vsTouchBps": -69.796,
+      "markouts": {
+        "5": {
+          "bps": -14.478,
+          "status": "ok",
+          "midRaw": 765555.0,
+          "bookAt": 1789084810,
+          "bookBlock": 45575658,
+          "lagSeconds": 37,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": 13.957,
+          "status": "ok",
+          "midRaw": 767735.0,
+          "bookAt": 1789085463,
+          "bookBlock": 45576322,
+          "lagSeconds": 90,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": 28.696,
+          "status": "ok",
+          "midRaw": 768865.0,
+          "bookAt": 1789088111,
+          "bookBlock": 45579014,
+          "lagSeconds": 38,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -69.926,
+          "pxRaw": 761309.02
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -45.275,
+          "pxRaw": 763198.94,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -15.366,
+          "pxRaw": 765491.95,
+          "pegRaw": 767026.0,
+          "pegAt": 1789084451,
+          "pegAgeSeconds": 22,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0xf66c1fece521ce455390e95189d205ff3b9ddc97bad7923c80bc744700000002",
+      "txHash": "0xf66c1fece521ce455390e95189d205ff3b9ddc97bad7923c80bc7447bf5f9f1c",
+      "logIndex": 2,
+      "block": 45576140,
+      "at": 1789085284,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "1425267",
+      "quoteRaw": "1095937892",
+      "bookOk": true,
+      "bidRaw": 767390,
+      "askRaw": 767400,
+      "markRaw": 767320,
+      "oracleRaw": 767690,
+      "midRaw": 767395.0,
+      "touchRaw": 767400,
+      "poolDevBps": -107.677,
+      "quietBps": 20,
+      "vsTouchBps": 20.005,
+      "markouts": {
+        "5": {
+          "bps": -9.382,
+          "status": "ok",
+          "midRaw": 768115.0,
+          "bookAt": 1789085591,
+          "bookBlock": 45576452,
+          "lagSeconds": 7,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -8.991,
+          "status": "ok",
+          "midRaw": 768085.0,
+          "bookAt": 1789086191,
+          "bookBlock": 45577062,
+          "lagSeconds": 7,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": -25.802,
+          "status": "ok",
+          "midRaw": 769375.0,
+          "bookAt": 1789088891,
+          "bookBlock": 45579807,
+          "lagSeconds": 7,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.136,
+          "pxRaw": 768935.18
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 11.3541,
+          "bps": 103.81,
+          "pxRaw": 759423.74,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -15.991,
+          "pxRaw": 768617.17,
+          "pegRaw": 767083.0,
+          "pegAt": 1789085231,
+          "pegAgeSeconds": 53,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0xb49c47ec5047f785045036012dc5acd22ce7dfc8bd89431759abad3600000008",
+      "txHash": "0xb49c47ec5047f785045036012dc5acd22ce7dfc8bd89431759abad36b976c515",
+      "logIndex": 8,
+      "block": 45577540,
+      "at": 1789086661,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "2924459",
+      "quoteRaw": "2284721087",
+      "bookOk": true,
+      "bidRaw": 767490,
+      "askRaw": 767500,
+      "markRaw": 767516,
+      "oracleRaw": 767848,
+      "midRaw": 767495.0,
+      "touchRaw": 767500,
+      "poolDevBps": 28.998,
+      "quietBps": 20,
+      "vsTouchBps": 179.097,
+      "markouts": {
+        "5": {
+          "bps": -3.648,
+          "status": "ok",
+          "midRaw": 767775.0,
+          "bookAt": 1789086971,
+          "bookBlock": 45577855,
+          "lagSeconds": 10,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -0.391,
+          "status": "ok",
+          "midRaw": 767525.0,
+          "bookAt": 1789087571,
+          "bookBlock": 45578465,
+          "lagSeconds": 10,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": -2.606,
+          "status": "ok",
+          "midRaw": 767695.0,
+          "bookAt": 1789090271,
+          "bookBlock": 45581210,
+          "lagSeconds": 10,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -179.23,
+          "pxRaw": 781245.69
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -33.676,
+          "pxRaw": 770074.61,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -33.042,
+          "pxRaw": 770025.98,
+          "pegRaw": 768489.0,
+          "pegAt": 1789086611,
+          "pegAgeSeconds": 50,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x0f2679ca85547b22ffad07c4251fccc025772b37367637a5390a481900000008",
+      "txHash": "0x0f2679ca85547b22ffad07c4251fccc025772b37367637a5390a48196c08a21d",
+      "logIndex": 8,
+      "block": 45578651,
+      "at": 1789087754,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "3232075",
+      "quoteRaw": "2475946632",
+      "bookOk": true,
+      "bidRaw": 767590,
+      "askRaw": 767600,
+      "markRaw": 767600,
+      "oracleRaw": 767920,
+      "midRaw": 767595.0,
+      "touchRaw": 767590,
+      "poolDevBps": 321.111,
+      "quietBps": 20,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": {
+          "bps": 16.545,
+          "status": "ok",
+          "midRaw": 768865.0,
+          "bookAt": 1789088111,
+          "bookBlock": 45579014,
+          "lagSeconds": 57,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": 26.837,
+          "status": "ok",
+          "midRaw": 769655.0,
+          "bookAt": 1789088710,
+          "bookBlock": 45579623,
+          "lagSeconds": 56,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": 15.894,
+          "status": "ok",
+          "midRaw": 768815.0,
+          "bookAt": 1789091411,
+          "bookBlock": 45582369,
+          "lagSeconds": 57,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.13,
+          "pxRaw": 766054.82
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 80.7327,
+          "bps": 325.414,
+          "pxRaw": 792578.76,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -15.839,
+          "pxRaw": 766384.16,
+          "pegRaw": 767920.0,
+          "pegAt": 1789087751,
+          "pegAgeSeconds": 3,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x07c5a65f4033502dd6cc8c3df7d232569fa1e3e9edb7e1eb46afc59800000003",
+      "txHash": "0x07c5a65f4033502dd6cc8c3df7d232569fa1e3e9edb7e1eb46afc59877ac3355",
+      "logIndex": 3,
+      "block": 45579905,
+      "at": 1789088988,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "2005625",
+      "quoteRaw": "1525353052",
+      "bookOk": true,
+      "bidRaw": 769450,
+      "askRaw": 769460,
+      "markRaw": 769430,
+      "oracleRaw": 769660,
+      "midRaw": 769455.0,
+      "touchRaw": 769450,
+      "poolDevBps": -21.77,
+      "quietBps": 20,
+      "vsTouchBps": -115.829,
+      "markouts": {
+        "5": {
+          "bps": -7.668,
+          "status": "ok",
+          "midRaw": 768865.0,
+          "bookAt": 1789089311,
+          "bookBlock": 45580234,
+          "lagSeconds": 23,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -12.086,
+          "status": "ok",
+          "midRaw": 768525.0,
+          "bookAt": 1789089911,
+          "bookBlock": 45580844,
+          "lagSeconds": 23,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": -5.718,
+          "status": "ok",
+          "midRaw": 769015.0,
+          "bookAt": 1789092611,
+          "bookBlock": 45583589,
+          "lagSeconds": 23,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -115.957,
+          "pxRaw": 760537.54
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -19.176,
+          "pxRaw": 767984.45,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -18.573,
+          "pxRaw": 768030.86,
+          "pegRaw": 769570.0,
+          "pegAt": 1789088951,
+          "pegAgeSeconds": 37,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x461e3f399c0674f5dce17f72edc1df2e416c293a13a20f38867ebe8500000004",
+      "txHash": "0x461e3f399c0674f5dce17f72edc1df2e416c293a13a20f38867ebe85213601a4",
+      "logIndex": 4,
+      "block": 45581237,
+      "at": 1789090298,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "2576877",
+      "quoteRaw": "1981941128",
+      "bookOk": true,
+      "bidRaw": 767580,
+      "askRaw": 767590,
+      "markRaw": 767570,
+      "oracleRaw": 767820,
+      "midRaw": 767585.0,
+      "touchRaw": 767590,
+      "poolDevBps": -190.894,
+      "quietBps": 20,
+      "vsTouchBps": 20.001,
+      "markouts": {
+        "5": {
+          "bps": -8.598,
+          "status": "ok",
+          "midRaw": 768245.0,
+          "bookAt": 1789090631,
+          "bookBlock": 45581576,
+          "lagSeconds": 33,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -3.648,
+          "status": "ok",
+          "midRaw": 767865.0,
+          "bookAt": 1789091231,
+          "bookBlock": 45582186,
+          "lagSeconds": 33,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": -1.824,
+          "status": "ok",
+          "midRaw": 767725.0,
+          "bookAt": 1789093931,
+          "bookBlock": 45584931,
+          "lagSeconds": 33,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.132,
+          "pxRaw": 769125.26
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 37.1517,
+          "bps": 187.827,
+          "pxRaw": 753162.78,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -24.66,
+          "pxRaw": 769472.87,
+          "pegRaw": 767937.0,
+          "pegAt": 1789090271,
+          "pegAgeSeconds": 27,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x0ddd5b51c695f60460fdf495804b4d5e0b2be978e77021a41212b1ad00000014",
+      "txHash": "0x0ddd5b51c695f60460fdf495804b4d5e0b2be978e77021a41212b1ad5ae2701c",
+      "logIndex": 20,
+      "block": 45582361,
+      "at": 1789091403,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "395011",
+      "quoteRaw": "303081030",
+      "bookOk": true,
+      "bidRaw": 768810,
+      "askRaw": 768820,
+      "markRaw": 768810,
+      "oracleRaw": 769051,
+      "midRaw": 768815.0,
+      "touchRaw": 768810,
+      "poolDevBps": 43.127,
+      "quietBps": 20,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": {
+          "bps": 8.455,
+          "status": "ok",
+          "midRaw": 769465.0,
+          "bookAt": 1789091710,
+          "bookBlock": 45582673,
+          "lagSeconds": 7,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": 11.966,
+          "status": "ok",
+          "midRaw": 769735.0,
+          "bookAt": 1789092311,
+          "bookBlock": 45583284,
+          "lagSeconds": 8,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": 2.211,
+          "status": "ok",
+          "midRaw": 768985.0,
+          "bookAt": 1789095011,
+          "bookBlock": 45586029,
+          "lagSeconds": 8,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.13,
+          "pxRaw": 767272.38
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 1.4014,
+          "bps": 46.145,
+          "pxRaw": 772367.69,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -19.468,
+          "pxRaw": 767323.28,
+          "pegRaw": 768861.0,
+          "pegAt": 1789091351,
+          "pegAgeSeconds": 52,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x81728420cc22c96eafd141a35339892ce5ff62085a1cd1386cd4e41900000002",
+      "txHash": "0x81728420cc22c96eafd141a35339892ce5ff62085a1cd1386cd4e419fc2c0836",
+      "logIndex": 2,
+      "block": 45583308,
+      "at": 1789092335,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "949759",
+      "quoteRaw": "734148198",
+      "bookOk": true,
+      "bidRaw": 769800,
+      "askRaw": 769810,
+      "markRaw": 769770,
+      "oracleRaw": 769990,
+      "midRaw": 769805.0,
+      "touchRaw": 769810,
+      "poolDevBps": -7.715,
+      "quietBps": 20,
+      "vsTouchBps": 41.227,
+      "markouts": {
+        "5": {
+          "bps": 10.132,
+          "status": "ok",
+          "midRaw": 769025.0,
+          "bookAt": 1789092671,
+          "bookBlock": 45583650,
+          "lagSeconds": 36,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": 11.951,
+          "status": "ok",
+          "midRaw": 768885.0,
+          "bookAt": 1789093271,
+          "bookBlock": 45584260,
+          "lagSeconds": 36,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": 33.125,
+          "status": "ok",
+          "midRaw": 767255.0,
+          "bookAt": 1789095974,
+          "bookBlock": 45587008,
+          "lagSeconds": 39,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -41.357,
+          "pxRaw": 772983.7
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 0.3838,
+          "bps": 5.249,
+          "pxRaw": 769395.95,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -22.122,
+          "pxRaw": 771502.93,
+          "pegRaw": 769963.0,
+          "pegAt": 1789092311,
+          "pegAgeSeconds": 24,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x6c66af208c998c3ee182730709fd4a1976c63f743dfe73d3a4966bf200000003",
+      "txHash": "0x6c66af208c998c3ee182730709fd4a1976c63f743dfe73d3a4966bf2352f975c",
+      "logIndex": 3,
+      "block": 45584860,
+      "at": 1789093861,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "2087384",
+      "quoteRaw": "1599508880",
+      "bookOk": true,
+      "bidRaw": 767810,
+      "askRaw": 767820,
+      "markRaw": 767810,
+      "oracleRaw": 768118,
+      "midRaw": 767815.0,
+      "touchRaw": 767810,
+      "poolDevBps": 110.259,
+      "quietBps": 20,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": {
+          "bps": 0.391,
+          "status": "ok",
+          "midRaw": 767845.0,
+          "bookAt": 1789094171,
+          "bookBlock": 45585175,
+          "lagSeconds": 10,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": 10.289,
+          "status": "ok",
+          "midRaw": 768605.0,
+          "bookAt": 1789094771,
+          "bookBlock": 45585785,
+          "lagSeconds": 10,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": -5.34,
+          "status": "ok",
+          "midRaw": 767405.0,
+          "bookAt": 1789097471,
+          "bookBlock": 45588530,
+          "lagSeconds": 10,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.13,
+          "pxRaw": 766274.38
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 18.3004,
+          "bps": 114.183,
+          "pxRaw": 776587.19,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -16.335,
+          "pxRaw": 766565.8,
+          "pegRaw": 768102.0,
+          "pegAt": 1789093811,
+          "pegAgeSeconds": 50,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x7bcb65a129b6da8f5af15ab032aaf76b2f87b374b96a991bcd9d8a7600000002",
+      "txHash": "0x7bcb65a129b6da8f5af15ab032aaf76b2f87b374b96a991bcd9d8a76792d8596",
+      "logIndex": 2,
+      "block": 45617234,
+      "at": 1789125705,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "367363",
+      "quoteRaw": "279042187",
+      "bookOk": true,
+      "bidRaw": 767640,
+      "askRaw": 767650,
+      "markRaw": 767620,
+      "oracleRaw": 768000,
+      "midRaw": 767645.0,
+      "touchRaw": 767640,
+      "poolDevBps": -91.959,
+      "quietBps": 20,
+      "vsTouchBps": -104.976,
+      "markouts": {
+        "5": {
+          "bps": 9.9,
+          "status": "ok",
+          "midRaw": 768405.0,
+          "bookAt": 1789126031,
+          "bookBlock": 45617566,
+          "lagSeconds": 26,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": 3.257,
+          "status": "ok",
+          "midRaw": 767895.0,
+          "bookAt": 1789126631,
+          "bookBlock": 45618176,
+          "lagSeconds": 26,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": 25.793,
+          "status": "ok",
+          "midRaw": 769625.0,
+          "bookAt": 1789129331,
+          "bookBlock": 45620921,
+          "lagSeconds": 26,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -105.105,
+          "pxRaw": 759581.62
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -87.442,
+          "pxRaw": 760937.55,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -15.45,
+          "pxRaw": 766464.0,
+          "pegRaw": 768000.0,
+          "pegAt": 1789125671,
+          "pegAgeSeconds": 34,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x4dc585a2212a291857af5e9d5355c761a69af3d8cff77e0c03df046600000023",
+      "txHash": "0x4dc585a2212a291857af5e9d5355c761a69af3d8cff77e0c03df0466d97dd0fd",
+      "logIndex": 35,
+      "block": 45617462,
+      "at": 1789125929,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "1207385",
+      "quoteRaw": "910142879",
+      "bookOk": true,
+      "bidRaw": 768570,
+      "askRaw": 768580,
+      "markRaw": 768450,
+      "oracleRaw": 768860,
+      "midRaw": 768575.0,
+      "touchRaw": 768570,
+      "poolDevBps": -138.281,
+      "quietBps": 20,
+      "vsTouchBps": -192.002,
+      "markouts": {
+        "5": {
+          "bps": -6.766,
+          "status": "ok",
+          "midRaw": 768055.0,
+          "bookAt": 1789126270,
+          "bookBlock": 45617809,
+          "lagSeconds": 41,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -0.651,
+          "status": "ok",
+          "midRaw": 768525.0,
+          "bookAt": 1789126871,
+          "bookBlock": 45618420,
+          "lagSeconds": 42,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": 18.606,
+          "status": "ok",
+          "midRaw": 770005.0,
+          "bookAt": 1789129571,
+          "bookBlock": 45621165,
+          "lagSeconds": 42,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -192.13,
+          "pxRaw": 753813.3
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -134.688,
+          "pxRaw": 758228.13,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -22.974,
+          "pxRaw": 766814.3,
+          "pegRaw": 768351.0,
+          "pegAt": 1789125912,
+          "pegAgeSeconds": 17,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0xb396a4642386373e93444b6475807ac496b4224c79fd301375fc9d0000000018",
+      "txHash": "0xb396a4642386373e93444b6475807ac496b4224c79fd301375fc9d003269c948",
+      "logIndex": 24,
+      "block": 45618522,
+      "at": 1789126972,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "839738",
+      "quoteRaw": "646663703",
+      "bookOk": true,
+      "bidRaw": 768530,
+      "askRaw": 768540,
+      "markRaw": 768710,
+      "oracleRaw": 769061,
+      "midRaw": 768535.0,
+      "touchRaw": 768540,
+      "poolDevBps": -255.334,
+      "quietBps": 20,
+      "vsTouchBps": 20.011,
+      "markouts": {
+        "5": {
+          "bps": -7.287,
+          "status": "ok",
+          "midRaw": 769095.0,
+          "bookAt": 1789127291,
+          "bookBlock": 45618847,
+          "lagSeconds": 19,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -16.004,
+          "status": "ok",
+          "midRaw": 769765.0,
+          "bookAt": 1789127892,
+          "bookBlock": 45619458,
+          "lagSeconds": 20,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": -89.716,
+          "status": "ok",
+          "midRaw": 775430.0,
+          "bookAt": 1789130591,
+          "bookBlock": 45622202,
+          "lagSeconds": 19,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.141,
+          "pxRaw": 770077.93
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 16.0439,
+          "bps": 248.601,
+          "pxRaw": 749424.26,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -25.215,
+          "pxRaw": 770467.86,
+          "pegRaw": 768930.0,
+          "pegAt": 1789126931,
+          "pegAgeSeconds": 41,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0xd174dd77e666ce9eb7bbfb1929e5b915093b152bdb076b3ff8f8fdfc00000036",
+      "txHash": "0xd174dd77e666ce9eb7bbfb1929e5b915093b152bdb076b3ff8f8fdfc2ed52233",
+      "logIndex": 54,
+      "block": 45620378,
+      "at": 1789128797,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "3049494",
+      "quoteRaw": "2349170727",
+      "bookOk": true,
+      "bidRaw": 768800,
+      "askRaw": 768810,
+      "markRaw": 768860,
+      "oracleRaw": 769212,
+      "midRaw": 768805.0,
+      "touchRaw": 768810,
+      "poolDevBps": -176.927,
+      "quietBps": 20,
+      "vsTouchBps": 20.001,
+      "markouts": {
+        "5": {
+          "bps": -14.048,
+          "status": "ok",
+          "midRaw": 769885.0,
+          "bookAt": 1789129151,
+          "bookBlock": 45620738,
+          "lagSeconds": 54,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -6.634,
+          "status": "ok",
+          "midRaw": 769315.0,
+          "bookAt": 1789129751,
+          "bookBlock": 45621348,
+          "lagSeconds": 54,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": -105.098,
+          "status": "ok",
+          "midRaw": 776885.0,
+          "bookAt": 1789132451,
+          "bookBlock": 45624093,
+          "lagSeconds": 54,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.131,
+          "pxRaw": 770347.7
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 40.2458,
+          "bps": 171.663,
+          "pxRaw": 755602.56,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -32.551,
+          "pxRaw": 771302.53,
+          "pegRaw": 769763.0,
+          "pegAt": 1789128732,
+          "pegAgeSeconds": 65,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x2db0eda1fcddcc72f277e0529accef41c662e81b47c42306e53322b700000003",
+      "txHash": "0x2db0eda1fcddcc72f277e0529accef41c662e81b47c42306e53322b786648e5e",
+      "logIndex": 3,
+      "block": 45623549,
+      "at": 1789131916,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "461990",
+      "quoteRaw": "360464752",
+      "bookOk": true,
+      "bidRaw": 777320,
+      "askRaw": 777330,
+      "markRaw": 777160,
+      "oracleRaw": 777430,
+      "midRaw": 777325.0,
+      "touchRaw": 777330,
+      "poolDevBps": 13.403,
+      "quietBps": 20,
+      "vsTouchBps": 37.482,
+      "markouts": {
+        "5": {
+          "bps": 15.18,
+          "status": "ok",
+          "midRaw": 776145.0,
+          "bookAt": 1789132271,
+          "bookBlock": 45623910,
+          "lagSeconds": 55,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": 9.52,
+          "status": "ok",
+          "midRaw": 776585.0,
+          "bookAt": 1789132871,
+          "bookBlock": 45624520,
+          "lagSeconds": 55,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": -217.026,
+          "status": "ok",
+          "midRaw": 794195.0,
+          "bookAt": 1789135588,
+          "bookBlock": 45627282,
+          "lagSeconds": 72,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -37.611,
+          "pxRaw": 780243.59
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -14.82,
+          "pxRaw": 778471.99,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -23.738,
+          "pxRaw": 779165.22,
+          "pegRaw": 777610.0,
+          "pegAt": 1789131911,
+          "pegAgeSeconds": 5,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x97ebdc8669296f6b0aa4802b07c37ece798963c949cfb02f7e63081f0000000a",
+      "txHash": "0x97ebdc8669296f6b0aa4802b07c37ece798963c949cfb02f7e63081f2e372732",
+      "logIndex": 10,
+      "block": 45624876,
+      "at": 1789133221,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "1687012",
+      "quoteRaw": "1330330994",
+      "bookOk": true,
+      "bidRaw": 776580,
+      "askRaw": 776590,
+      "markRaw": 776650,
+      "oracleRaw": 776940,
+      "midRaw": 776585.0,
+      "touchRaw": 776590,
+      "poolDevBps": 65.373,
+      "quietBps": 20,
+      "vsTouchBps": 154.294,
+      "markouts": {
+        "5": {
+          "bps": 28.458,
+          "status": "ok",
+          "midRaw": 774375.0,
+          "bookAt": 1789133531,
+          "bookBlock": 45625191,
+          "lagSeconds": 10,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": null,
+          "status": "gap",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 130
+        },
+        "60": {
+          "bps": -178.602,
+          "status": "ok",
+          "midRaw": 790455.0,
+          "bookAt": 1789136891,
+          "bookBlock": 45628607,
+          "lagSeconds": 70,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -154.425,
+          "pxRaw": 788572.32
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -70.039,
+          "pxRaw": 782019.09,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -28.864,
+          "pxRaw": 778821.53,
+          "pegRaw": 777267.0,
+          "pegAt": 1789133212,
+          "pegAgeSeconds": 9,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x14660626c5d9c661c3e9ef1cd21b77d93fb7b1ea2158ad04c546a02800000016",
+      "txHash": "0x14660626c5d9c661c3e9ef1cd21b77d93fb7b1ea2158ad04c546a0283c78a559",
+      "logIndex": 22,
+      "block": 45626058,
+      "at": 1789134384,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "619356",
+      "quoteRaw": "481136315",
+      "bookOk": true,
+      "bidRaw": 778390,
+      "askRaw": 778400,
+      "markRaw": 778350,
+      "oracleRaw": 778660,
+      "midRaw": 778395.0,
+      "touchRaw": 778390,
+      "poolDevBps": 212.157,
+      "quietBps": 20,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": {
+          "bps": null,
+          "status": "gap",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 347
+        },
+        "15": {
+          "bps": null,
+          "status": "gap",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 304
+        },
+        "60": {
+          "bps": 117.036,
+          "status": "ok",
+          "midRaw": 787505.0,
+          "bookAt": 1789137987,
+          "bookBlock": 45629721,
+          "lagSeconds": 3,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.128,
+          "pxRaw": 776833.22
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 10.3926,
+          "bps": 215.568,
+          "pxRaw": 795179.82,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -17.192,
+          "pxRaw": 777061.76,
+          "pegRaw": 778619.0,
+          "pegAt": 1789134371,
+          "pegAgeSeconds": 13,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0xffe8944fdc8c7a05823314b68a48dec4d1cebef41a5b1c71e0dfdc5f00000020",
+      "txHash": "0xffe8944fdc8c7a05823314b68a48dec4d1cebef41a5b1c71e0dfdc5f8df7a845",
+      "logIndex": 32,
+      "block": 45628410,
+      "at": 1789136698,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "348258",
+      "quoteRaw": "275724710",
+      "bookOk": true,
+      "bidRaw": 790100,
+      "askRaw": 790110,
+      "markRaw": 790110,
+      "oracleRaw": 790410,
+      "midRaw": 790105.0,
+      "touchRaw": 790110,
+      "poolDevBps": null,
+      "quietBps": 20,
+      "vsTouchBps": 20.445,
+      "markouts": {
+        "5": {
+          "bps": 8.86,
+          "status": "ok",
+          "midRaw": 789405.0,
+          "bookAt": 1789137011,
+          "bookBlock": 45628729,
+          "lagSeconds": 13,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": null,
+          "status": "gap",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 193
+        },
+        "60": {
+          "bps": 45.31,
+          "status": "ok",
+          "midRaw": 786525.0,
+          "bookAt": 1789140312,
+          "bookBlock": 45632085,
+          "lagSeconds": 14,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.572,
+          "pxRaw": 791725.38
+        },
+        "flatCurve": {
+          "status": "noReserves",
+          "usd": null,
+          "bps": null,
+          "pxRaw": null
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -30.805,
+          "pxRaw": 792533.9,
+          "pegRaw": 790952.0,
+          "pegAt": 1789136651,
+          "pegAgeSeconds": 47,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x6d18e06beeb2f44984e440a30b01edbcff83e1a5358097f094ad94880000000a",
+      "txHash": "0x6d18e06beeb2f44984e440a30b01edbcff83e1a5358097f094ad948824223799",
+      "logIndex": 10,
+      "block": 45629974,
+      "at": 1789138236,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "1172249",
+      "quoteRaw": "935138443",
+      "bookOk": true,
+      "bidRaw": 785890,
+      "askRaw": 785900,
+      "markRaw": 785940,
+      "oracleRaw": 786201,
+      "midRaw": 785895.0,
+      "touchRaw": 785900,
+      "poolDevBps": null,
+      "quietBps": 20,
+      "vsTouchBps": 150.531,
+      "markouts": {
+        "5": {
+          "bps": -19.087,
+          "status": "ok",
+          "midRaw": 787395.0,
+          "bookAt": 1789138571,
+          "bookBlock": 45630315,
+          "lagSeconds": 35,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -11.197,
+          "status": "ok",
+          "midRaw": 786775.0,
+          "bookAt": 1789139171,
+          "bookBlock": 45630925,
+          "lagSeconds": 35,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": null,
+          "status": "gap",
+          "toleranceSeconds": 360,
+          "nearestLagSeconds": 395
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -150.66,
+          "pxRaw": 797730.23
+        },
+        "flatCurve": {
+          "status": "noReserves",
+          "usd": null,
+          "bps": null,
+          "pxRaw": null
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -30.2,
+          "pxRaw": 788263.38,
+          "pegRaw": 786690.0,
+          "pegAt": 1789138211,
+          "pegAgeSeconds": 25,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0xe7be508ca6da29ea01edb19f72d5704c7240506f49b36bf1968d48ee00000009",
+      "txHash": "0xe7be508ca6da29ea01edb19f72d5704c7240506f49b36bf1968d48ee43383259",
+      "logIndex": 9,
+      "block": 45631486,
+      "at": 1789139723,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "403249",
+      "quoteRaw": "316231269",
+      "bookOk": true,
+      "bidRaw": 785780,
+      "askRaw": 785790,
+      "markRaw": 785720,
+      "oracleRaw": 786020,
+      "midRaw": 785785.0,
+      "touchRaw": 785780,
+      "poolDevBps": null,
+      "quietBps": 20,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": {
+          "bps": 11.199,
+          "status": "ok",
+          "midRaw": 786665.0,
+          "bookAt": 1789140071,
+          "bookBlock": 45631840,
+          "lagSeconds": 48,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": 20.998,
+          "status": "ok",
+          "midRaw": 787435.0,
+          "bookAt": 1789140685,
+          "bookBlock": 45632464,
+          "lagSeconds": 62,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": -107.918,
+          "status": "ok",
+          "midRaw": 777305.0,
+          "bookAt": 1789143372,
+          "bookBlock": 45635196,
+          "lagSeconds": 49,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.127,
+          "pxRaw": 784208.44
+        },
+        "flatCurve": {
+          "status": "noReserves",
+          "usd": null,
+          "bps": null,
+          "pxRaw": null
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -25.233,
+          "pxRaw": 783807.24,
+          "pegRaw": 785378.0,
+          "pegAt": 1789139711,
+          "pegAgeSeconds": 12,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0xf7790656a959c59e60774621f6801bd69b08cff5acb9f26f8ec5efda0000000f",
+      "txHash": "0xf7790656a959c59e60774621f6801bd69b08cff5acb9f26f8ec5efda0be4e832",
+      "logIndex": 15,
+      "block": 45632315,
+      "at": 1789140539,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "719080",
+      "quoteRaw": "565121419",
+      "bookOk": true,
+      "bidRaw": 787470,
+      "askRaw": 787480,
+      "markRaw": 787460,
+      "oracleRaw": 787710,
+      "midRaw": 787475.0,
+      "touchRaw": 787470,
+      "poolDevBps": null,
+      "quietBps": 20,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": {
+          "bps": 2.413,
+          "status": "ok",
+          "midRaw": 787665.0,
+          "bookAt": 1789140851,
+          "bookBlock": 45632633,
+          "lagSeconds": 12,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -11.81,
+          "status": "ok",
+          "midRaw": 786545.0,
+          "bookAt": 1789141451,
+          "bookBlock": 45633243,
+          "lagSeconds": 12,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": -132.703,
+          "status": "ok",
+          "midRaw": 777025.0,
+          "bookAt": 1789144151,
+          "bookBlock": 45635988,
+          "lagSeconds": 12,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.127,
+          "pxRaw": 785895.06
+        },
+        "flatCurve": {
+          "status": "noReserves",
+          "usd": null,
+          "bps": null,
+          "pxRaw": null
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -22.801,
+          "pxRaw": 785684.48,
+          "pegRaw": 787259.0,
+          "pegAt": 1789140433,
+          "pegAgeSeconds": 106,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0xf2f37beacaffa96be64ee5700b07d8935a667d98965451c93698b60500000002",
+      "txHash": "0xf2f37beacaffa96be64ee5700b07d8935a667d98965451c93698b6057ae2f2bf",
+      "logIndex": 2,
+      "block": 45634964,
+      "at": 1789143144,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "1524410",
+      "quoteRaw": "1183542929",
+      "bookOk": true,
+      "bidRaw": 777950,
+      "askRaw": 777960,
+      "markRaw": 777960,
+      "oracleRaw": 778279,
+      "midRaw": 777955.0,
+      "touchRaw": 777950,
+      "poolDevBps": 196.278,
+      "quietBps": 20,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": {
+          "bps": null,
+          "status": "gap",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": 184
+        },
+        "15": {
+          "bps": -24.552,
+          "status": "ok",
+          "midRaw": 776045.0,
+          "bookAt": 1789144048,
+          "bookBlock": 45635883,
+          "lagSeconds": 4,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": 2.185,
+          "status": "ok",
+          "midRaw": 778125.0,
+          "bookAt": 1789146791,
+          "bookBlock": 45638672,
+          "lagSeconds": 47,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.128,
+          "pxRaw": 776394.1
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 23.7729,
+          "bps": 200.459,
+          "pxRaw": 793554.9,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -12.56,
+          "pxRaw": 776982.92,
+          "pegRaw": 778540.0,
+          "pegAt": 1789143131,
+          "pegAgeSeconds": 13,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0xec1746becee35fda070bc586212bd5e1f0542036d644ed7d353c9e9f00000014",
+      "txHash": "0xec1746becee35fda070bc586212bd5e1f0542036d644ed7d353c9e9ff48a6b6b",
+      "logIndex": 20,
+      "block": 45636031,
+      "at": 1789144194,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "1381505",
+      "quoteRaw": "1087417107",
+      "bookOk": true,
+      "bidRaw": 776390,
+      "askRaw": 776400,
+      "markRaw": 776400,
+      "oracleRaw": 776738,
+      "midRaw": 776395.0,
+      "touchRaw": 776400,
+      "poolDevBps": 64.78,
+      "quietBps": 20,
+      "vsTouchBps": 138.137,
+      "markouts": {
+        "5": {
+          "bps": -11.077,
+          "status": "ok",
+          "midRaw": 777255.0,
+          "bookAt": 1789144511,
+          "bookBlock": 45636354,
+          "lagSeconds": 17,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -21.767,
+          "status": "ok",
+          "midRaw": 778085.0,
+          "bookAt": 1789145111,
+          "bookBlock": 45636964,
+          "lagSeconds": 17,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": -19.449,
+          "status": "ok",
+          "midRaw": 777905.0,
+          "bookAt": 1789147811,
+          "bookBlock": 45639709,
+          "lagSeconds": 17,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -138.268,
+          "pxRaw": 787124.96
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -69.291,
+          "pxRaw": 781769.71,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -32.519,
+          "pxRaw": 778914.72,
+          "pegRaw": 777360.0,
+          "pegAt": 1789144151,
+          "pegAgeSeconds": 43,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0xa2a26d97f16009b078f01957e1bc6faccef1cf94acae942ee672c27100000014",
+      "txHash": "0xa2a26d97f16009b078f01957e1bc6faccef1cf94acae942ee672c2714633cf1a",
+      "logIndex": 20,
+      "block": 45637150,
+      "at": 1789145294,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "697293",
+      "quoteRaw": "542118782",
+      "bookOk": true,
+      "bidRaw": 779020,
+      "askRaw": 779030,
+      "markRaw": 779030,
+      "oracleRaw": 779359,
+      "midRaw": 779025.0,
+      "touchRaw": 779020,
+      "poolDevBps": 168.818,
+      "quietBps": 20,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": {
+          "bps": -7.06,
+          "status": "ok",
+          "midRaw": 778475.0,
+          "bookAt": 1789145651,
+          "bookBlock": 45637513,
+          "lagSeconds": 57,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -10.911,
+          "status": "ok",
+          "midRaw": 778175.0,
+          "bookAt": 1789146251,
+          "bookBlock": 45638123,
+          "lagSeconds": 57,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": -40.692,
+          "status": "ok",
+          "midRaw": 775855.0,
+          "bookAt": 1789148951,
+          "bookBlock": 45640868,
+          "lagSeconds": 57,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.128,
+          "pxRaw": 777461.96
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 9.4036,
+          "bps": 173.112,
+          "pxRaw": 792515.98,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -21.64,
+          "pxRaw": 777344.2,
+          "pegRaw": 778902.0,
+          "pegAt": 1789145257,
+          "pegAgeSeconds": 37,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x16cc99e55142f5780fab8afdb9164bb0a88da7dc6c7b613d9932867300000009",
+      "txHash": "0x16cc99e55142f5780fab8afdb9164bb0a88da7dc6c7b613d9932867390503d10",
+      "logIndex": 9,
+      "block": 45638444,
+      "at": 1789146567,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "2426439",
+      "quoteRaw": "1933042917",
+      "bookOk": true,
+      "bidRaw": 777720,
+      "askRaw": 777730,
+      "markRaw": 777776,
+      "oracleRaw": 778130,
+      "midRaw": 777725.0,
+      "touchRaw": 777730,
+      "poolDevBps": 115.365,
+      "quietBps": 20,
+      "vsTouchBps": 243.38,
+      "markouts": {
+        "5": {
+          "bps": 6.686,
+          "status": "ok",
+          "midRaw": 777205.0,
+          "bookAt": 1789146911,
+          "bookBlock": 45638794,
+          "lagSeconds": 44,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -9.258,
+          "status": "ok",
+          "midRaw": 778445.0,
+          "bookAt": 1789147511,
+          "bookBlock": 45639404,
+          "lagSeconds": 44,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": 95.406,
+          "status": "ok",
+          "midRaw": 770305.0,
+          "bookAt": 1789150211,
+          "bookBlock": 45642149,
+          "lagSeconds": 44,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -243.512,
+          "pxRaw": 796658.39
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -120.698,
+          "pxRaw": 787106.9,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -28.516,
+          "pxRaw": 779937.76,
+          "pegRaw": 778381.0,
+          "pegAt": 1789146551,
+          "pegAgeSeconds": 16,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0xb494c6cf23b1c096a97a92842fbc87f677265711b5b0c4cf8ecca66b00000002",
+      "txHash": "0xb494c6cf23b1c096a97a92842fbc87f677265711b5b0c4cf8ecca66b8e75bd38",
+      "logIndex": 2,
+      "block": 45639840,
+      "at": 1789147940,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "667774",
+      "quoteRaw": "518509108",
+      "bookOk": true,
+      "bidRaw": 778030,
+      "askRaw": 778040,
+      "markRaw": 777980,
+      "oracleRaw": 778300,
+      "midRaw": 778035.0,
+      "touchRaw": 778030,
+      "poolDevBps": 360.081,
+      "quietBps": 20,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": {
+          "bps": -22.364,
+          "status": "ok",
+          "midRaw": 776295.0,
+          "bookAt": 1789148290,
+          "bookBlock": 45640196,
+          "lagSeconds": 50,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -33.932,
+          "status": "ok",
+          "midRaw": 775395.0,
+          "bookAt": 1789148891,
+          "bookBlock": 45640807,
+          "lagSeconds": 51,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": -85.086,
+          "status": "ok",
+          "midRaw": 771415.0,
+          "bookAt": 1789151591,
+          "bookBlock": 45643552,
+          "lagSeconds": 51,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.128,
+          "pxRaw": 776473.94
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 18.8879,
+          "bps": 363.543,
+          "pxRaw": 806325.1,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -16.152,
+          "pxRaw": 776783.32,
+          "pegRaw": 778340.0,
+          "pegAt": 1789147931,
+          "pegAgeSeconds": 9,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0xf8f3830cdcbf2658693d70d1ee3c2294b81225f50b8be070b3af46ee00000008",
+      "txHash": "0xf8f3830cdcbf2658693d70d1ee3c2294b81225f50b8be070b3af46eeb851b445",
+      "logIndex": 8,
+      "block": 45640420,
+      "at": 1789148511,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "3432857",
+      "quoteRaw": "2656856242",
+      "bookOk": true,
+      "bidRaw": 775500,
+      "askRaw": 775510,
+      "markRaw": 775534,
+      "oracleRaw": 775906,
+      "midRaw": 775505.0,
+      "touchRaw": 775500,
+      "poolDevBps": 324.15,
+      "quietBps": 20,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": {
+          "bps": 0.774,
+          "status": "ok",
+          "midRaw": 775565.0,
+          "bookAt": 1789148831,
+          "bookBlock": 45640746,
+          "lagSeconds": 20,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": -5.416,
+          "status": "ok",
+          "midRaw": 775085.0,
+          "bookAt": 1789149431,
+          "bookBlock": 45641356,
+          "lagSeconds": 20,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": -57.898,
+          "status": "ok",
+          "midRaw": 771015.0,
+          "bookAt": 1789152131,
+          "bookBlock": 45644101,
+          "lagSeconds": 20,
+          "toleranceSeconds": 360
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.129,
+          "pxRaw": 773949.0
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 87.6986,
+          "bps": 329.422,
+          "pxRaw": 801056.99,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -11.12,
+          "pxRaw": 774647.6,
+          "pegRaw": 776200.0,
+          "pegAt": 1789148471,
+          "pegAgeSeconds": 40,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0xc4c43158bf32225407982ae2db4f580c17bc956471cae778724bfce000000005",
+      "txHash": "0xc4c43158bf32225407982ae2db4f580c17bc956471cae778724bfce0110961f4",
+      "logIndex": 5,
+      "block": 45642434,
+      "at": 1789150492,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "270860",
+      "quoteRaw": "208085605",
+      "bookOk": true,
+      "bidRaw": 769780,
+      "askRaw": 769790,
+      "markRaw": 769770,
+      "oracleRaw": 770130,
+      "midRaw": 769785.0,
+      "touchRaw": 769780,
+      "poolDevBps": 57.54,
+      "quietBps": 20,
+      "vsTouchBps": -20.0,
+      "markouts": {
+        "5": {
+          "bps": 17.407,
+          "status": "ok",
+          "midRaw": 771125.0,
+          "bookAt": 1789150811,
+          "bookBlock": 45642759,
+          "lagSeconds": 19,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": 23.903,
+          "status": "ok",
+          "midRaw": 771625.0,
+          "bookAt": 1789151411,
+          "bookBlock": 45643369,
+          "lagSeconds": 19,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": null,
+          "status": "pending",
+          "toleranceSeconds": 360,
+          "nearestLagSeconds": null
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.13,
+          "pxRaw": 768240.44
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 1.2924,
+          "bps": 61.982,
+          "pxRaw": 774561.33,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -8.721,
+          "pxRaw": 769118.68,
+          "pegRaw": 770660.0,
+          "pegAt": 1789150392,
+          "pegAgeSeconds": 100,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0xe4109579f1edbc342c629e00c0f3dd1e5ec711cc0e7de896d649cbeb0000000e",
+      "txHash": "0xe4109579f1edbc342c629e00c0f3dd1e5ec711cc0e7de896d649cbeb9eff649e",
+      "logIndex": 14,
+      "block": 45642794,
+      "at": 1789150846,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "2823217",
+      "quoteRaw": "2151257539",
+      "bookOk": true,
+      "bidRaw": 771800,
+      "askRaw": 771810,
+      "markRaw": 771830,
+      "oracleRaw": 772200,
+      "midRaw": 771805.0,
+      "touchRaw": 771800,
+      "poolDevBps": 4.095,
+      "quietBps": 20,
+      "vsTouchBps": -127.131,
+      "markouts": {
+        "5": {
+          "bps": -8.292,
+          "status": "ok",
+          "midRaw": 771165.0,
+          "bookAt": 1789151171,
+          "bookBlock": 45643125,
+          "lagSeconds": 25,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": 1.166,
+          "status": "ok",
+          "midRaw": 771895.0,
+          "bookAt": 1789151771,
+          "bookBlock": 45643735,
+          "lagSeconds": 25,
+          "toleranceSeconds": 120
+        },
+        "60": {
+          "bps": null,
+          "status": "pending",
+          "toleranceSeconds": 360,
+          "nearestLagSeconds": null
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -127.259,
+          "pxRaw": 761988.03
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 1.9938,
+          "bps": 9.15,
+          "pxRaw": 772516.22,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -18.06,
+          "pxRaw": 770416.08,
+          "pegRaw": 771960.0,
+          "pegAt": 1789150811,
+          "pegAgeSeconds": 35,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x152f80d6f0cd952867fe163093a38fcd25c0cb3639da22fa56e407f500000013",
+      "txHash": "0x152f80d6f0cd952867fe163093a38fcd25c0cb3639da22fa56e407f5a50d7eaa",
+      "logIndex": 19,
+      "block": 45644100,
+      "at": 1789152130,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x6fa9fee91d6e9378cb0ed8062f6663476de589c3",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": true,
+      "baseRaw": "100000",
+      "quoteRaw": "75124068",
+      "bookOk": true,
+      "bidRaw": 771120,
+      "askRaw": 771130,
+      "markRaw": 771094,
+      "oracleRaw": 771501,
+      "midRaw": 771125.0,
+      "touchRaw": 771120,
+      "poolDevBps": -257.909,
+      "quietBps": 20,
+      "vsTouchBps": -257.798,
+      "markouts": {
+        "5": {
+          "bps": -8.689,
+          "status": "ok",
+          "midRaw": 770455.0,
+          "bookAt": 1789152431,
+          "bookBlock": 45644406,
+          "lagSeconds": 1,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": null,
+          "status": "pending",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": null
+        },
+        "60": {
+          "bps": null,
+          "status": "pending",
+          "toleranceSeconds": 360,
+          "nearestLagSeconds": null
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -257.924,
+          "pxRaw": 751240.68
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -253.222,
+          "pxRaw": 751603.29,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -14.267,
+          "pxRaw": 770029.85,
+          "pegRaw": 771573.0,
+          "pegAt": 1789152071,
+          "pegAgeSeconds": 59,
+          "bandBps": 20
+        }
+      }
+    },
+    {
+      "fillId": "0x9d36df61e65d7db9d0b862f72fdd07d691a94848c549538905ed9fee00000009",
+      "txHash": "0x9d36df61e65d7db9d0b862f72fdd07d691a94848c549538905ed9fee6875dfa9",
+      "logIndex": 9,
+      "block": 45644163,
+      "at": 1789152192,
+      "desk": "0xc76137e49bf4d323190a4ee694b47d5a2ac515b2",
+      "deskName": "demoDesk",
+      "taker": "0x7d338ecf8dc1435f96c97e2a582283ae729a9c11",
+      "orderHash": "0xa0f7ca130b58398a64a24039f62b4dbd03ffdeede38321e656f81fb2461f25d6",
+      "makerBuysBase": false,
+      "baseRaw": "2536831",
+      "quoteRaw": "1959961504",
+      "bookOk": true,
+      "bidRaw": 771050,
+      "askRaw": 771060,
+      "markRaw": 771060,
+      "oracleRaw": 771472,
+      "midRaw": 771055.0,
+      "touchRaw": 771060,
+      "poolDevBps": -266.941,
+      "quietBps": 20,
+      "vsTouchBps": 20.003,
+      "markouts": {
+        "5": {
+          "bps": 13.618,
+          "status": "ok",
+          "midRaw": 770005.0,
+          "bookAt": 1789152551,
+          "bookBlock": 45644528,
+          "lagSeconds": 59,
+          "toleranceSeconds": 120
+        },
+        "15": {
+          "bps": null,
+          "status": "pending",
+          "toleranceSeconds": 120,
+          "nearestLagSeconds": null
+        },
+        "60": {
+          "bps": null,
+          "status": "pending",
+          "toleranceSeconds": 360,
+          "nearestLagSeconds": null
+        }
+      },
+      "toll": {
+        "desk": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -20.133,
+          "pxRaw": 772602.35
+        },
+        "flatCurve": {
+          "status": "ok",
+          "usd": 51.1727,
+          "bps": 261.614,
+          "pxRaw": 750878.25,
+          "basis": "oracle"
+        },
+        "oraclePegged": {
+          "status": "ok",
+          "usd": 0.0,
+          "bps": -25.484,
+          "pxRaw": 773014.94,
+          "pegRaw": 771472.0,
+          "pegAt": 1789152191,
+          "pegAgeSeconds": 1,
+          "bandBps": 20
+        }
+      }
     }
   ],
   "postedThisRun": [
     {
-      "fillId": "0x3b28f48521cf29a3a32eea0b46c557ddeac2220d6e728a49744e651c00000005",
+      "fillId": "0xb494c6cf23b1c096a97a92842fbc87f677265711b5b0c4cf8ecca66b00000002",
       "horizonMinutes": 60,
-      "bps": -11,
-      "txHash": "0x94c5852b7052975b0ea12590f7a5748e4d73c9d206c058ddd56099612367ae96"
+      "bps": -85,
+      "txHash": "0x209f049a533745bf2d67e87cb8e9dc5561d3840398d9fba1a982edb0afc5bcb7"
     },
     {
-      "fillId": "0x892570fed5ec3967cbe0f25fefec912678bd0c8b6a6cd188ee00281e00000009",
+      "fillId": "0xf8f3830cdcbf2658693d70d1ee3c2294b81225f50b8be070b3af46ee00000008",
+      "horizonMinutes": 60,
+      "bps": -58,
+      "txHash": "0xaad613e95d0549bfe9ea9bb1fa734f9df939bda16f9a22f7a26f1223aa415c16"
+    },
+    {
+      "fillId": "0xc4c43158bf32225407982ae2db4f580c17bc956471cae778724bfce000000005",
       "horizonMinutes": 15,
-      "bps": -8,
-      "txHash": "0x858d346d6a2e77e8202729eff0e6ca0f98bb2d5f08a23de65d9a82cf91ac67d6"
+      "bps": 24,
+      "txHash": "0xd9774dc16892b114fba592e9bc121535192c2dc11268c85ed7502d0f1272a287"
+    },
+    {
+      "fillId": "0xe4109579f1edbc342c629e00c0f3dd1e5ec711cc0e7de896d649cbeb0000000e",
+      "horizonMinutes": 15,
+      "bps": 1,
+      "txHash": "0xe21b9d313b8676127c70f53e1d1c267548a82dc457cd177b9612701d5fc73f9d"
+    },
+    {
+      "fillId": "0x152f80d6f0cd952867fe163093a38fcd25c0cb3639da22fa56e407f500000013",
+      "horizonMinutes": 5,
+      "bps": -9,
+      "txHash": "0xc1d044fc1f8fc1858e8f65d04b2e0ffa61a4463f1d96235382e9e7adbeff76c5"
+    },
+    {
+      "fillId": "0x9d36df61e65d7db9d0b862f72fdd07d691a94848c549538905ed9fee00000009",
+      "horizonMinutes": 5,
+      "bps": 14,
+      "txHash": "0xc05a6a5413c62de78501f3d495246a06c37218d4ca56d7a92a911ce8a4922c6e"
     }
   ],
   "failedThisRun": []
