@@ -355,7 +355,7 @@ a .rc-dot { cursor: pointer; }
 
 /* ---- the live line, and the three doors ---- */
 
-.doors { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin: 0 0 52px; }
+.doors { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin: 44px 0 52px; }
 .door { display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
   text-align: left; background: #0b0f16; border: 1px solid var(--line); border-radius: 3px;
   padding: 20px 20px 22px; cursor: pointer; font: inherit; color: inherit;
@@ -687,16 +687,6 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
     </div>
   </div>
 
-  <!-- The visitor's identity, outside every tab and every form: the chip in the topbar opens
-       and closes it. It only exists signed in — before that, the invite on the Desk is the
-       whole story. -->
-  <section id="profile" hidden>
-    <div class="you-cells" id="you-cells"></div>
-    <p class="you-fills-h">your fills</p>
-    <div class="you-fills" id="you-fills"></div>
-    <p class="you-foot" id="you-foot"></p>
-    <div class="profile-acts"><button class="go ghost" id="signin-out">sign out</button></div>
-  </section>
 
   <section id="panel-desk" role="tabpanel">
     <div class="statement">
@@ -715,31 +705,7 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
 
       <!-- The zero and what the same search takes from an ordinary curve, side by side, because
            the number only means anything against the thing it is being compared to. -->
-      <!-- Three doors, one per tab, each carrying the fact that tab proves. The live line
-           above them is the only thing here that changes every block. -->
       <p class="hero-live" id="hero-live"></p>
-
-      <div class="doors">
-        <button class="door" data-show-tab="tab-record">
-          <span class="door-k">the record</span>
-          <span class="door-v" id="door-record-v">—</span>
-          <span class="door-s" id="door-record-s">every fill this floor has signed, priced against the book its quote read</span>
-        </button>
-
-        <button class="door" data-show-tab="tab-cascade">
-          <span class="door-k">the cascade</span>
-          <span class="door-v" id="door-cascade-v">$222 <small>vs</small> $3,558</span>
-          <span class="door-s">On ordinary flow an oracle-pegged maker costs the same as this
-            desk: nothing. It takes a broken book to separate them — 10 October 2025.</span>
-        </button>
-
-        <button class="door" data-show-tab="tab-keys">
-          <span class="door-k">the keys</span>
-          <span class="door-v">2 <small>live shorts</small></span>
-          <span class="door-s">One the owner sent by hand. One a key that can call
-            <code>cover()</code> and nothing else, with eleven refusals to prove it.</span>
-        </button>
-      </div>
 
       <!-- The invite: the first thing a visitor with no wallet sees, before the forms below ask
            for anything. Once there is a session it is gone — the chip up top is the identity
@@ -767,6 +733,18 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
         </div>
         <p class="out" id="signin-note"></p>
       </div>
+
+      <!-- Identity sits where it is used: one slot, the invite before there is a session and this
+           after. It lived above every tab and pushed all four down for a panel three of them have
+           no use for. The chip in the bar scrolls here. -->
+      <section id="profile" hidden>
+        <div class="you-cells" id="you-cells"></div>
+        <p class="you-fills-h">your fills</p>
+        <div class="you-fills" id="you-fills"></div>
+        <p class="you-foot" id="you-foot"></p>
+        <div class="profile-acts"><button class="go ghost" id="signin-out">sign out</button></div>
+      </section>
+
 
       <!-- Everything that executes lives in one block: the live book it prices against, the taker
            side, and the maker side. Identity is not here — it is the chip and the profile above. -->
@@ -802,6 +780,31 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
             <p class="out" id="stress-out"></p>
           </div>
         </div>
+      </div>
+
+      <!-- Three doors, one per tab, each carrying the fact that tab proves. They sit under the
+           forms, not over them: the flow is what a visitor came to do, and the research is where
+           they go next. -->
+      <div class="doors">
+        <button class="door" data-show-tab="tab-record">
+          <span class="door-k">the record</span>
+          <span class="door-v" id="door-record-v">—</span>
+          <span class="door-s" id="door-record-s">every fill this floor has signed, priced against the book its quote read</span>
+        </button>
+
+        <button class="door" data-show-tab="tab-cascade">
+          <span class="door-k">the cascade</span>
+          <span class="door-v" id="door-cascade-v">$222 <small>vs</small> $3,558</span>
+          <span class="door-s">On ordinary flow an oracle-pegged maker costs the same as this
+            desk: nothing. It takes a broken book to separate them — 10 October 2025.</span>
+        </button>
+
+        <button class="door" data-show-tab="tab-keys">
+          <span class="door-k">the keys</span>
+          <span class="door-v">2 <small>live shorts</small></span>
+          <span class="door-s">One the owner sent by hand. One a key that can call
+            <code>cover()</code> and nothing else, with eleven refusals to prove it.</span>
+        </button>
       </div>
 
       <h2>desks</h2>

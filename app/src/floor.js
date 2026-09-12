@@ -61,8 +61,8 @@ const CANONICAL_PREVIEW = {
  * actually sent comes back from the faucet itself; this is what it was allowed to send.
  */
 const FAUCET_POLICY = {
-  name: "coldcascade gas faucet",
-  rule: "drip at most 0.002 HYPE on chain 999",
+  name: "Privy rule",
+  rule: "drip at most 0.002 HYPE",
 };
 
 /**
@@ -932,8 +932,8 @@ function wireSignInPanel(view, auth) {
         (via && via !== "browser wallet" ? ` <span class="via">· ${escape(via)}</span>` : "");
       ui.chip.title = view.signer.address;
       ui.chip.classList.add("is-signed");
-      if (view.revealProfile) { ui.profile.hidden = false; view.revealProfile = false; }
-      ui.chip.setAttribute("aria-expanded", String(!ui.profile.hidden));
+      view.revealProfile = false;
+      ui.profile.hidden = false;
     } else {
       ui.chip.textContent = "sign in";
       ui.chip.title = "";
@@ -946,8 +946,9 @@ function wireSignInPanel(view, auth) {
 
   ui.chip.addEventListener("click", () => {
     if (view.signer) {
-      ui.profile.hidden = !ui.profile.hidden;
-      ui.chip.setAttribute("aria-expanded", String(!ui.profile.hidden));
+      // Not a drawer any more: the panel is a block on the Desk, so the chip takes you to it.
+      document.getElementById("tab-desk")?.click();
+      ui.profile.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     // No session: the chip is the door to the invite — the Desk tab first, then the email field.
@@ -1142,14 +1143,14 @@ function renderYou(view) {
 
 const sourceLine = (who) => who.via === "browser wallet"
   ? "your own wallet, connected — this page made nothing and holds nothing"
-  : `made by Privy when you signed in with ${who.via} · the key lives in Privy's iframe, never on this page`;
+  : "the key lives in Privy's iframe, never on this page";
 
 function ageCell(view, who) {
   if (!who.createdAt) {
     return youCell("age", "—", "you brought this wallet; it is older than this page");
   }
   const node = youCell("age", ageText(nowSeconds() - who.createdAt),
-    "this address did not exist before you signed in");
+    `made by Privy when you signed in with ${who.via}`);
   view.you.ageNode = node.querySelector(".cell-v");
   view.you.ageFrom = who.createdAt;
   return node;
@@ -1212,7 +1213,7 @@ function balanceCell(view, who) {
   if (who.via !== "browser wallet") {
     const faucet = document.createElement("div");
     faucet.className = "cell-s";
-    faucet.append(faucetLink(), txt(` — with one Privy rule: “${FAUCET_POLICY.rule}”`));
+    faucet.append(faucetLink(), txt(`: ${FAUCET_POLICY.rule}`));
     cell.append(faucet);
   }
   return cell;
