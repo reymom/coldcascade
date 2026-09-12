@@ -77,7 +77,7 @@ operator is a key that can only do this*.
 ## The Cascade — 10 October 2025
 
 The replay, imported only when the tab is first opened. It reads `../results/oct10_replay.csv` —
-45 columns, documented in `../results/oct10_replay.schema.md` — and is labelled a reproduction from
+54 columns, documented in `../results/oct10_replay.schema.md` — and is labelled a reproduction from
 a frozen tape, because nothing on a live screen should be a picture of something else.
 
 **It is the Desk's claim over a session rather than over a block.** The Desk prices one round

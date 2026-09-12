@@ -36,6 +36,22 @@ jobs:
           fi
           echo "ok"
 
+      - name: the replay's column count is not stale
+        # The page and the README both quote how many columns `results/oct10_replay.csv` has, and
+        # the file grew a column at a time while the prose stayed at 45. A number a reader can
+        # check in one command is worth having checked here instead: the schema is the source and
+        # anything that disagrees with it fails the build.
+        run: |
+          n=$(head -1 results/oct10_replay.csv | awk -F, '{print NF}')
+          stale=$(git grep -nIoE '[0-9]+ columns' \
+                    -- ':!.github/workflows/hygiene.yml' | grep -v ":$n columns" || true)
+          if [ -n "$stale" ]; then
+            echo "::error::the replay has $n columns; these say otherwise:"
+            echo "$stale"
+            exit 1
+          fi
+          echo "ok — $n columns"
+
       - name: the AI-usage disclosure is present and linked from the README
         run: |
           test -f AI-USAGE.md || { echo "::error::AI-USAGE.md is missing. The event requires it."; exit 1; }
