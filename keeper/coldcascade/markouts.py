@@ -44,6 +44,18 @@ from pathlib import Path
 from . import substreams, tolls
 from .chain import ChainError, Deployment, desk_params, token_balance_at
 
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def _short(path):
+    """A path as the repo sees it: an absolute one is longer than the log line it sits in and says
+    nothing a reader of that line needs."""
+    try:
+        return path.relative_to(ROOT)
+    except ValueError:
+        return path
+
+
 HORIZONS_MIN = (5, 15, 60)
 
 # The book series is written one poke a minute. A horizon is honest only if a book landed close to
@@ -555,7 +567,9 @@ def run(
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(doc, indent=2) + "\n")
-    print(f"  wrote {out}")
+    # Relative to the repo: an absolute path is longer than the line it sits in and says nothing
+    # a reader of this log needs.
+    print(f"  wrote {_short(out)}")
 
     # The book series as its own artifact, so the page and the MCP server answer the same
     # question from the same numbers. It is the only file here a browser can use to say what the
@@ -582,5 +596,5 @@ def run(
             for b in c.books
         ],
     }, separators=(",", ":")) + "\n")
-    print(f"  wrote {archive} ({len(c.books)} observations)")
+    print(f"  wrote {_short(archive)} ({len(c.books)} observations)")
     return doc
