@@ -354,6 +354,12 @@ a .rc-dot { cursor: pointer; }
   color: var(--muted); letter-spacing: 0; margin: 20px 0 0; }
 
 /* ---- the live line, and the three doors ---- */
+/* Same trap as `.statement-sub`, one paragraph up: inside the statement, `.statement p` outranks a
+   bare class and would blow this line up to the headline's clamp. It carries its own font, and it
+   collapses while the chain is still being read so the statement never opens with a hole. */
+.statement .hero-live { font: 15px/1.6 var(--mono); letter-spacing: 0; color: var(--muted);
+  margin: 24px 0 4px; }
+.statement .hero-live:empty { display: none; }
 
 .doors { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin: 44px 0 52px; }
 .door { display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
@@ -693,6 +699,11 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
       <p class="kicker">1inch Aqua · SwapVM · Privy · The Graph</p>
       <p>A market maker that cannot be picked off on a stale price, and absorbs liquidation
         cascades.</p>
+      <!-- The zero and what the same search takes from an ordinary curve, side by side, because
+           the number only means anything against the thing it is being compared to. It sits
+           between the claim and how the claim works: the one line on this screen that is true of
+           this block and no other. -->
+      <p class="hero-live" id="hero-live"></p>
       <p class="statement-sub">It reads Hyperliquid's book inside the trade, hedges its own
         inventory on the perp, and leans into the crash when a liquidation cascade opens the book,
         to buy what normally only the house buys.</p>
@@ -702,10 +713,6 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
 
     <div id="floor-page" hidden>
       <p id="floor-error" hidden></p>
-
-      <!-- The zero and what the same search takes from an ordinary curve, side by side, because
-           the number only means anything against the thing it is being compared to. -->
-      <p class="hero-live" id="hero-live"></p>
 
       <!-- The invite: the first thing a visitor with no wallet sees, before the forms below ask
            for anything. Once there is a session it is gone — the chip up top is the identity
