@@ -273,10 +273,21 @@ def main() -> int:
         # that size is the rule working, and only a *recent* one says the series is in trouble.
         cut = now - 6 * 3600
         recent = [b - x for x, b in zip(ts, ts[1:]) if b >= cut]
-        rworst = max(recent) if recent else 0
-        line(rworst < 2400, "books",
-             f"{a['count']} observations · {med}s median · {rworst}s worst in 6h"
-             + (f" · {worst}s all-time" if worst > rworst else ""))
+        if not recent:
+            # No observations in the window is not a perfect window. The first version took
+            # max([]) as 0 and passed it straight through the "< 2400" test, so an archive file
+            # the keeper had not rewritten for fourteen hours reported "0s worst in 6h" in green
+            # — absence read as the best possible value, which is the one thing this whole screen
+            # exists to refuse.
+            age = int(now - ts[-1]) if ts else None
+            line(None, "books",
+                 f"{a['count']} observations on disk, none in the last 6h"
+                 + (f" — newest is {ago(age)}; the keeper rewrites this file" if age else ""))
+        else:
+            rworst = max(recent)
+            line(rworst < 2400, "books",
+                 f"{a['count']} observations · {med}s median · {rworst}s worst in 6h"
+                 + (f" · {worst}s all-time" if worst > rworst else ""))
     except Exception:
         line(None, "books", "results/book-archive.json unreadable")
     print()
