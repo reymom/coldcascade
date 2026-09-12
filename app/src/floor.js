@@ -240,6 +240,8 @@ function render(view) {
     `<span class="dot"></span>block ${floor.blockNumber.toLocaleString("en-US")} · ${state.chain.name}`;
 
   if (!bookOk) {
+    ui.liveShell.hidden = false;
+    ui.liveHead.textContent = "";
     ui.live.textContent =
       "the book could not be read this block — an empty field here means a read failed, not that a number was zero";
     ui.regime.textContent = "";
@@ -309,7 +311,11 @@ function renderVerdict(view, best) {
       : `<b style="color:var(--loss)">${rec.inside} priced inside the touch — look at them</b>`;
   }
 
+  // The shell opens on the first paint, whichever path paints it.
+  ui.liveShell.hidden = false;
+
   if (!best) {
+    ui.liveHead.textContent = "";
     ui.live.textContent =
       "no desk on this screen has a price right now, so there is nothing to search against.";
     return;
@@ -319,9 +325,9 @@ function renderVerdict(view, best) {
   // block. It is cents most blocks and it is named as this block's, not as a rate.
   const session = view.sessionBest;
   const toll = bestControlToll(view.floor.book, view.floor.desks);
-  const block = view.floor.blockNumber.toLocaleString("en-US");
 
   if (session.trip.best > 0) {
+    ui.liveHead.textContent = "";
     ui.live.innerHTML =
       `<b style="color:var(--loss)">${escape(name(session.desk))} can be taken and closed at the ` +
       `book for a profit right now</b> — that is not supposed to be reachable. Read it as a book ` +
@@ -329,17 +335,17 @@ function renderVerdict(view, best) {
     return;
   }
 
-  // One line, always. The block names itself so the state is checkable; everything else is
-  // the shortest true sentence, because this sits above the doors and must not wrap.
-  const head = `block ${block} · <b>nothing to take here</b>`;
+  // No block number in the head slot — the topbar already names the block. The regime tags
+  // open the line (their own renderer owns the middle slot), then the verdict follows.
+  ui.liveHead.textContent = "";
   if (toll && toll.usd > 0.005) {
     ui.live.innerHTML =
-      `${head} — a baseline curve on the same reserves leaks ` +
+      `· nothing to take in this block — a baseline curve on the same reserves leaks ` +
       `<b class="loss">+$${toll.usd.toFixed(2)} · +${toll.bps.toFixed(1)} bps</b>`;
   } else if (toll) {
-    ui.live.innerHTML = `${head}, and nothing from a baseline curve either`;
+    ui.live.innerHTML = `· nothing to take in this block, and nothing from a baseline curve either`;
   } else {
-    ui.live.innerHTML = `${head} — reserves too thin to quote a curve against`;
+    ui.live.innerHTML = `· nothing to take in this block — reserves too thin to quote a curve against`;
   }
 }
 
@@ -352,23 +358,15 @@ function renderRegime(view, desks) {
   // Two states, both always named, one of them lit. Which regime the desk is in is the single
   // most load-bearing fact on this screen, and a sentence that only describes the current one
   // leaves a reader with no idea that a second one exists.
-  const where = on
-    ? leaning.map((d) => `${name(d)} on the ${d.lean === 1 ? "bid" : "ask"}`).join(", ")
-    : "";
-  // `data-tip`, not `title`: the poll repaints this line every few seconds, and a native
-  // tooltip dies with the node under it before it can open. The CSS bubble reads the attribute
-  // on :hover — and the repaint is skipped outright while nothing changed, so an open bubble
-  // is never clobbered mid-read.
+  // The hover explainer lives on the tag's own attribute. A native `title` dies every time the
+  // poll repaints the line under the cursor; a CSS bubble re-applies with the hover.
   const html =
     `<span class="tag${on ? "" : " tag-on"}" data-tip="The desk quotes outside the book's touch on ` +
     `both sides, so a round trip through it and back to Hyperliquid always loses. The everyday ` +
     `state.">quiet</span> ` +
     `<span class="tag${on ? " tag-on tag-step" : ""}" data-tip="Forced sellers are eating the bid, or ` +
     `a liquidation map says they are about to. One condition flips: the desk quotes inside the gap ` +
-    `they opened and becomes the best bid in the market.">cascade</span> ` +
-    (on
-      ? `<span class="tag-note">${escape(where)} — capped at the book's own price</span>`
-      : `<span class="tag-note">sitting outside the book on both sides</span>`);
+    `they opened and becomes the best bid in the market.">cascade</span>`;
   if (view.regimeHtml !== html) {
     view.regimeHtml = html;
     ui.regime.innerHTML = html;
@@ -1538,7 +1536,7 @@ function build(root) {
   return {
     status: id("floor-status"), page: id("floor-page"), error: id("floor-error"),
     mode: id("floor-mode"), meta: id("floor-meta"),
-    live: id("hero-live"),
+    liveShell: id("hero-live"), liveHead: id("hero-live-head"), live: id("hero-live-text"),
     doorRecordV: id("door-record-v"), doorRecordS: id("door-record-s"),
     book: id("floor-book"), regime: id("floor-regime"),
     stressGo: id("stress-go"), stressOut: id("stress-out"),

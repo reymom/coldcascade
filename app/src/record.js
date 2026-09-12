@@ -490,7 +490,7 @@ function renderDecision(ui, doc, fills, ledger, chain) {
       `<span class="rd-pager-n">${cur + 1} / ${pages}</span>` +
       `<button class="go ghost" data-page="${cur + 1}" ${cur >= pages - 1 ? "disabled" : ""}>newer →</button>`
       +
-      `<p class="rd-legend"><b>pending</b> — not reached yet, resolves itself · ` +
+      `<p class="rd-legend"><b>pending</b> — not reached yet · ` +
       `<b>gap</b> — a hole, never resolves · <b>before the series</b> — predates the first poke · ` +
       `<b>no book</b> — the fill's own read failed</p>`;
     ui.pager.hidden = pages <= 1;

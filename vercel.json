@@ -8,6 +8,10 @@
       "headers": [{ "key": "cache-control", "value": "public, max-age=0, must-revalidate" }]
     },
     {
+      "source": "/LICENSE",
+      "headers": [{ "key": "content-type", "value": "text/plain; charset=utf-8" }]
+    },
+    {
       "source": "/deployments/(.*)",
       "headers": [{ "key": "cache-control", "value": "public, max-age=0, must-revalidate" }]
     },

@@ -90,8 +90,10 @@ main { max-width: 1080px; margin: 0 auto; padding: 32px 28px 96px; }
 .statement { margin: 64px 0 32px; }
 .statement p {
   margin: 0; font: 400 clamp(26px, 4.4vw, 44px)/1.22 var(--serif);
-  letter-spacing: -0.015em; text-wrap: balance; max-width: 880px;
+  letter-spacing: -0.015em; max-width: 880px;
 }
+/* No text-wrap: balance — a short headline (The Record's) balanced into a narrow left block
+   while the other three tabs filled the measure. One wrap rule for all four tabs. */
 .statement p em { font-style: italic; font-weight: 400; }
 .statement .kicker { font: 11px var(--mono); text-transform: uppercase; letter-spacing: 0.22em;
   color: var(--muted); margin: 0 0 18px; }
@@ -136,8 +138,30 @@ details.legs[open] > summary::before { content: "\2212\00a0"; }
 .cell-v.flash-up   { animation: flashUp   1.1s ease-out; }
 .cell-v.flash-down { animation: flashDown 1.1s ease-out; }
 
-.regime { margin: 18px 0 10px; font-size: 12.5px; color: var(--muted); }
+/* The regime tags ride inside the hero's live line, after the block number: two named states,
+   one lit, with the explainer on hover — the line answers the QUESTIONS fold's "two regimes"
+   without sending the reader down the page. */
+.regime { display: inline; font-size: 12.5px; color: var(--muted); margin-left: 4px; }
 .regime.step { color: var(--bid); }
+.regime .tag { display: inline-block; position: relative; font: 10px var(--mono);
+  text-transform: uppercase; letter-spacing: 0.16em; padding: 3px 9px;
+  border: 1px solid var(--line); border-radius: 2px;
+  color: var(--muted); margin-right: 8px; cursor: help; }
+.regime .tag-on { color: var(--ink); border-color: var(--muted); }
+.regime .tag-on.tag-step { color: var(--bid); border-color: var(--bid); }
+/* A lamp on the regime that is live — the topbar's own green dot, blinking the same blink. */
+.regime .tag-on::before { content: ""; display: inline-block; width: 5px; height: 5px;
+  border-radius: 50%; background: var(--ask); margin-right: 7px; vertical-align: 1px;
+  animation: blink 2s ease-in-out infinite; }
+/* The explainer rides on :hover from the tag's own attribute. A native `title` dies every
+   time the poll repaints the line under the cursor; a CSS bubble re-applies with the hover. */
+.regime .tag::after { content: attr(data-tip); position: absolute; top: calc(100% + 8px);
+  left: -1px; z-index: 30; width: 330px; max-width: calc(100vw - 64px); padding: 11px 13px;
+  background: var(--panel); border: 1px solid var(--l1-edge); border-radius: 3px;
+  color: var(--ink); font: 11.5px/1.65 var(--mono); text-transform: none; letter-spacing: 0;
+  white-space: normal; pointer-events: none;
+  opacity: 0; visibility: hidden; transition: opacity 0.15s ease, visibility 0.15s; }
+.regime .tag:hover::after { opacity: 1; visibility: visible; }
 
 /* ---- the strip ---- */
 .strip { margin: 6px 0 10px; }
@@ -278,8 +302,10 @@ a .rc-dot { cursor: pointer; }
   .rd-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .rd-fill { grid-column: 1 / -1; }
 }
+/* Boxed like the legend above it: pending's line over the markout boxes, this one under —
+   the pair frames the three horizon boxes symmetrically. */
 .record-foot { color: var(--muted); font-size: 11px; line-height: 1.7;
-  border-top: 1px solid var(--line); padding-top: 12px; margin-top: 8px; }
+  border: 1px solid var(--line); border-radius: 3px; padding: 9px 13px; margin-top: 8px; }
 .record-foot b { color: var(--ink); font-weight: 500; }
 
 /* ---- the book archive ---- */
@@ -295,6 +321,10 @@ a .rc-dot { cursor: pointer; }
 .archive-presets { display: flex; flex-wrap: wrap; gap: 8px; }
 .archive-meta { margin: 14px 0 4px; color: var(--muted); font-size: 11.5px; line-height: 1.9; }
 .archive-meta b { color: var(--ink); font-weight: 500; }
+/* One fact per line, each bulleted — bare stacked lines read as one broken paragraph. */
+.archive-meta div { position: relative; padding-left: 15px; }
+.archive-meta div::before { content: "\00B7"; position: absolute; left: 2px;
+  color: var(--l1-edge); }
 .archive-verdict { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
   margin: 16px 0 4px; }
 .archive-verdict .chip { flex: none; }
@@ -330,8 +360,7 @@ a .rc-dot { cursor: pointer; }
 .archive-refusal code { color: var(--ink); }
 .ba-call { border: 1px solid var(--line); padding: 13px 16px 9px; margin: 16px 0 6px; }
 .mcp-call { margin-top: 30px; }
-.mcp-why { color: var(--muted); font-size: 12px; line-height: 1.65; margin: 8px 0 12px;
-  max-width: 72ch; }
+.mcp-why { color: var(--muted); font-size: 12px; line-height: 1.65; margin: 8px 0 12px; }
 .ba-call-k { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em;
   color: var(--muted); margin-bottom: 6px; }
 .ba-cmd { display: grid; grid-template-columns: 185px minmax(0, 1fr) auto; gap: 4px 12px;
@@ -355,11 +384,10 @@ a .rc-dot { cursor: pointer; }
 
 /* ---- the live line, and the three doors ---- */
 /* Same trap as `.statement-sub`, one paragraph up: inside the statement, `.statement p` outranks a
-   bare class and would blow this line up to the headline's clamp. It carries its own font, and it
-   collapses while the chain is still being read so the statement never opens with a hole. */
+   bare class and would blow this line up to the headline's clamp. It carries its own font. It
+   starts hidden and the first paint shows it, so the statement never opens with a hole. */
 .statement .hero-live { font: 13.5px/1.6 var(--mono); letter-spacing: 0; color: var(--muted);
   margin: 14px 0 0; max-width: none; }
-.statement .hero-live:empty { display: none; }
 
 .doors { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin: 44px 0 52px; }
 .door { display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
@@ -384,7 +412,6 @@ a .rc-dot { cursor: pointer; }
    reads as hairline dividers instead of a window. */
 .act .cells { margin: 0; }
 .act .cell { background: #0b0f16; }
-.act .regime { margin-bottom: 4px; }
 .act .controls { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; }
 .act .controls select { flex: 0 1 auto; min-width: 0; }
 .act .controls input { flex: 1 1 60px; min-width: 0; }
@@ -392,7 +419,7 @@ a .rc-dot { cursor: pointer; }
 .act .controls select, .act .controls input { margin: 0; }
 .act .stress-row { display: flex; align-items: center; gap: 12px; }
 .act-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; margin-top: 26px; }
-.act-pair .try { margin: 0; }
+.act-pair .try { margin: 0; border-top: none; padding-top: 0; }
 .act-pair h2 { margin: 0 0 10px; border: none; padding: 0; }
 
 /* ---- the invite: a wallet in one tap, above every form ---- */
@@ -409,7 +436,7 @@ a .rc-dot { cursor: pointer; }
 .you-steps li { counter-increment: step; position: relative; padding-left: 26px;
   color: var(--muted); font-size: 12.5px; line-height: 1.65; }
 .you-steps li::before { content: counter(step); position: absolute; left: 0; top: 0;
-  color: var(--desk); font: 11px var(--mono); }
+  color: var(--desk); font: 11px var(--mono); line-height: inherit; }
 .you-then { color: var(--muted); font-size: 12.5px; line-height: 1.65; margin: 12px 0 0; }
 /* Four cells, on the surface the act block already uses for the book's five. */
 .you-cells { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
@@ -481,6 +508,9 @@ table.desks td.rt-bad { color: var(--loss); }
 
 /* ---- folds and proof ---- */
 details.fold { border-top: 1px solid var(--line); padding: 14px 0 6px; margin: 0; }
+/* The fold that decodes the response object sits inside the ask box; the bare border-top every
+   fold carries would divider it off its own summary. */
+.archive-act details.fold { border-top: none; padding-top: 8px; }
 details.fold > summary { cursor: pointer; list-style: none; color: var(--muted); font-size: 11px;
   text-transform: uppercase; letter-spacing: 0.14em; }
 details.fold > summary::-webkit-details-marker { display: none; }
@@ -672,10 +702,28 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
 .foot-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 0; }
 .foot-row a { margin-right: 14px; white-space: nowrap; }
 .foot-links { margin-left: auto; display: flex; align-items: center; gap: 14px; }
-.foot-gh { border-bottom: none; margin: 0; display: inline-flex; }
+/* `.foot a`'s underline outranks the bare class below — the icon is a picture of a link,
+   not a link's text, so it carries no underline either way. */
+.foot a.foot-gh { border-bottom: none; margin: 0; display: inline-flex; }
 .foot-gh svg { display: block; fill: var(--muted); }
 .foot-gh:hover svg { fill: var(--ink); }
 .foot-note { margin-top: 10px; }
+
+/* ---- a phone gets a turn, not a squeeze ----
+   The shell's one row becomes two: identity up top, the four tabs scrollable below. Inside
+   The Desk: the act box sheds padding, the pair of forms stacks, the desks table scrolls
+   instead of crushing seven columns. */
+@media (max-width: 760px) {
+  main { padding: 20px 16px 72px; }
+  .statement { margin: 40px 0 24px; }
+  .topbar { flex-wrap: wrap; }
+  .tabs { order: 9; flex-basis: 100%; margin-left: 0; overflow-x: auto; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .act { padding: 18px 16px 16px; }
+  .act .controls { flex-wrap: wrap; }
+  .act-pair { grid-template-columns: 1fr; gap: 32px; }
+  table.desks { display: block; overflow-x: auto; padding-bottom: 4px; }
+}
 </style>
 </head>
 <body>
@@ -703,7 +751,11 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
            the number only means anything against the thing it is being compared to. It sits
            between the claim and how the claim works: the one line on this screen that is true of
            this block and no other. -->
-      <p class="hero-live" id="hero-live"></p>
+      <!-- The live line has three owners: the block's number, the regime tags, and the verdict —
+           the two renderers each repaint their own slot, so a poll never clobbers the other's
+           text. It stays hidden until the first paint lands. -->
+      <p class="hero-live" id="hero-live" hidden><span id="hero-live-head"></span><span
+        class="regime" id="floor-regime"></span><span id="hero-live-text"></span></p>
       <p class="statement-sub">It reads Hyperliquid's book inside the trade, hedges its own
         inventory on the perp, and leans into the crash when a liquidation cascade opens the book,
         to buy what normally only the house buys.</p>
@@ -718,8 +770,8 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
            for anything. Once there is a session it is gone — the chip up top is the identity
            from then on, and what the tap did lives in the profile it opens. -->
       <div class="invite" id="you-invite">
-        <p class="you-lede">You do not need a wallet to use this. One tap and you have one on
-          this chain — no extension, no seed phrase, nothing installed.</p>
+        <p class="you-lede">Do not worry about the wallet. One tap will create one for you —
+          no extension, no seed phrase, nothing installed.</p>
         <ol class="you-steps">
           <li>sign in with an email address or a Discord account</li>
           <li>Privy makes you an embedded wallet — the key lives inside Privy's own frame and
@@ -757,7 +809,6 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
            side, and the maker side. Identity is not here — it is the chip and the profile above. -->
       <div class="act">
         <div class="cells" id="floor-book"></div>
-        <p class="regime" id="floor-regime"></p>
 
         <div class="act-pair">
           <div class="try">
@@ -901,7 +952,7 @@ table.check td .allow { color: var(--ask); font-weight: 500; }
   <section id="panel-record" role="tabpanel" hidden>
     <div class="statement">
       <p class="kicker">The Graph · Substreams · the book, written down</p>
-      <p>The chain keeps no memory of the book. <span class="keys-lede">This one does.</span></p>
+      <p>The chain keeps no memory of the book.<br><span class="keys-lede">This one does.</span></p>
       <p class="statement-sub">Every fill the desks have signed, priced against the book its quote
         read — joined, days later, to what that book did next. None has ever landed inside the
         band.</p>

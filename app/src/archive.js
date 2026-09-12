@@ -368,7 +368,7 @@ function renderFoot(ui, doc) {
     `<div>60 s cadence · <b>${holes}</b> hole${holes === 1 ? "" : "s"} over 180 s · streamed by ` +
     `Substreams on ${escapeHtml(src.provider ?? "The Graph Market for Substreams")} · module ` +
     `${escapeHtml(src.module ?? MODULE)}</div>` +
-    `<div>last published <b>${ageText(age)}</b> · the file cannot answer before the first poke, ` +
+    `<div>Last published <b>${ageText(age)}</b> · the file cannot answer before the first poke, ` +
     `between two observations, or depth beyond the touch — four uint64 are a touch, not a book.</div>`;
 }
 
