@@ -77,7 +77,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 32px 28px 96px; }
 
 /* The profile the chip opens: above the tabs' panels because it belongs to no tab. */
 #profile { border: 1px solid var(--line); border-radius: 3px; background: #0b0f16;
-  padding: 18px 20px 14px; margin: 14px 0 0; }
+  padding: 18px 20px 14px; margin: 14px 0 44px; scroll-margin-top: 96px; }
 #profile .you-cells { margin: 0; }
 #profile .you-cells .cell { background: #0b0f16; }
 .profile-acts { margin-top: 14px; }
@@ -87,10 +87,10 @@ main { max-width: 1080px; margin: 0 auto; padding: 32px 28px 96px; }
 #floor-error { color: var(--loss); font-size: 12px; margin: 0 0 12px; }
 
 /* ---- the statement ---- */
-.statement { margin: 64px 0 56px; max-width: 880px; }
+.statement { margin: 64px 0 32px; }
 .statement p {
   margin: 0; font: 400 clamp(26px, 4.4vw, 44px)/1.22 var(--serif);
-  letter-spacing: -0.015em; text-wrap: balance;
+  letter-spacing: -0.015em; text-wrap: balance; max-width: 880px;
 }
 .statement p em { font-style: italic; font-weight: 400; }
 .statement .kicker { font: 11px var(--mono); text-transform: uppercase; letter-spacing: 0.22em;
@@ -351,14 +351,14 @@ a .rc-dot { cursor: pointer; }
 /* Two classes on purpose: `.statement p` outranks a bare `.statement-sub` and would blow the
    subtitle up to the headline's clamp — that is exactly the failure this rule exists to beat. */
 .statement .statement-sub { font: italic 400 clamp(16px, 1.9vw, 19px)/1.55 var(--serif);
-  color: var(--muted); letter-spacing: 0; margin: 20px 0 0; }
+  color: var(--muted); letter-spacing: 0; margin: 18px 0 0; max-width: 880px; }
 
 /* ---- the live line, and the three doors ---- */
 /* Same trap as `.statement-sub`, one paragraph up: inside the statement, `.statement p` outranks a
    bare class and would blow this line up to the headline's clamp. It carries its own font, and it
    collapses while the chain is still being read so the statement never opens with a hole. */
-.statement .hero-live { font: 15px/1.6 var(--mono); letter-spacing: 0; color: var(--muted);
-  margin: 24px 0 4px; }
+.statement .hero-live { font: 13.5px/1.6 var(--mono); letter-spacing: 0; color: var(--muted);
+  margin: 14px 0 0; max-width: none; }
 .statement .hero-live:empty { display: none; }
 
 .doors { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin: 44px 0 52px; }
@@ -399,13 +399,13 @@ a .rc-dot { cursor: pointer; }
 /* The same box the action block uses, one step earlier in the page: it is what a visitor with
    no wallet sees first, and it disappears the moment there is a session. */
 .invite { border: 1px solid var(--line); border-radius: 3px; padding: 22px 24px 18px;
-  margin: 0 0 44px; background: #0b0f16; }
+  margin: 0 0 44px; background: #0b0f16; scroll-margin-top: 96px; }
 .invite .signin { margin-top: 16px; }
-.you-lede { color: var(--ink); font-size: 13px; line-height: 1.7; margin: 0; max-width: 70ch; }
+.you-lede { color: var(--ink); font-size: 13px; line-height: 1.7; margin: 0; }
 /* The steps carry their own numerals: a list a visitor reads before deciding to sign in has to
    look like a sequence, not like prose that happens to be indented. */
 .you-steps { list-style: none; counter-reset: step; margin: 12px 0 0; padding: 0;
-  display: grid; gap: 7px; max-width: 76ch; }
+  display: grid; gap: 7px; }
 .you-steps li { counter-increment: step; position: relative; padding-left: 26px;
   color: var(--muted); font-size: 12.5px; line-height: 1.65; }
 .you-steps li::before { content: counter(step); position: absolute; left: 0; top: 0;
@@ -473,8 +473,8 @@ table.desks td.rt-bad { color: var(--loss); }
   line-height: 1.65; }
 .try .why b { color: var(--ink); font-weight: 500; }
 .signin { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
-.signin input { width: 17.5em; }
-.signin input#signin-code { width: 9em; letter-spacing: 0.18em; }
+.signin input { width: 26em; max-width: 100%; }
+.signin input#signin-code { width: 13em; letter-spacing: 0.18em; }
 .signin .who { color: var(--desk); }
 .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 14px 0 4px; }
 .controls input { width: 8em; }
