@@ -340,12 +340,12 @@ function renderVerdict(view, best) {
   ui.liveHead.textContent = "";
   if (toll && toll.usd > 0.005) {
     ui.live.innerHTML =
-      `· nothing to take in this block — a baseline curve on the same reserves leaks ` +
+      `· nothing to take from this desk — a baseline curve on the same reserves leaks ` +
       `<b class="loss">+$${toll.usd.toFixed(2)} · +${toll.bps.toFixed(1)} bps</b>`;
   } else if (toll) {
-    ui.live.innerHTML = `· nothing to take in this block, and nothing from a baseline curve either`;
+    ui.live.innerHTML = `· nothing to take from this desk, and nothing from a baseline curve either`;
   } else {
-    ui.live.innerHTML = `· nothing to take in this block — reserves too thin to quote a curve against`;
+    ui.live.innerHTML = `· nothing to take from this desk — reserves too thin to quote a curve against`;
   }
 }
 
