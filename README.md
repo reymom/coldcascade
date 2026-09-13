@@ -16,6 +16,7 @@ keeper turn it into a record nobody else on this chain can query.
 | **Live** | [coldcascade.vercel.app](https://coldcascade.vercel.app) — four tabs, reads chain 999 every block |
 | **Chain** | HyperEVM mainnet (999), on the Aqua and `AquaSwapVMRouter` contracts 1inch has in production |
 | **Suite** | `forge test`: 165 passed, 3 skipped, compiler pinned so every gas figure reproduces |
+| **Package** | [`coldcascade@v0.1.0`](https://substreams.dev/packages/coldcascade/v0.1.0) on substreams.dev — `substreams gui coldcascade@v0.1.0` runs it without cloning this repo |
 | **Event** | ETHOnline 2026, From Scratch. Every number below has the command that reproduces it beside it |
 
 ## Where to look
@@ -24,7 +25,7 @@ keeper turn it into a record nobody else on this chain can query.
 |---|---|---|
 | **1inch** — an Aqua app with a SwapVM instruction that reads an order book | [`src/CoreQuote.sol`](src/CoreQuote.sol) · [`src/libs/DeskPrograms.sol`](src/libs/DeskPrograms.sol) · the clamp on mainnet, [`0xfaf1b6c6…dab20`](https://hyperevmscan.io/tx/0xfaf1b6c68aeae9eaed9ff49acc54d0ac7081f1537b602f5609679238c22dab20) · [`test/Inarbitrable.t.sol`](test/Inarbitrable.t.sol) · [`test/fork/OfficialRouter.fork.t.sol`](test/fork/OfficialRouter.fork.t.sol) | **The Desk** |
 | **Privy** — a taker from an email address or a Discord account, and a server wallet that can hedge and nothing else | [`api/faucet.mjs`](api/faucet.mjs) · [`keeper/policy.json`](keeper/policy.json) · [`keeper/hedge-policy.json`](keeper/hedge-policy.json) · [`script/hedge-check.mjs`](script/hedge-check.mjs) · the unattended cover, [`0x932aeaa5…e6b7`](https://hyperevmscan.io/tx/0x932aeaa549b09de47a819287f6cbf77a327046164a38cbee5c228ed26207e6b7) · [`FEEDBACK-PRIVY.md`](FEEDBACK-PRIVY.md) | **The Keys** |
-| **The Graph** — Substreams on The Graph Market, a keeper that writes back to the chain, an MCP server | [`substreams/`](substreams/) · [`keeper/coldcascade/markouts.py`](keeper/coldcascade/markouts.py) · [`mcp/`](mcp/) and its [`SKILL.md`](mcp/SKILL.md) · [`results/markouts.json`](results/markouts.json) | **The Record** |
+| **The Graph** — Substreams on The Graph Market, a keeper that writes back to the chain, an MCP server | [`substreams/`](substreams/) · [`keeper/coldcascade/markouts.py`](keeper/coldcascade/markouts.py) · [`mcp/`](mcp/) and its [`SKILL.md`](mcp/SKILL.md) · [`results/markouts.json`](results/markouts.json) · the published package, [`coldcascade@v0.1.0`](https://substreams.dev/packages/coldcascade/v0.1.0) · a walkthrough of this half, [3:42](https://youtu.be/LE8oZgq7Oeg) | **The Record** |
 | the mechanism in 54 seconds, on the real 10 October 2025 tape | [`film/`](film/) | **The Cascade** |
 | the measurements | [`results/`](results/) and [`docs/evidence.md`](docs/evidence.md) | — |
 | what it does **not** claim | [*What this does not answer yet*](#what-this-does-not-answer-yet) | the *questions* under each tab |
